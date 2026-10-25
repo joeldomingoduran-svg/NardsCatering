@@ -64,6 +64,8 @@ schemaReady.then(() => {
 });
 
 app.use(async (req, res, next) => {
+  const wantsPage = req.method === 'GET' && (req.headers.accept || '').includes('text/html');
+  if (wantsPage) return next();
   try {
     await schemaReady;
     next();
