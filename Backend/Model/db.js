@@ -1,9 +1,7 @@
 const { Pool } = require('pg');
 
 const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error('DATABASE_URL is required. Add the Supabase PostgreSQL connection string to .env.');
-}
+const missingUrlError = 'DATABASE_URL is not set. Add the Supabase Session pooler connection string to the environment variables.';
 
 const pool = new Pool({
   connectionString,
@@ -61,6 +59,7 @@ function prepareQuery(text) {
 }
 
 async function execute(client, text, values = []) {
+  if (!connectionString) throw new Error(missingUrlError);
   const sql = prepareQuery(text);
   let result;
   try {
@@ -80,6 +79,7 @@ async function execute(client, text, values = []) {
 
 pool.query = (text, values) => execute({ query: queryPool }, text, values);
 pool.getConnection = async () => {
+  if (!connectionString) throw new Error(missingUrlError);
   const client = await pool.connect();
   return {
     query: (text, values) => execute(client, text, values),

@@ -68,7 +68,8 @@ app.use(async (req, res, next) => {
     await schemaReady;
     next();
   } catch (error) {
-    res.status(503).json({ error: 'Database schema is still initializing. Please try again.' });
+    console.error('Database not ready:', error.message);
+    res.status(503).json({ error: `Database is not ready: ${error.message}` });
   }
 });
 

@@ -2,7 +2,7 @@ const pool = require('../Model/db');
 const { writeAudit } = require('../Model/audit');
 const { isRealName } = require('../Model/validators');
 const { validatePhilippineAddress } = require('../Model/address');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_missing_key');
 
 const TERMS_VERSION = '2026-10-15';
 
