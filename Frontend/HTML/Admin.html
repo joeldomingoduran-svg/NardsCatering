@@ -1,0 +1,610 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nards Catering â€” Admin Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/Admin.css">
+<link rel="stylesheet" href="/vendor/sweetalert2/sweetalert2.min.css">
+</head>
+<body>
+
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-title">NARDS</div>
+    <div class="logo-sub">Catering</div>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-label">Main</div>
+    <button class="nav-item active" onclick="navigate('dashboard')"><span class="icon">ðŸ </span> Dashboard</button>
+    <button class="nav-item" onclick="navigate('bookings')"><span class="icon">ðŸ“‹</span> Bookings</button>
+    <button class="nav-item" onclick="navigate('calendar')"><span class="icon">ðŸ“…</span> Calendar</button>
+    <div class="nav-label">Operations</div>
+    <button class="nav-item" onclick="navigate('inventory')"><span class="icon">ðŸ§‚</span> Inventory</button>
+    <button class="nav-item" onclick="navigate('menu')"><span class="icon">ðŸ½ï¸</span> Menu Packages</button>
+    <button class="nav-item" onclick="navigate('assets')"><span class="icon">ðŸª‘</span> Catering Assets</button>
+    <button class="nav-item" onclick="navigate('dishes')"><span class="icon">ðŸœ</span> Dishes</button>
+    <div class="nav-label">Business</div>
+    <button class="nav-item" onclick="navigate('clients')"><span class="icon">ðŸ‘¥</span> Client Records</button>
+    <button class="nav-item" onclick="navigate('reports')"><span class="icon">ðŸ“Š</span> Reports</button>
+  </div>
+  <div class="sidebar-footer">Â© 2026 Nards Catering</div>
+</nav>
+
+
+<div class="main">
+  <div class="topbar">
+    <div class="page-title" id="pageTitle">Dashboard</div>
+    <div class="topbar-actions">
+      <button class="btn btn-outline btn-sm" onclick="navigate('bookings'); openBookingModal()">+ New Booking</button>
+      <button class="btn btn-primary btn-sm" onclick="navigate('inventory'); openIngredientModal()">+ Add Ingredient</button>
+      
+      <button class="btn-notif-bell" id="notif-bell-btn" onclick="openEventNotifications()" title="Event Notifications">
+        ðŸ”” <span class="notif-bell-dot" id="notif-bell-dot" style="display:none"></span>
+      </button>
+      
+      <button class="btn-logout" onclick="logout()">ðŸ”“ Logout</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    
+    <div class="view active" id="view-dashboard">
+
+      
+      <div id="event-alert-banner" style="display:none" class="event-alert-banner"></div>
+
+      
+      <div class="stats-grid stats-grid-6">
+        <div class="stat-card stat-accent">
+          <div class="stat-label">Total Bookings</div>
+          <div class="stat-value" id="stat-bookings">0</div>
+          <div class="stat-sub">All time</div>
+        </div>
+        <div class="stat-card stat-accent">
+          <div class="stat-label">This Month Revenue</div>
+          <div class="stat-value" id="stat-revenue">â‚±0</div>
+          <div class="stat-sub">Confirmed events</div>
+        </div>
+        <div class="stat-card stat-accent">
+          <div class="stat-label">Low Stock Items</div>
+          <div class="stat-value" id="stat-lowstock">0</div>
+          <div class="stat-sub">Need restocking</div>
+        </div>
+        <div class="stat-card stat-accent stat-today" onclick="navigate('calendar')">
+          <div class="stat-label">Today's Events</div>
+          <div class="stat-value" id="stat-today">0</div>
+          <div class="stat-sub">Confirmed today</div>
+        </div>
+        <div class="stat-card stat-accent stat-upcoming-card" onclick="navigate('calendar')">
+          <div class="stat-label">Upcoming Events</div>
+          <div class="stat-value" id="stat-upcoming">0</div>
+          <div class="stat-sub">Next 30 days</div>
+        </div>
+        <div class="stat-card stat-accent">
+          <div class="stat-label">Pending Bookings</div>
+          <div class="stat-value" id="stat-pending">0</div>
+          <div class="stat-sub">Awaiting confirmation</div>
+        </div>
+      </div>
+
+      
+      <div class="dash-grid-3">
+        <div class="card">
+          <div class="card-title">ðŸ“‹ Recent Bookings</div>
+          <div class="recent-list" id="dash-recent-bookings">
+            <div class="empty-state"><div class="empty-icon">ðŸ“‹</div><p>No bookings yet</p></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">ðŸ“… Today's Confirmed Events</div>
+          <div class="recent-list" id="dash-today-events">
+            <div class="empty-state"><div class="empty-icon">ðŸ“…</div><p>No events scheduled today</p></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">ðŸ”” Upcoming Confirmed Events</div>
+          <div class="recent-list" id="dash-upcoming-events">
+            <div class="empty-state"><div class="empty-icon">ðŸ””</div><p>No upcoming events</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-grid" style="margin-top:20px">
+        <div class="card">
+          <div class="card-title">ðŸ“Š Event Status Summary</div>
+          <div id="dash-status-summary" class="recent-list">
+            <div class="empty-state"><div class="empty-icon">ðŸ“Š</div><p>Loading...</p></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">ðŸš¨ Low Stock Alerts</div>
+          <div class="recent-list" id="dash-low-stock">
+            <div class="empty-state"><div class="empty-icon">âœ…</div><p>All ingredients well stocked</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="view" id="view-bookings">
+      <div class="section-header">
+        <h2>Booking Management</h2>
+        <button class="btn btn-primary" onclick="openBookingModal()">+ New Booking</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="booking-search" placeholder="Search by client name or event..." oninput="renderBookings()">
+        <select id="booking-filter" onchange="renderBookings()">
+          <option value="">All Status</option>
+          <option value="Pending">Pending</option>
+          <option value="Confirmed">Confirmed</option>
+          <option value="Cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Booking ID</th><th>Client</th><th>Event Type</th><th>Date</th><th>Guests</th><th>Package</th><th>Total</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="bookings-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="view" id="view-inventory">
+      <div class="section-header">
+        <h2>Ingredient Inventory</h2>
+        <button class="btn btn-primary" onclick="openIngredientModal()">+ Add Ingredient</button>
+      </div>
+      <div id="inv-alerts"></div>
+      <div class="search-bar">
+        <input type="text" id="inv-search" placeholder="Search ingredients..." oninput="renderInventory()">
+        <select id="inv-filter" onchange="renderInventory()">
+          <option value="">All Status</option>
+          <option value="good">Good Stock</option>
+          <option value="low">Low Stock</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Ingredient</th><th>Category</th><th>Current Stock</th><th>Unit</th><th>Min Required</th><th>Stock Level</th><th>Status</th><th>Last Updated</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="inventory-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="view" id="view-menu">
+      <div class="section-header">
+        <h2>Menu Packages</h2>
+        <button class="btn btn-primary" onclick="openMenuModal()">+ Add Package</button>
+      </div>
+      <div id="menu-cards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;"></div>
+    </div>
+
+    
+    <div class="view" id="view-assets">
+      <div class="section-header">
+        <h2>Catering Assets</h2>
+        <button class="btn btn-primary" onclick="openAssetModal()">+ Add Asset</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="asset-search" placeholder="Search assets..." oninput="renderAssets()">
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Asset Name</th><th>Quantity</th><th>Unit</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="assets-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="view" id="view-dishes">
+      <div class="section-header">
+        <h2>Dish Management</h2>
+        <button class="btn btn-primary" onclick="openDishModal()">+ Add Dish</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="dish-search" placeholder="Search dishes..." oninput="renderDishes()">
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Dish Name</th><th>Category</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="dishes-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="view" id="view-clients">
+      <div class="section-header">
+        <h2>Client Records</h2>
+        <button class="btn btn-primary" onclick="openClientModal()">+ Add Client</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="client-search" placeholder="Search clients..." oninput="renderClients()">
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Client</th><th>Phone</th><th>Email</th><th>Completed Events</th><th>Total Paid</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="clients-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="view" id="view-calendar">
+      <div class="section-header">
+        <h2>Booking Calendar</h2>
+      </div>
+      <div class="cal-layout">
+        
+        <div class="cal-card">
+          <div class="cal-nav">
+            <button class="btn btn-outline btn-sm" onclick="calPrevMonth()">&lsaquo;</button>
+            <span id="cal-month-label" style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--dark)"></span>
+            <button class="btn btn-outline btn-sm" onclick="calNextMonth()">&rsaquo;</button>
+          </div>
+          <div class="cal-grid" id="cal-grid"></div>
+          <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text)"><span class="cal-dot dot-confirmed" style="width:10px;height:10px"></span>Confirmed</span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text)"><span class="cal-dot dot-pending"   style="width:10px;height:10px"></span>Pending</span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text)"><span class="cal-dot dot-completed" style="width:10px;height:10px"></span>Completed</span>
+          </div>
+        </div>
+        
+        <div class="card" id="cal-detail" style="min-width:280px;max-width:340px">
+          <div class="card-title" id="cal-detail-title" style="font-size:15px">Select a date</div>
+          <div id="cal-detail-list"><p style="font-size:13px;color:var(--text-muted)">Click any date with a dot to see bookings.</p></div>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="view" id="view-reports">
+      <div class="section-header"><h2>Business Reports</h2></div>
+      <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat-card stat-accent"><div class="stat-label">Total Revenue</div><div class="stat-value" id="rep-total-rev">â‚±0</div></div>
+        <div class="stat-card stat-accent"><div class="stat-label">Completed Events</div><div class="stat-value" id="rep-completed">0</div></div>
+        <div class="stat-card stat-accent"><div class="stat-label">Avg. Per Event</div><div class="stat-value" id="rep-avg">â‚±0</div></div>
+      </div>
+      <div class="dash-grid" style="margin-top:0">
+        <div class="card"><div class="card-title">ðŸ“ˆ Bookings by Event Type</div><div id="rep-by-type"></div></div>
+        <div class="card"><div class="card-title">ðŸ“¦ Stock Summary</div><div id="rep-stock"></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="event-notification-modal">
+  <div class="modal event-notif-modal" style="width:580px;max-width:95vw">
+    <div class="modal-title">
+      <span>ðŸ—“ï¸ Event Notifications</span>
+      <button class="modal-close" onclick="closeModal('event-notification-modal')">âœ•</button>
+    </div>
+
+    
+    <div id="notif-today-section">
+      <div class="notif-section-header notif-today-hdr">
+        <span class="notif-section-icon">ðŸ“…</span>
+        <span>Today's Events</span>
+        <span class="notif-badge" id="notif-today-count">0</span>
+      </div>
+      <div id="notif-today-list" class="notif-event-list">
+        <div class="notif-empty">No confirmed events today.</div>
+      </div>
+    </div>
+
+    
+    <div id="notif-upcoming-section" style="margin-top:20px">
+      <div class="notif-section-header notif-upcoming-hdr">
+        <span class="notif-section-icon">ðŸ””</span>
+        <span>Upcoming Events (Next 30 Days)</span>
+        <span class="notif-badge notif-badge-upcoming" id="notif-upcoming-count">0</span>
+      </div>
+      <div id="notif-upcoming-list" class="notif-event-list">
+        <div class="notif-empty">No upcoming confirmed events.</div>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:24px">
+      <button class="btn btn-outline" onclick="closeModal('event-notification-modal')">Dismiss</button>
+      <button class="btn btn-primary" onclick="closeModal('event-notification-modal');navigate('bookings')">View All Bookings</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="booking-modal">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="booking-modal-title">New Booking</span>
+      <button class="modal-close" onclick="closeModal('booking-modal')">âœ•</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>Client Name *</label><input id="bk-client" type="text" placeholder="Juan dela Cruz"></div>
+      <div class="form-group"><label>Contact Number *</label><input id="bk-phone" type="tel" placeholder="+63 912 345 6789"></div>
+      <div class="form-group"><label>Email</label><input id="bk-email" type="email" placeholder="juan@email.com"></div>
+      <div class="form-group"><label>Event Type *</label>
+        <select id="bk-event">
+          <option value="">Select event...</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Event Date *</label><input id="bk-date" type="date"></div>
+      <div class="form-group"><label>Event Time</label><input id="bk-time" type="time"></div>
+      <div class="form-group"><label>Number of Guests *</label><input id="bk-guests" type="number" min="1" placeholder="100"></div>
+      <div class="form-group"><label>Package</label><select id="bk-package"><option value="">Select package...</option></select></div>
+      <div class="form-group"><label>Venue</label><input id="bk-venue" type="text" placeholder="Event venue address"></div>
+      <div class="form-group"><label>Total Amount (â‚±) *</label><input id="bk-amount" type="number" min="0" placeholder="25000"></div>
+      <div class="form-group"><label>Down Payment (â‚±)</label><input id="bk-dp" type="number" min="0" placeholder="5000"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="bk-status"><option>Pending</option><option>Confirmed</option><option>Completed</option><option>Cancelled</option></select>
+      </div>
+      <div class="form-group full"><label>Special Notes</label><textarea id="bk-notes" placeholder="Dietary restrictions, special requests, etc."></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('booking-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBooking()">Save Booking</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal" style="width:620px">
+    <div class="modal-title">
+      <span>Booking Confirmation</span>
+      <button class="modal-close" onclick="closeModal('confirm-modal')">âœ•</button>
+    </div>
+    <div class="booking-steps">
+      <div class="bs-step done"><div class="bs-dot">âœ“</div>Details</div>
+      <div class="bs-step done"><div class="bs-dot">âœ“</div>Package</div>
+      <div class="bs-step active"><div class="bs-dot">3</div>Confirmed</div>
+    </div>
+    <div class="confirm-box" id="confirm-box-content"></div>
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn btn-outline" onclick="closeModal('confirm-modal')">Close</button>
+      <button class="btn btn-primary" onclick="window.print()">ðŸ–¨ï¸ Print / Save PDF</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="ingredient-modal">
+  <div class="modal" style="width:480px">
+    <div class="modal-title">
+      <span id="ing-modal-title">Add Ingredient</span>
+      <button class="modal-close" onclick="closeModal('ingredient-modal')">âœ•</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>Ingredient Name *</label><input id="ing-name" type="text" placeholder="e.g. Chicken Breast"></div>
+      <div class="form-group"><label>Category</label>
+        <select id="ing-cat">
+          <option>Meat & Poultry</option><option>Seafood</option><option>Vegetables</option>
+          <option>Dairy</option><option>Grains & Rice</option><option>Spices & Condiments</option>
+          <option>Beverages</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Current Stock *</label><input id="ing-stock" type="number" min="0" step="1" placeholder="50"></div>
+      <div class="form-group"><label>Unit</label>
+        <select id="ing-unit"><option>kg</option><option>g</option><option>L</option><option>mL</option><option>pcs</option><option>sacks</option><option>boxes</option><option>cans</option></select>
+      </div>
+      <div class="form-group"><label>Minimum Required *</label><input id="ing-min" type="number" min="0" step="1" placeholder="10"></div>
+      <div class="form-group"><label>Good Stock Level</label><input id="ing-good" type="number" min="0" step="1" placeholder="50"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('ingredient-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveIngredient()">Save Ingredient</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="menu-modal">
+  <div class="modal" style="width:640px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title">
+      <span id="mn-modal-title">Add Menu Package</span>
+      <button class="modal-close" onclick="closeModal('menu-modal')">âœ•</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Package Name *</label><input id="mn-name" type="text" placeholder="e.g. Gold Package"></div>
+      <div class="form-group"><label>Price for Package (â‚±) *</label><input id="mn-price" type="number" min="0" placeholder="25000"></div>
+      <div class="form-group"><label>Min. Guests</label><input id="mn-min" type="number" min="0" placeholder="50"></div>
+    </div>
+
+    
+    <div style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <label style="font-weight:600;font-size:13px;color:var(--dark)">Package Assets</label>
+        <button class="btn btn-outline btn-sm" type="button" onclick="addAssetRow()">+ Add Asset</button>
+      </div>
+      <div id="mn-assets-container" style="max-height:160px;overflow-y:auto"></div>
+      <div id="mn-assets-empty" style="font-size:13px;color:var(--text-muted);padding:6px 0">No assets added yet.</div>
+    </div>
+
+    
+    <div style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <label style="font-weight:600;font-size:13px;color:var(--dark)">ðŸ½ï¸ Dishes / Menu Items</label>
+        <button class="btn btn-outline btn-sm" type="button" onclick="addDishRow()">+ Add Dish</button>
+      </div>
+      <div id="mn-dishes-container" style="max-height:160px;overflow-y:auto"></div>
+      <div id="mn-dishes-empty" style="font-size:13px;color:var(--text-muted);padding:6px 0">No dishes added yet.</div>
+    </div>
+
+    
+    <div class="freebies-section" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <label style="font-weight:700;font-size:13px;color:var(--gold-dark)">â­ Freebies / Inclusions</label>
+        <button class="btn btn-sm" type="button" onclick="addFreebieRow()" style="background:var(--gold);color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">+ Add Freebie</button>
+      </div>
+      <div id="mn-freebies-container"></div>
+      <div id="mn-freebies-empty" style="font-size:13px;color:var(--text-muted);padding:6px 0">No freebies added yet.</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('menu-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMenu()">Save Package</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="asset-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-title">
+      <span id="asset-modal-title">Add Catering Asset</span>
+      <button class="modal-close" onclick="closeModal('asset-modal')">âœ•</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Asset Name *</label><input id="ast-name" type="text" placeholder="e.g. Round Table, Monobloc Chair"></div>
+      <div class="form-group"><label>Quantity *</label><input id="ast-qty" type="number" min="0" placeholder="50"></div>
+      <div class="form-group"><label>Unit</label>
+        <select id="ast-unit">
+          <option value="pcs">pcs</option>
+          <option value="sets">sets</option>
+          <option value="units">units</option>
+          <option value="tables">tables</option>
+          <option value="chairs">chairs</option>
+          <option value="rolls">rolls</option>
+          <option value="boxes">boxes</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('asset-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAsset()">Save Asset</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="dish-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-title">
+      <span id="dish-modal-title">Add Dish</span>
+      <button class="modal-close" onclick="closeModal('dish-modal')">âœ•</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Dish Name *</label><input id="dsh-name" type="text" placeholder="e.g. Lechon Baboy"></div>
+      <div class="form-group full"><label>Category</label>
+        <select id="dsh-cat">
+          <option value="Main Course">Main Course</option>
+          <option value="Pasta">Pasta</option>
+          <option value="Soup">Soup</option>
+          <option value="Salad">Salad</option>
+          <option value="Dessert">Dessert</option>
+          <option value="Bread">Bread</option>
+          <option value="Beverage">Beverage</option>
+          <option value="Rice">Rice</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('dish-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDish()">Save Dish</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="dish-ingredients-modal">
+  <div class="modal" style="width:640px;max-width:95vw">
+    <div class="modal-title">
+      <span id="dish-ing-modal-title">Dish Ingredients</span>
+      <button class="modal-close" onclick="closeModal('dish-ingredients-modal')">âœ•</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 10px">
+      Set required ingredients per package. Inventory stock will be deducted when a booking is marked Confirmed.
+    </p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <strong style="font-size:13px;color:var(--dark)">Ingredient Requirements</strong>
+      <button class="btn btn-outline btn-sm" type="button" onclick="addDishIngredientRow()">+ Add Ingredient</button>
+    </div>
+    <div id="dish-ing-container" style="max-height:260px;overflow-y:auto"></div>
+    <div id="dish-ing-empty" style="font-size:13px;color:var(--text-muted);padding:6px 0">No ingredients assigned.</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('dish-ingredients-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDishIngredients()">Save Ingredients</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="client-modal">
+  <div class="modal" style="width:480px">
+    <div class="modal-title">
+      <span id="cl-modal-title">Add Client</span>
+      <button class="modal-close" onclick="closeModal('client-modal')">âœ•</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Full Name *</label><input id="cl-name" type="text"></div>
+      <div class="form-group"><label>Phone *</label><input id="cl-phone" type="tel"></div>
+      <div class="form-group"><label>Email</label><input id="cl-email" type="email"></div>
+      <div class="form-group full"><label>Address</label><input id="cl-addr" type="text"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('client-modal')">Cancel</button>
+      <button class="btn btn-primary" id="cl-save-btn" onclick="saveClient()">Save Client</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="restock-modal">
+  <div class="modal" style="width:380px">
+    <div class="modal-title">
+      <span>Restock Ingredient</span>
+      <button class="modal-close" onclick="closeModal('restock-modal')">âœ•</button>
+    </div>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px">Adding stock to: <strong id="restock-name"></strong></p>
+    <div class="form-group">
+      <label>Add Quantity</label>
+      <input id="restock-qty" type="number" min="1" step="1" placeholder="Enter amount to add">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('restock-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmRestock()">Add Stock</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="notif" id="notif">
+  <span id="notif-icon">âœ…</span>
+  <span id="notif-msg">Saved!</span>
+</div>
+
+
+
+<script src="/js/Admin.js"></script></body>
+</html>
+
+

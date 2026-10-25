@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nard's Catering and Setup — Customer Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400;1,600&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/Customer/Style.css">
+<style>
+  :root{
+    --auth-gold:#C9963A;
+    --auth-gold-light:#F5E6CC;
+    --auth-gold-dark:#8A6320;
+    --auth-cream:#FBF7F0;
+    --auth-espresso:#1A1208;
+    --auth-espresso-light:#2E1F0A;
+    --auth-brown:#3A2D1A;
+    --auth-muted:#7A6A52;
+    --auth-border:#E5D5B5;
+    --auth-khaki:#B7A67A;
+    --auth-khaki-light:#E7DEC6;
+  }
+  body{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:96px 20px 40px;
+    background-color:var(--auth-espresso);
+    background-image:radial-gradient(ellipse 70% 60% at 15% 10%,rgba(201,150,58,.16),transparent 72%),radial-gradient(ellipse 55% 65% at 95% 90%,rgba(183,166,122,.12),transparent 74%),repeating-linear-gradient(135deg,rgba(255,255,255,.018) 0,rgba(255,255,255,.018) 1px,transparent 1px,transparent 8px);
+    color:var(--auth-cream);
+  }
+  .auth-page-logo{
+    position:fixed;
+    top:28px;
+    left:36px;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    font-family:'Cormorant Garamond',serif;
+    color:var(--auth-cream);
+    z-index:10;
+  }
+  .auth-logo-name{ font-size:2rem; font-weight:700; line-height:1; }
+  .auth-logo-name span{ color:var(--auth-gold); }
+  .auth-logo-tagline{
+    margin-top:5px;
+    color:var(--auth-khaki);
+    font-family:'Jost',sans-serif;
+    font-size:9.5px;
+    font-weight:600;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+  }
+
+  .auth-wrap{
+    width:100%;
+    max-width:460px;
+    background:linear-gradient(145deg,#FFFDF9,var(--auth-cream));
+    border:1px solid rgba(201,150,58,.3);
+    border-radius:18px;
+    box-shadow:0 24px 72px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.7);
+    padding:42px 38px 36px;
+    backdrop-filter:blur(18px);
+    animation:fadeUp .7s ease-out both;
+  }
+  .auth-badge{
+    display:inline-flex;align-items:center;gap:8px;padding:6px 16px;
+    background:var(--sand-light);border:1px solid var(--border);border-radius:20px;
+    color:var(--gold-dark);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+    margin-bottom:18px;
+  }
+  .auth-heading{
+    font-family:'Cormorant Garamond',serif;font-size:clamp(28px,4vw,36px);font-weight:700;
+    color:var(--auth-espresso);line-height:1.1;margin-bottom:8px;
+  }
+  .auth-heading em{ font-style:italic; color:var(--auth-gold-dark); }
+  .auth-sub{ color:var(--auth-muted); font-size:14.5px; line-height:1.7; margin-bottom:24px; }
+  .gold-line{ width:56px;height:2.5px;background:linear-gradient(90deg,var(--auth-gold),var(--auth-khaki),transparent);margin:0 0 24px;border-radius:2px; }
+
+  .auth-tabs{ display:flex; gap:10px; margin-bottom:22px; }
+  .auth-tab{
+    flex:1;
+    background:#F2EBDD;
+    border:1px solid var(--auth-border);
+    color:var(--auth-muted);
+    padding:10px 14px;
+    border-radius:999px;
+    cursor:pointer;
+    font-family:'Jost',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    letter-spacing:.5px;
+    text-transform:uppercase;
+    transition:var(--transition);
+  }
+  .auth-tab.active{
+    background:var(--auth-espresso);
+    color:var(--auth-gold-light);
+    border-color:var(--auth-espresso);
+    box-shadow:0 5px 16px rgba(26,18,8,.2);
+  }
+
+  .auth-panel{ display:none; }
+  .auth-panel.active{ display:block; animation:fadeIn .3s ease; }
+
+  .auth-form{ display:flex; flex-direction:column; gap:14px; }
+  .auth-form label{
+    font-size:12px;font-weight:600;letter-spacing:.4px;color:var(--auth-muted);
+    text-transform:uppercase;margin-bottom:-8px;
+  }
+  .auth-form input{
+    width:100%;
+    background:#FFFDF9;
+    border:1px solid var(--auth-border);
+    color:var(--auth-espresso);
+    border-radius:var(--radius-sm);
+    padding:13px 14px;
+    font-family:'Jost',sans-serif;
+    font-size:14.5px;
+    transition:var(--transition);
+  }
+  .auth-form input:focus{
+    outline:none;
+    border-color:var(--auth-gold);
+    box-shadow:0 0 0 3px rgba(183,166,122,.2);
+  }
+  .auth-form input::placeholder{ color:#9A8B72; }
+  .auth-form input.error{ border-color:#b3413a; }
+
+  .auth-hint{
+    font-size:11.5px;
+    color:var(--auth-muted);
+    margin-top:-8px;
+    line-height:1.5;
+  }
+
+  .auth-submit{
+    margin-top:6px;
+    border:none;
+    border-radius:var(--radius-sm);
+    background:var(--auth-espresso);
+    color:var(--auth-gold-light);
+    font-family:'Jost',sans-serif;
+    font-weight:600;
+    font-size:14.5px;
+    letter-spacing:.4px;
+    cursor:pointer;
+    padding:14px 16px;
+    color:var(--auth-gold-light);
+    box-shadow:0 7px 20px rgba(0,0,0,.28);
+    transition:var(--transition-bounce);
+  }
+  .auth-submit:hover{ background:var(--auth-espresso-light); transform:translateY(-2px); }
+  .auth-submit:disabled{ opacity:.7; cursor:not-allowed; transform:none; }
+
+  .auth-error{
+    display:none;
+    align-items:center;
+    gap:8px;
+    background:#f6e4e2;
+    border:1px solid #d8a29a;
+    color:#832f26;
+    border-radius:var(--radius-sm);
+    padding:11px 14px;
+    font-size:13px;
+    margin-bottom:16px;
+  }
+  .auth-error.show{ display:flex; }
+  .otp-info{ background:#f3ecdc; border-radius:6px; padding:8px 10px; }
+  .auth-error.limit{ font-weight:600; border-color:#b3413a; color:#b3261e; }
+
+  .auth-back{
+    display:block;
+    text-align:center;
+    margin-top:22px;
+    font-size:12.5px;
+    color:#B6BDB9;
+    letter-spacing:.3px;
+  }
+  .auth-back a{ color:#DDE1DE; font-weight:600; }
+  .auth-back a:hover{ text-decoration:underline; }
+
+  .auth-modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(26,18,8,.68);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:3000;
+    padding:24px;
+  }
+  .auth-modal-overlay.show{ display:flex; }
+  .auth-modal-card{
+    width:100%;
+    max-width:380px;
+    background:var(--auth-cream);
+    border:1px solid rgba(201,150,58,.3);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-lg);
+    padding:36px 32px 32px;
+    text-align:center;
+    animation:fadeUp .4s ease-out both;
+  }
+  .auth-modal-icon{
+    width:56px;
+    height:56px;
+    margin:0 auto 18px;
+    border-radius:50%;
+    background:var(--auth-khaki-light);
+    color:var(--auth-gold-dark);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:26px;
+  }
+  .auth-modal-title{
+    font-family:'Cormorant Garamond',serif;
+    font-size:26px;
+    font-weight:700;
+    color:var(--auth-espresso);
+    margin-bottom:10px;
+  }
+  .auth-modal-text{
+    color:var(--auth-muted);
+    font-size:14px;
+    line-height:1.7;
+    margin-bottom:26px;
+  }
+  .auth-modal-btn{
+    width:100%;
+    border:none;
+    border-radius:var(--radius-sm);
+    background:var(--auth-espresso);
+    color:var(--auth-gold-light);
+    font-family:'Jost',sans-serif;
+    font-weight:600;
+    font-size:14.5px;
+    letter-spacing:.4px;
+    cursor:pointer;
+    padding:14px 16px;
+    box-shadow:var(--shadow-button);
+    transition:var(--transition-bounce);
+  }
+  .auth-modal-btn:hover{ background:var(--auth-espresso-light); transform:translateY(-2px); }
+
+  .auth-wrap{
+    background:linear-gradient(145deg,#FFFDF9,var(--auth-cream));
+  }
+  .auth-tabs{
+    gap:4px;
+    padding:4px;
+    border:1px solid var(--auth-border);
+    border-radius:12px;
+    background:#F2EBDD;
+  }
+  .auth-tab{
+    border-color:transparent;
+    border-radius:8px;
+  }
+  .auth-tab:not(.active):hover{
+    background:var(--auth-khaki-light);
+    color:var(--auth-espresso);
+  }
+  .auth-form input{
+    min-height:48px;
+    border-radius:8px;
+  }
+  .auth-submit,.auth-modal-btn{
+    min-height:48px;
+    border-radius:8px;
+    font-weight:700;
+  }
+  .auth-submit:focus-visible,.auth-modal-btn:focus-visible,.auth-tab:focus-visible,.auth-back a:focus-visible{
+    outline:2px solid var(--auth-khaki);
+    outline-offset:3px;
+  }
+  .auth-modal-icon{
+    background:var(--auth-khaki-light);
+    color:var(--auth-gold-dark);
+  }
+
+  @media(prefers-reduced-motion:reduce){
+    .auth-wrap,.auth-panel.active,.auth-modal-card,.auth-submit,.auth-modal-btn,.auth-tab{ animation:none; transition:none; }
+  }
+
+  @media(max-width:640px){
+    body{ padding:104px 18px 28px; }
+    .auth-page-logo{ top:20px; left:20px; }
+    .auth-logo-name{ font-size:1.75rem; }
+    .auth-wrap{ padding:32px 24px 28px; }
+  }
+</style>
+</head>
+<body>
+
+<a href="/customer" class="auth-page-logo" aria-label="Nard's Catering and Setup home" title="Back to Nard's Catering and Setup">
+  <span class="auth-logo-name">Nard's<span>.</span></span>
+  <span class="auth-logo-tagline">Catering and Setup</span>
+</a>
+
+<div class="auth-wrap">
+  <h1 class="auth-heading">Welcome to <em>Nard's Catering and Setup</em></h1>
+  <p class="auth-sub">Log in or create an account with your Gmail address to book and manage your events.</p>
+  <div class="gold-line"></div>
+
+  <div class="auth-error" id="auth-error">
+    <span>⚠</span>
+    <span id="auth-error-text">Something went wrong.</span>
+  </div>
+
+  <div class="auth-tabs">
+    <button type="button" class="auth-tab active" data-tab="login">Login</button>
+    <button type="button" class="auth-tab" data-tab="signup">Sign Up</button>
+  </div>
+
+  <div id="loginPanel" class="auth-panel active">
+    <form id="loginForm" class="auth-form" autocomplete="off">
+      <label for="loginEmail">Gmail Address</label>
+      <input type="email" id="loginEmail" placeholder="yourname@gmail.com" required>
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" placeholder="Password" required>
+      <button type="submit" class="auth-submit" id="loginSubmitBtn">Login with Gmail</button>
+      <a href="#" id="forgotLink" class="auth-hint" style="text-align:center;margin-top:0">Forgot password?</a>
+    </form>
+  </div>
+
+  <div id="otpPanel" class="auth-panel">
+    <form id="otpForm" class="auth-form" autocomplete="off">
+      <span class="auth-hint" id="otpHint">Enter the 6-digit code sent to your Gmail.</span>
+      <span class="auth-hint otp-info">ℹ️ You can request up to 3 verification codes only (3 wrong tries per code). After that you can sign up or use Forgot Password again in 24 hours.</span>
+      <label for="otpCode">Verification Code</label>
+      <input type="text" id="otpCode" inputmode="numeric" maxlength="6" pattern="\d{6}" placeholder="123456" required>
+      <button type="submit" class="auth-submit" id="otpSubmitBtn">Verify</button>
+      <a href="#" id="resendOtpLink" class="auth-hint" style="text-align:center;margin-top:0">Resend code</a>
+    </form>
+  </div>
+
+  <div id="forgotPanel" class="auth-panel">
+    <form id="forgotForm" class="auth-form" autocomplete="off">
+      <span class="auth-hint">Enter your Gmail and we will email you a reset code.</span>
+      <span class="auth-hint otp-info">ℹ️ You can request up to 3 verification codes only (3 wrong tries per code). After that you can sign up or use Forgot Password again in 24 hours.</span>
+      <label for="forgotEmail">Gmail Address</label>
+      <input type="email" id="forgotEmail" placeholder="yourname@gmail.com" required>
+      <button type="submit" class="auth-submit" id="forgotSubmitBtn">Send Reset Code</button>
+      <a href="#" class="auth-hint backToLogin" style="text-align:center;margin-top:0">Back to login</a>
+    </form>
+  </div>
+
+  <div id="resetPanel" class="auth-panel">
+    <form id="resetForm" class="auth-form" autocomplete="off">
+      <span class="auth-hint">Enter the code from your Gmail and choose a new password.</span>
+      <span class="auth-hint otp-info">ℹ️ You can request up to 3 verification codes only (3 wrong tries per code). After that you can sign up or use Forgot Password again in 24 hours.</span>
+      <label for="resetCode">Reset Code</label>
+      <input type="text" id="resetCode" inputmode="numeric" maxlength="6" pattern="\d{6}" placeholder="123456" required>
+      <label for="resetPassword">New Password</label>
+      <input type="password" id="resetPassword" placeholder="New Password" required>
+      <label for="resetConfirm">Confirm New Password</label>
+      <input type="password" id="resetConfirm" placeholder="Re-enter Password" required>
+      <span class="auth-hint">At least 8 characters with a special character.</span>
+      <button type="submit" class="auth-submit" id="resetSubmitBtn">Reset Password</button>
+      <a href="#" class="auth-hint backToLogin" style="text-align:center;margin-top:0">Back to login</a>
+    </form>
+  </div>
+
+  <div id="signupPanel" class="auth-panel">
+    <form id="signupForm" class="auth-form" autocomplete="off">
+      <label for="signupFirstName">First Name</label>
+      <input type="text" id="signupFirstName" placeholder="First Name" maxlength="40" pattern="[A-Za-z\u00C0-\u00FF][A-Za-z\u00C0-\u00FF'\- ]*" title="Letters only, no numbers" required
+        oninput="this.value=this.value.replace(/[^A-Za-z\u00C0-\u00FF'\- ]/g,'')">
+      <label for="signupLastName">Last Name</label>
+      <input type="text" id="signupLastName" placeholder="Last Name" maxlength="40" pattern="[A-Za-z\u00C0-\u00FF][A-Za-z\u00C0-\u00FF'\- ]*" title="Letters only, no numbers" required
+        oninput="this.value=this.value.replace(/[^A-Za-z\u00C0-\u00FF'\- ]/g,'')">
+      <label for="signupContact">Contact Number</label>
+      <input type="tel" id="signupContact" placeholder="09171234567" inputmode="numeric" maxlength="11" pattern="09\d{9}" title="Exactly 11 digits, starting with 09" required
+        oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)">
+      <label for="signupEmail">Gmail Address</label>
+      <input type="email" id="signupEmail" placeholder="yourname@gmail.com" required>
+      <label for="signupPassword">Password</label>
+      <input type="password" id="signupPassword" placeholder="Create Password" required>
+      <label for="signupConfirmPassword">Confirm Password</label>
+      <input type="password" id="signupConfirmPassword" placeholder="Re-enter Password" required>
+      <span class="auth-hint">Password must be at least 8 characters and include a special character (e.g. ! @ # $).</span>
+      <button type="submit" class="auth-submit" id="signupSubmitBtn">Create Account</button>
+    </form>
+  </div>
+
+  <span class="auth-back">Just browsing? <a href="/customer">Back to homepage</a></span>
+</div>
+
+<div class="auth-modal-overlay" id="signupSuccessModal">
+  <div class="auth-modal-card">
+    <div class="auth-modal-icon">✔</div>
+    <div class="auth-modal-title">Account Verified</div>
+    <p class="auth-modal-text">Your Gmail has been verified. Please log in to continue.</p>
+    <button type="button" class="auth-modal-btn" id="signupSuccessModalBtn">Go to Login</button>
+  </div>
+</div>
+
+<script src="/node_modules/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<script src="/Customer/name-validator.js"></script>
+<script>
+  const CUSTOMER_SESSION_KEY = 'nards_customer_session';
+
+  const tabs = document.querySelectorAll('.auth-tab');
+  const loginPanel = document.getElementById('loginPanel');
+  const signupPanel = document.getElementById('signupPanel');
+  const errorBox = document.getElementById('auth-error');
+  const errorText = document.getElementById('auth-error-text');
+
+  function setActiveTab(tab) {
+    const isLogin = tab === 'login';
+    loginPanel.classList.toggle('active', isLogin);
+    signupPanel.classList.toggle('active', !isLogin);
+    ['otpPanel', 'forgotPanel', 'resetPanel'].forEach((id) => document.getElementById(id).classList.remove('active'));
+    document.querySelector('.auth-tabs').style.display = '';
+    tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+    hideError();
+  }
+
+  let pendingEmail = '';
+  let lastCodesLeft = null;
+  ['otpCode', 'resetCode'].forEach((id) => {
+    const input = document.getElementById(id);
+    input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').slice(0, 6); });
+  });
+  function showStep(panelId, email) {
+    if (email) pendingEmail = email;
+    [loginPanel, signupPanel, document.getElementById('otpPanel'), document.getElementById('forgotPanel'), document.getElementById('resetPanel')]
+      .forEach((p) => p.classList.toggle('active', p.id === panelId));
+    document.querySelector('.auth-tabs').style.display = 'none';
+    hideError();
+  }
+
+  async function postJson(url, body) {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const result = await parseJsonSafely(res);
+    if (!res.ok) { const e = new Error(result.error || 'Request failed.'); e.result = result; throw e; }
+    if (result.codesLeft !== undefined) lastCodesLeft = result.codesLeft;
+    return result;
+  }
+
+  document.querySelectorAll('.backToLogin').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); setActiveTab('login'); }));
+  document.getElementById('forgotLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('forgotEmail').value = document.getElementById('loginEmail').value;
+    showStep('forgotPanel');
+  });
+
+  document.getElementById('otpForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError();
+    const btn = document.getElementById('otpSubmitBtn');
+    btn.disabled = true;
+    try {
+      await postJson('/clients/verify-otp', { email: pendingEmail, code: document.getElementById('otpCode').value.trim() });
+      document.getElementById('otpForm').reset();
+      document.getElementById('loginEmail').value = pendingEmail;
+      setActiveTab('login');
+      showSignupSuccessModal();
+    } catch (err) {
+      handleErr(err);
+    }
+    btn.disabled = false;
+  });
+
+  document.getElementById('resendOtpLink').addEventListener('click', async (e) => {
+    e.preventDefault();
+    hideError();
+    try {
+      await postJson('/clients/resend-otp', { email: pendingEmail });
+      document.getElementById('otpHint').textContent = 'A new code was sent to ' + pendingEmail + '.' + (lastCodesLeft !== null ? ' (' + lastCodesLeft + ' of 3 codes left)' : '');
+    } catch (err) {
+      handleErr(err);
+    }
+  });
+
+  document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError();
+    const email = document.getElementById('forgotEmail').value.trim();
+    const btn = document.getElementById('forgotSubmitBtn');
+    btn.disabled = true;
+    try {
+      await postJson('/clients/forgot-password', { email });
+      showStep('resetPanel', email.toLowerCase());
+    } catch (err) {
+      handleErr(err);
+    }
+    btn.disabled = false;
+  });
+
+  document.getElementById('resetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError();
+    const newPassword = document.getElementById('resetPassword').value;
+    if (newPassword !== document.getElementById('resetConfirm').value) {
+      showError('Passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 8 || !/[^A-Za-z0-9]/.test(newPassword)) {
+      showError('Password must be at least 8 characters long and include a special character.');
+      return;
+    }
+    const btn = document.getElementById('resetSubmitBtn');
+    btn.disabled = true;
+    try {
+      const result = await postJson('/clients/reset-password', { email: pendingEmail, code: document.getElementById('resetCode').value.trim(), newPassword });
+      document.getElementById('resetForm').reset();
+      document.getElementById('loginEmail').value = pendingEmail;
+      setActiveTab('login');
+      Swal.fire({ icon: 'success', title: 'Password updated', text: result.message, position: 'center', confirmButtonText: 'OK', confirmButtonColor: '#3A2D1A' });
+    } catch (err) {
+      handleErr(err);
+    }
+    btn.disabled = false;
+  });
+
+  tabs.forEach((btn) => btn.addEventListener('click', () => setActiveTab(btn.dataset.tab)));
+
+  function handleErr(err) {
+    if (err.result && err.result.limitReached) showLimit(err.message);
+    else showError(err.message);
+  }
+
+  function showError(message) {
+    Swal.fire({ icon: 'error', title: 'Please check', text: message, position: 'center', confirmButtonText: 'OK', confirmButtonColor: '#3A2D1A' });
+  }
+
+  function showLimit(message) {
+    errorText.textContent = message;
+    errorBox.classList.add('show', 'limit');
+    document.querySelectorAll('#otpSubmitBtn, #resendOtpLink, #resetSubmitBtn, #forgotSubmitBtn').forEach((el) => { el.dataset.limited = '1'; });
+  }
+
+  function hideError() {
+    errorBox.classList.remove('show', 'limit');
+  }
+
+  function goToCustomerSite() {
+    window.location.href = '/customer';
+  }
+
+  const signupSuccessModal = document.getElementById('signupSuccessModal');
+
+  function showSignupSuccessModal() {
+    signupSuccessModal.classList.add('show');
+  }
+
+  function hideSignupSuccessModal() {
+    signupSuccessModal.classList.remove('show');
+  }
+
+  document.getElementById('signupSuccessModalBtn').addEventListener('click', () => {
+    hideSignupSuccessModal();
+    setActiveTab('login');
+  });
+
+  async function parseJsonSafely(res) {
+    const raw = await res.text();
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      throw new Error('Cannot reach the backend. Start the Node server and try again.');
+    }
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+
+    if (!email || !/^[^\s@]+@gmail\.com$/i.test(email)) {
+      showError('Please enter a valid Gmail address.');
+      return;
+    }
+
+    const btn = document.getElementById('loginSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Signing in...';
+
+    try {
+      const res = await fetch('/clients/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const result = await parseJsonSafely(res);
+      if (!res.ok) {
+        if (result.requiresOtp) {
+          showStep('otpPanel', result.email || email.toLowerCase());
+          document.getElementById('otpHint').textContent = 'Your account is not verified. Enter the code sent to your Gmail, or resend it.';
+          btn.disabled = false;
+          btn.textContent = 'Login with Gmail';
+          return;
+        }
+        throw new Error(result.error || 'Login failed.');
+      }
+
+      sessionStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(result.client));
+      goToCustomerSite();
+    } catch (err) {
+      showError(err.message || 'Unable to connect to the server. Please try again.');
+      btn.disabled = false;
+      btn.textContent = 'Login with Gmail';
+    }
+  });
+
+  document.getElementById('signupForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError();
+    const firstName = document.getElementById('signupFirstName').value.trim().replace(/\s+/g, ' ');
+    const lastName = document.getElementById('signupLastName').value.trim().replace(/\s+/g, ' ');
+    const name = firstName + ' ' + lastName;
+    const contact = document.getElementById('signupContact').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const confirmPassword = document.getElementById('signupConfirmPassword').value;
+
+    const namePart = /^[A-Za-z\u00C0-\u00FF][A-Za-z\u00C0-\u00FF'\- ]*$/;
+    if (!namePart.test(firstName) || !namePart.test(lastName)) {
+      showError('First name and last name must contain letters only (no numbers).');
+      return;
+    }
+    if (!window.isRealName(name)) {
+      showError('Please enter your real first and last name. Random letters are not accepted.');
+      return;
+    }
+    if (!/^09\d{9}$/.test(contact)) {
+      showError('Contact number must be exactly 11 digits (e.g. 09171234567).');
+      return;
+    }
+    if (!/^[^\s@]+@gmail\.com$/i.test(email)) {
+      showError('Please use a valid Gmail address.');
+      return;
+    }
+    if (password.length < 8 || !/[^A-Za-z0-9]/.test(password)) {
+      showError('Password must be at least 8 characters long and include a special character.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      showError('Passwords do not match.');
+      return;
+    }
+
+    const btn = document.getElementById('signupSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Creating account...';
+
+    try {
+      const res = await fetch('/clients/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstName, lastName, contact, email, password })
+      });
+      const result = await parseJsonSafely(res);
+      if (!res.ok) { const e = new Error(result.error || 'Signup failed.'); e.result = result; throw e; }
+
+      document.getElementById('signupForm').reset();
+      document.getElementById('loginEmail').value = email;
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+      showStep('otpPanel', email.toLowerCase());
+      document.getElementById('otpHint').textContent = 'We sent a 6-digit code to ' + email + '. Enter it to verify your account.' + (lastCodesLeft !== null ? ' (' + lastCodesLeft + ' of 3 codes left)' : '');
+    } catch (err) {
+      if (err.result && err.result.limitReached) showLimit(err.message); else showError(err.message || 'Unable to connect to the server. Please try again.');
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+    }
+  });
+</script>
+<script src="/Admin/password-toggle.js"></script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+NARDS CATERING SYSTEM GUIDELINES
+
+
+SYSTEM OVERVIEW
+
+Nards Catering is a web based booking and operations system for a catering business.
+It has one public customer website and three internal portals for Admin, Manager and Staff.
+Customers book events and pay through GCash. Internal users review payments, confirm bookings and manage operations.
+
+Booking status flow: Pending, Confirmed, Completed or Cancelled.
+Customers log in with a Gmail account. Internal users log in with a username and password and must pick the matching account type.
+Internal sessions last 8 hours.
+
+
+
+CUSTOMER
+
+
+Access
+Customer website is the home page. Customer login and sign up is on its own page.
+
+
+Account
+1. Sign up with first name, last name, Gmail address, an 11 digit phone number and a password.
+2. Names must be real names with letters only. Numbers are not allowed.
+3. Password must be at least 8 characters and include a special character.
+4. A 6 digit code is sent to the Gmail address and must be entered to verify the account.
+5. Verification and password reset codes are limited to 3 per 24 hours.
+6. Forgot password works through a code sent to Gmail.
+
+
+Booking form
+1. Only logged in customers can book. After login the booking form moves to the top of the page.
+2. Name, Gmail and phone number are filled in automatically from the account and cannot be edited.
+3. Provide venue address, event type, package, event date and event time.
+4. Event date must be at least 3 full days ahead.
+5. Choose full payment or a 20 percent down payment. The amount due is shown on the form.
+6. Pay through the GCash QR code shown on the form.
+7. Payment receipt is optional when sending the request and can be uploaded later from the dashboard.
+8. Receipt must be a JPG or PNG image, up to 5 MB, and not a tiny file. Other file types are rejected.
+9. Terms and Conditions must be accepted. They open as a pop up with a close button.
+10. A booking starts as Pending.
+
+
+Payment rules
+1. Payment proof must be submitted within 24 hours of the request.
+2. Pending bookings without proof after 24 hours are cancelled automatically.
+3. Staff review every receipt manually. Uploading a receipt does not confirm the booking.
+4. Refund policy: the 20 percent down payment is not refundable. 80 percent of a full payment is refundable.
+
+
+Packages
+1. Packages show price, minimum guests, assets, dishes and freebies.
+2. One package at a time can carry the Popular badge. It is chosen by internal users.
+
+
+My bookings dashboard
+1. Shows each booking with status, event details and payment state.
+2. Customer can upload a receipt later for bookings awaiting payment.
+3. Customer can request cancellation or rescheduling for Pending or Confirmed bookings.
+4. A request needs a valid written reason of at least 20 characters.
+5. Reschedule requires a new date and time at least 3 full days ahead.
+6. Reschedule is not available on the day of the event or after it. Cancel is still available.
+7. Only one open request is allowed at a time. Requests only take effect after staff approval.
+8. The notification bell shows booking updates and request decisions.
+
+
+Other
+Availability calendar shows dates already taken by confirmed events.
+A chat assistant answers questions about packages, booking and payment.
+
+
+
+ADMIN
+
+
+Access
+Admin portal. Log in with the Administrator account type.
+
+
+Sections
+1. Dashboard with booking sales analytics. Filter by weekly, monthly or yearly. Shows total sales, bookings, average sale, best period, status breakdown and sales by event type.
+2. Clients for client profiles, booking history and archived records.
+3. Inventory for ingredient stock, minimum levels and restocking.
+4. Reports for business reports that can be printed.
+5. Audit Trail listing every change made by internal users. Filter by user, action and date.
+6. Login Activity listing sign in history. Filter by user and date.
+7. Users and Settings for account management and the payment QR code.
+
+
+Responsibilities
+1. Create, edit, disable and delete Staff and Manager accounts. Admin accounts cannot be created in the portal.
+2. Upload and replace the GCash QR code shown to customers.
+3. Create, edit and delete client records.
+4. Review the audit trail and login activity regularly.
+5. Admin also has full access to bookings, packages, assets, dishes and inventory through the system.
+
+
+Notifications
+The bell icon opens today's and upcoming confirmed events. A red dot means there are events to review.
+
+Use the back arrow at the top left to return to the previous page instead of the browser back button.
+
+
+
+MANAGER
+
+
+Access
+Manager portal. Log in with the Manager account type.
+
+
+Sections
+1. Bookings
+2. Calendar
+3. Inventory
+4. Menu Packages
+5. Assets
+6. Dishes
+7. Sales Analytics
+8. My Profile
+
+
+Responsibilities
+1. Review bookings and payment receipts. Confirm, complete or cancel bookings.
+2. A cancellation always needs a reason.
+3. Confirming a booking checks ingredient stock and deducts it from inventory. If stock is not enough the confirmation is blocked and the missing ingredients are shown.
+4. Approve or decline customer cancellation and reschedule requests.
+5. Create, edit, archive and restore packages, assets and dishes.
+6. Mark one package as Popular or remove the badge. This updates the customer page.
+7. Add, edit, archive and delete inventory items. Inventory changes are limited to Manager and Admin.
+8. Monitor sales analytics.
+9. Update own profile photo, name and password.
+
+
+Notifications
+The bell icon opens today's and upcoming confirmed events.
+
+Use the back arrow at the top left to return to the previous page.
+
+
+
+STAFF
+
+
+Access
+Staff portal. Log in with the Staff account type.
+
+
+Sections
+1. Bookings
+2. My Profile
+
+
+Responsibilities
+1. Review new bookings and check the uploaded payment receipt.
+2. Confirm, complete or cancel bookings. A cancellation always needs a reason.
+3. Handle customer cancellation and reschedule requests.
+4. Create or edit bookings for walk in or phone customers.
+5. Archive finished bookings.
+6. Keep own profile and password up to date.
+7. Staff cannot manage inventory, accounts, reports or the audit trail.
+
+
+Notifications
+The bell icon opens today's and upcoming confirmed events.
+
+Use the back arrow at the top left to return to the previous page.
+
+
+
+GENERAL RULES FOR ALL INTERNAL USERS
+
+1. Use only your own account and never share your password.
+2. Log out when you finish, especially on shared computers.
+3. Verify the receipt amount against the amount due before confirming.
+4. Every change you make is recorded in the audit trail with your name.
+5. Archive records instead of deleting them whenever possible.
+6. Disabled accounts cannot log in.
+
+
+
+TECHNICAL NOTES
+
+1. Run the system with npm start. The server listens on port 3000.
+2. Database is MySQL. Connection details are kept in the environment file and must never be shared or committed.
+3. Customer routes are the home page, customer login and terms. Internal routes are login, admin, manager and staff portal.
+4. Uploaded receipts and images are stored in the uploads folder.
+5. Gmail is used to send verification and reset codes.

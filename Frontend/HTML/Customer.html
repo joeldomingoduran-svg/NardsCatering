@@ -1,0 +1,417 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nards Catering — Premium Catering & Event Services</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500;600&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/Customer.css">
+</head>
+<body>
+
+
+<nav id="main-nav">
+  <a href="#home" class="nav-logo">Nards<span>.</span></a>
+  <ul class="nav-links">
+    <li><a href="#home">Home</a></li>
+    <li><a href="#offers">Packages</a></li>
+    <li><a href="#services">Services</a></li>
+    <li><a href="#calendar">Availability</a></li>
+    <li><a href="#inquiry">Book</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <div class="nav-account-actions">
+    <button class="nav-cta" onclick="location.href='#inquiry'">Book Now</button>
+    <button class="nav-auth-btn" id="customerAuthBtn" type="button">Login / Sign Up</button>
+  </div>
+  <button class="nav-toggle" id="nav-toggle" aria-label="Open menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-nav" id="mobile-nav">
+  <a href="#home"    onclick="closeMobileNav()">Home</a>
+  <a href="#offers"  onclick="closeMobileNav()">Packages</a>
+  <a href="#services" onclick="closeMobileNav()">Services</a>
+  <a href="#calendar" onclick="closeMobileNav()">Availability</a>
+  <a href="#inquiry" onclick="closeMobileNav()">Book Now</a>
+  <a href="#contact" onclick="closeMobileNav()">Contact</a>
+  <button type="button" class="mobile-nav-cta" id="mobileCustomerAuthBtn" onclick="closeMobileNav(); openCustomerAuth('login')">Login / Sign Up</button>
+</div>
+
+<div class="customer-auth-modal" id="customerAuthModal" aria-hidden="true">
+  <div class="customer-auth-backdrop" data-close-auth="true"></div>
+  <div class="customer-auth-panel" role="dialog" aria-modal="true" aria-labelledby="customerAuthTitle">
+    <button type="button" class="auth-close-btn" id="customerAuthClose" aria-label="Close login form">&times;</button>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" data-auth-tab="login">Login</button>
+      <button type="button" class="auth-tab" data-auth-tab="signup">Sign Up</button>
+    </div>
+
+    <div class="auth-form-block active" id="loginTabPanel">
+      <h3 id="customerAuthTitle">Welcome back</h3>
+      <p>Use your Gmail account to access your bookings.</p>
+      <form id="customerLoginForm" class="customer-auth-form">
+        <label>
+          Gmail
+          <input type="email" id="loginCustomerEmail" placeholder="yourname@gmail.com" required>
+        </label>
+        <label>
+          Password
+          <input type="password" id="loginCustomerPassword" placeholder="Enter your password" required>
+        </label>
+        <button type="submit" class="customer-auth-submit">Login</button>
+      </form>
+    </div>
+
+    <div class="auth-form-block" id="signupTabPanel">
+      <h3>Create customer account</h3>
+      <p>Sign up with a Gmail address to book events faster.</p>
+      <form id="customerSignupForm" class="customer-auth-form">
+        <label>
+          Full name
+          <input type="text" id="signupCustomerName" placeholder="Juan Dela Cruz" required>
+        </label>
+        <label>
+          Gmail
+          <input type="email" id="signupCustomerEmail" placeholder="yourname@gmail.com" required>
+        </label>
+        <label>
+          Password
+          <input type="password" id="signupCustomerPassword" placeholder="At least 6 characters" required>
+        </label>
+        <button type="submit" class="customer-auth-submit">Create Account</button>
+      </form>
+    </div>
+
+    <div id="customerAuthMessage" class="customer-auth-message" aria-live="polite"></div>
+  </div>
+</div>
+
+
+<section id="home">
+  <div class="hero-left">
+    <p class="hero-tag">Premium Catering &amp; Event Setup</p>
+    <h1 class="hero-h1">
+      Serving Taste,<br>
+      <em>Styling Moments.</em>
+    </h1>
+    <p class="hero-desc">
+      Nard's Catering is a catering and event setup business based in Cainta, Rizal, established in 2018.
+      Offering affordable and elegant food services and event styling for weddings, birthdays, christenings, and other special occasions.
+    </p>
+    <div class="hero-actions">
+      <button class="btn-hero-primary" onclick="location.href='#inquiry'">&#9993; Book an Event</button>
+      <button class="btn-hero-secondary" onclick="location.href='#offers'">View Packages</button>
+    </div>
+    <div class="hero-stats">
+      <div>
+        <div class="hero-stat-num">6+</div>
+        <div class="hero-stat-label">Years Experience</div>
+      </div>
+      <div>
+        <div class="hero-stat-num">500+</div>
+        <div class="hero-stat-label">Events Served</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-img-wrapper">
+    <div class="food-gallery">
+      <div class="food-item">
+        <img src="../images.jpg" class="food-img" alt="Lumpia">
+        <div class="food-label">Lumpia</div>
+      </div>
+      <div class="food-item">
+        <img src="../images.jpg" class="food-img" alt="Pasta">
+        <div class="food-label">Pasta</div>
+      </div>
+      <div class="food-item">
+        <img src="../images.jpg" class="food-img" alt="Menudo">
+        <div class="food-label">Menudo</div>
+      </div>
+      <div class="food-item">
+        <img src="../images.jpg" class="food-img" alt="Hamonado">
+        <div class="food-label">Hamonado</div>
+      </div>
+      <div class="food-item">
+        <img src="../images.jpg" class="food-img" alt="Lechon">
+        <div class="food-label">Lechon</div>
+      </div>
+      <div class="food-item">
+        <img src="../images.jpg" class="food-img" alt="Pancit">
+        <div class="food-label">Pancit</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section id="offers">
+  <div class="section-inner">
+    <span class="section-badge reveal">Our Packages</span>
+    <h2 class="section-heading reveal reveal-delay-1">Food <em>Offerings &amp; Setups</em></h2>
+    <p class="section-sub reveal reveal-delay-2">Choose from our carefully crafted catering packages designed to make your event unforgettable.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div class="promo-section">
+      <h4>Available Packages</h4>
+      <div id="packages-grid" class="promo-packages">
+        <div style="grid-column:1/-1;text-align:center;color:rgba(201,150,58,0.6);padding:32px;font-size:15px">Loading packages...</div>
+      </div>
+    </div>
+
+
+  </div>
+</section>
+
+
+<section id="services">
+  <div class="section-inner">
+    <span class="section-badge reveal">What We Serve</span>
+    <h2 class="section-heading reveal reveal-delay-1">Tailored <em>Events</em></h2>
+    <p class="section-sub reveal reveal-delay-2">From intimate gatherings to grand celebrations, we bring elegance and flavor to every occasion.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div class="offer-list">
+      <div class="offer-card reveal reveal-delay-1">
+        <img src="../images.jpg" class="event-img" alt="Christenings">
+        <p>Christenings</p>
+      </div>
+      <div class="offer-card reveal reveal-delay-2">
+        <img src="../images.jpg" class="event-img" alt="Birthdays">
+        <p>Birthdays</p>
+      </div>
+      <div class="offer-card reveal reveal-delay-3">
+        <img src="../images.jpg" class="event-img" alt="Weddings">
+        <p>Weddings</p>
+      </div>
+      <div class="offer-card reveal reveal-delay-4">
+        <img src="../images.jpg" class="event-img" alt="Parties">
+        <p>Parties</p>
+      </div>
+      <div class="offer-card reveal reveal-delay-5">
+        <img src="../images.jpg" class="event-img" alt="House Blessing">
+        <p>House Blessing</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section id="calendar">
+  <div class="section-inner">
+    <span class="section-badge reveal">Check Availability</span>
+    <h2 class="section-heading reveal reveal-delay-1">Event <em>Calendar</em></h2>
+    <p class="section-sub reveal reveal-delay-2">Dates highlighted in gold are already booked. Choose an available date and reserve your event.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div class="cust-cal-layout reveal reveal-delay-4">
+      
+      <div class="cust-cal-card">
+        <div class="cust-cal-nav">
+          <button class="cust-cal-btn" onclick="custCalPrev()" aria-label="Previous month">&#8249;</button>
+          <span id="cust-cal-month-label"></span>
+          <button class="cust-cal-btn" onclick="custCalNext()" aria-label="Next month">&#8250;</button>
+        </div>
+        <div class="cust-cal-grid" id="cust-cal-grid"></div>
+      </div>
+
+      
+      <div class="cust-cal-info">
+        <div class="cust-cal-legend">
+          <div class="cust-leg-item"><div class="cust-leg-dot dot-booked"></div> Booked / Unavailable</div>
+          <div class="cust-leg-item"><div class="cust-leg-dot dot-today"></div> Today</div>
+          <div class="cust-leg-item"><div class="cust-leg-dot dot-avail"></div> Available</div>
+        </div>
+        <div id="cust-cal-detail">
+          <p>Click a date to check availability.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section id="inquiry">
+  <div class="section-inner">
+    <span class="section-badge reveal">Book Your Event</span>
+    <h2 class="section-heading reveal reveal-delay-1">Booking <em>Form</em></h2>
+    <p class="section-sub reveal reveal-delay-2">Fill in the details below and our team will confirm your reservation within 24 hours.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div class="inquiry-form-wrapper reveal reveal-delay-4">
+      <form id="inquiryForm" class="inquiry-form">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="name">Full Name</label>
+            <input type="text" id="name" name="clientName" placeholder="Your full name" required>
+          </div>
+          <div class="form-group">
+            <label for="address">Venue / Address</label>
+            <input type="text" id="address" name="address" placeholder="Event venue address" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" name="email" placeholder="yourname@email.com">
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone Number</label>
+            <input type="tel" id="phone" name="phone" placeholder="+63 9XX XXX XXXX" required
+              pattern="[+]?[0-9][\d\s\-()]{6,14}"
+              title="Phone number must contain only digits, spaces, dashes, or parentheses"
+              oninput="this.value=this.value.replace(/[^+\d\s\-()]/g,'')">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="event-type">Event Type</label>
+            <select id="event-type" name="eventType" required>
+              <option value="">Select event type...</option>
+              <option value="christening">Christening</option>
+              <option value="birthday">Birthday Party</option>
+              <option value="wedding">Wedding</option>
+              <option value="party">Party</option>
+              <option value="house blessing">House Blessing</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="guest-count">Package</label>
+            <select id="guest-count" name="package" required>
+              <option value="">Select a package...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="event-date">Event Date</label>
+            <input type="date" id="event-date" name="eventDate" required>
+          </div>
+        </div>
+
+        <div class="payment-info" id="payment-info-box" style="display:none">
+          <p id="totalPrice">Total Price: &#8369;0</p>
+          <p id="downPayment">Down Payment (20% less &#8369;1,000 reservation fee): &#8369;0</p>
+        </div>
+
+        <div class="form-group suggestion-group">
+          <label for="notes">Special Requests / Notes</label>
+          <textarea id="notes" name="notes" placeholder="e.g. dietary restrictions, theme preferences, special setup requests, allergies..."></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="submit-btn" id="submit-btn">
+            <span class="btn-text">&#9993; Send Booking Request</span>
+          </button>
+        </div>
+        <p id="form-message" class="form-message"></p>
+
+      </form>
+    </div>
+  </div>
+</section>
+
+
+<section id="contact">
+  <div class="section-inner">
+    <span class="section-badge reveal">Get In Touch</span>
+    <h2 class="section-heading reveal reveal-delay-1">Keep in <em>Touch</em></h2>
+    <p class="section-sub reveal reveal-delay-2">We'd love to hear from you. Reach out to discuss your next event.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div class="contact-grid">
+      <div class="contact-info">
+        <div class="contact-item reveal reveal-delay-1">
+          <div class="contact-icon">&#128140;</div>
+          <div>
+            <div class="contact-detail-label">Email</div>
+            <div class="contact-detail-value">nardscatering@gmail.com</div>
+          </div>
+        </div>
+        <div class="contact-item reveal reveal-delay-2">
+          <div class="contact-icon">&#128241;</div>
+          <div>
+            <div class="contact-detail-label">Phone</div>
+            <div class="contact-detail-value">+63 9477604302</div>
+          </div>
+        </div>
+        <div class="contact-item reveal reveal-delay-3">
+          <div class="contact-icon">&#128205;</div>
+          <div>
+            <div class="contact-detail-label">Location</div>
+            <div class="contact-detail-value">Cainta, Rizal, Philippines</div>
+          </div>
+        </div>
+        <div class="contact-item reveal reveal-delay-4">
+          <div class="contact-icon">&#128336;</div>
+          <div>
+            <div class="contact-detail-label">Business Hours</div>
+            <div class="contact-detail-value">Mon – Sat, 8:00 AM – 6:00 PM</div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal reveal-delay-2">
+        <div class="contact-map-placeholder">
+          <div class="map-icon">&#128205;</div>
+          <span>Cainta, Rizal</span>
+          <span style="font-size:12px;opacity:.6">Metro Manila, Philippines</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer id="site-footer">
+  <div class="footer-logo">Nards<span>.</span></div>
+  <p class="footer-copy">&#169; 2026 Nards Catering. All rights reserved.</p>
+  <ul class="footer-links">
+    <li><a href="#home">Home</a></li>
+    <li><a href="#offers">Packages</a></li>
+    <li><a href="#inquiry">Book</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+</footer>
+
+
+<button class="scroll-top" id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Scroll to top">&#8679;</button>
+
+<!-- ===== GCASH PAYMENT MODAL ===== -->
+<div id="payment-modal" class="pay-modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title">
+  <div class="pay-modal-box">
+    <button class="pay-modal-close" id="pay-modal-close" aria-label="Close payment">&#10005;</button>
+
+    <div class="pay-modal-header">
+      <div class="pay-modal-logo">Nards<span>.</span></div>
+      <h3 id="pay-modal-title">Complete Your Booking</h3>
+      <p class="pay-modal-sub">Secure your date with a reservation fee</p>
+    </div>
+
+    <div class="pay-modal-summary" id="pay-modal-summary"></div>
+
+    <div class="pay-modal-body">
+      <label class="pay-card-label">Scan To Pay (GCash)</label>
+      <div style="display:flex;justify-content:center;padding:6px 0 10px 0;">
+        <img id="gcash-qr-image" src="" alt="GCash QR code" style="width:220px;height:220px;border-radius:12px;border:1px solid rgba(90,60,32,0.2);background:#fff;" />
+      </div>
+      <p id="gcash-qr-note" style="margin:0;color:#8b6f58;text-align:center;font-size:13px;">Use your GCash app to scan this QR code.</p>
+    </div>
+
+    <button id="pay-btn" class="pay-btn">
+      <span id="pay-btn-text">I Have Paid</span>
+    </button>
+
+    <p class="pay-modal-footer">&#128274; Payments are encrypted &amp; secured via <strong>GCash</strong>.</p>
+  </div>
+</div>
+
+
+
+<script src="/js/Customer.js"></script></body>
+</html>
+
+

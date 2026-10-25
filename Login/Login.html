@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nards Catering — Admin Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="Login.css">
+</head>
+<body>
+
+<div class="login-card">
+
+  <div class="brand">
+    <div class="brand-logo">Nards<span>.</span></div>
+    <div class="brand-sub">Catering Services</div>
+    <div class="brand-divider"></div>
+  </div>
+
+  <div class="login-heading">Team Sign In</div>
+  <div class="login-sub">Sign in as an administrator or staff member.</div>
+
+  <div class="error-msg" id="error-msg">
+    <span>🔒</span>
+    <span id="error-text">Incorrect username or password.</span>
+  </div>
+
+  <form id="loginForm" autocomplete="off">
+    <div class="form-group">
+      <label for="username">Username</label>
+      <div class="input-wrap">
+        <input type="text" id="username" name="username"
+          placeholder="Enter your username" autocomplete="username" required>
+        <span class="input-icon">👤</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <div class="input-wrap">
+        <input type="password" id="password" name="password"
+          placeholder="Enter your password" autocomplete="current-password" required>
+        <button type="button" class="toggle-pw" id="togglePw" title="Show/hide password">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="loginRole">Account Type</label>
+      <div class="input-wrap">
+        <select id="loginRole" name="role" required>
+          <option value="admin">Administrator</option>
+          <option value="manager">Manager</option>
+          <option value="staff">Staff</option>
+        </select>
+      </div>
+    </div>
+    <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+  </form>
+
+  
+</div>
+
+<script src="/node_modules/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<script>
+  const form       = document.getElementById('loginForm');
+  const usernameEl = document.getElementById('username');
+  const passwordEl = document.getElementById('password');
+  const loginRoleEl = document.getElementById('loginRole');
+  const errorMsg   = document.getElementById('error-msg');
+  const errorText  = document.getElementById('error-text');
+  const loginBtn   = document.getElementById('loginBtn');
+  const togglePw   = document.getElementById('togglePw');
+  const API_BASE = window.location.port === '3000' ? '' : 'http://localhost:3000';
+
+  togglePw.addEventListener('click', () => {
+    const hidden = passwordEl.type === 'password';
+    passwordEl.type = hidden ? 'text' : 'password';
+    togglePw.textContent = hidden ? '🙈' : '👁';
+    passwordEl.focus();
+  });
+
+  [usernameEl, passwordEl, loginRoleEl].forEach(inp => {
+    inp.addEventListener('input', () => {
+      inp.classList.remove('error');
+      errorMsg.classList.remove('show');
+    });
+  });
+  loginRoleEl.addEventListener('change', () => errorMsg.classList.remove('show'));
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const username = usernameEl.value.trim();
+    const password = passwordEl.value;
+
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<span class="spinner"></span>Signing in...';
+
+    try {
+      const response = await fetch(`${API_BASE}/staff/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, role: loginRoleEl.value })
+      });
+      const rawResponse = await response.text();
+      let result;
+      try {
+        result = JSON.parse(rawResponse);
+      } catch (parseError) {
+        throw new Error('Cannot reach the backend. Start the Node server and open http://localhost:3000/login.');
+      }
+      if (!response.ok) {
+        throw new Error(result.error || 'Invalid username or password.');
+      }
+      if (!result.user || result.user.role !== loginRoleEl.value) {
+        throw new Error('The selected account type does not match this account.');
+      }
+
+      sessionStorage.setItem('nards_internal_token', result.token);
+      sessionStorage.setItem('nards_internal_user', JSON.stringify(result.user));
+      loginBtn.innerHTML = 'Redirecting...';
+      window.location.href = ({ admin: '/admin', manager: '/manager' })[result.user.role] || '/staff-portal';
+    } catch (error) {
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = 'Sign In';
+      Swal.fire({ icon: 'error', title: 'Login failed', text: error.message || 'Login failed. Please try again.', position: 'center', confirmButtonText: 'OK', confirmButtonColor: '#3A2D1A' });
+      errorText.textContent = error.message;
+      errorMsg.classList.add('show');
+      usernameEl.classList.add('error');
+      passwordEl.classList.add('error');
+      passwordEl.value = '';
+      passwordEl.focus();
+    }
+  });
+</script>
+<script src="/Admin/password-toggle.js"></script>
+</body>
+</html>

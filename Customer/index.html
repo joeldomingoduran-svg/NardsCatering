@@ -1,0 +1,1918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nards Catering — Premium Catering & Event Services</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500;600&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="Style.css">
+<style>
+  .customer-auth-status {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: rgba(246, 214, 122, 0.08);
+    border: 1px solid rgba(246, 214, 122, 0.2);
+    color: #f9ebc5;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1.1rem;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.12);
+  }
+  .customer-auth-status.logged-in {
+    background: rgba(92, 185, 104, 0.12);
+    border-color: rgba(92, 185, 104, 0.28);
+    color: #dff9e4;
+    box-shadow: 0 0 0 3px rgba(92, 185, 104, 0.08);
+  }
+  .customer-auth-status:hover {
+    transform: translateY(-1px);
+  }
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .nav-icon-btn {
+    min-width: 104px;
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid rgba(214, 182, 106, 0.6);
+    background: rgba(214, 182, 106, 0.08);
+    color: #f6e9c8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1;
+    transition: all 0.2s ease;
+    padding: 0 14px;
+  }
+  .nav-icon-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(214, 182, 106, 0.14);
+  }
+  .nav-icon-btn span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  .customer-dashboard {
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+  }
+  .customer-booking-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(205, 168, 89, 0.2);
+    border-radius: 16px;
+    padding: 18px;
+  }
+  .customer-booking-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .customer-booking-status {
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: capitalize;
+    border: 1px solid rgba(205, 168, 89, 0.25);
+    color: #f5d997;
+  }
+  .customer-booking-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+    color: rgba(255,255,255,0.8);
+    font-size: 0.92rem;
+  }
+  .customer-booking-empty {
+    padding: 18px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.03);
+    color: rgba(255,255,255,0.7);
+    border: 1px dashed rgba(205, 168, 89, 0.25);
+  }
+  .inquiry-login-gate {
+    max-width: 560px;
+    margin: 0 auto;
+    text-align: center;
+    padding: 20px 0 4px;
+  }
+  .inquiry-login-gate-btn {
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--brown);
+    color: var(--button-text);
+    font-family: 'Jost', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: .4px;
+    cursor: pointer;
+    padding: 16px 40px;
+    box-shadow: var(--shadow-button);
+    transition: var(--transition-bounce);
+  }
+  .inquiry-login-gate-btn:hover {
+    background: var(--brown-mid);
+    transform: translateY(-2px);
+  }
+  .inquiry-login-gate-bar {
+    margin-top: 16px;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .inquiry-login-gate-bar a {
+    color: var(--gold-dark);
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .logout-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(11,13,12,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    padding: 24px;
+  }
+  .logout-modal-overlay.show { display: flex; }
+  .logout-modal-card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 36px 32px 32px;
+    text-align: center;
+    animation: fadeUp .4s ease-out both;
+  }
+  .logout-modal-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 18px;
+    border-radius: 50%;
+    background: var(--gold-dim);
+    color: var(--gold-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+  .logout-modal-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 10px;
+  }
+  .logout-modal-text {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 26px;
+  }
+  .logout-modal-actions {
+    display: flex;
+    gap: 12px;
+  }
+  .logout-modal-btn {
+    flex: 1;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: 'Jost', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: .3px;
+    cursor: pointer;
+    padding: 13px 16px;
+    transition: var(--transition-bounce);
+  }
+  .logout-modal-btn--cancel {
+    background: var(--sand-light);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .logout-modal-btn--cancel:hover { background: var(--linen-mid); }
+  .logout-modal-btn--confirm {
+    background: var(--brown);
+    color: var(--button-text);
+    box-shadow: var(--shadow-button);
+  }
+  .logout-modal-btn--confirm:hover { background: var(--brown-mid); transform: translateY(-2px); }
+  .notif-bell { position: relative; min-width: 46px; padding: 0 12px; font-size: 1.1rem; }
+  .notif-badge {
+    position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px;
+    border-radius: 10px; background: #c0392b; color: #fff; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; letter-spacing: 0;
+  }
+  .notif-panel {
+    position: fixed; top: 80px; right: 24px; z-index: 2500; width: min(360px, calc(100vw - 32px));
+    max-height: 60vh; overflow-y: auto; display: none;
+    background: var(--white); border: 1px solid var(--border-light); border-radius: 14px;
+    box-shadow: var(--shadow-lg); color: var(--text);
+  }
+  .notif-panel.open { display: block; }
+  .notif-panel h4 { margin: 0; padding: 14px 18px; font-size: 15px; border-bottom: 1px solid var(--border-light); }
+  .notif-item { padding: 12px 18px; border-bottom: 1px solid var(--border-light); font-size: 14px; line-height: 1.5; }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item.unread { background: var(--gold-light); }
+  .notif-item small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .notif-empty { padding: 20px 18px; color: var(--muted); font-size: 14px; }
+</style>
+<style>
+.receipt-upload{margin-top:14px}
+.receipt-drop{display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px 14px;border:2px dashed #c9a24a;border-radius:12px;background:#fffaf0;text-align:center;cursor:pointer;transition:.2s}
+.receipt-drop:hover,.receipt-drop.has-file{background:#fff3d6;border-color:#a67c00}
+.receipt-drop .ru-icon{font-size:1.8rem}
+.receipt-drop .ru-title{font-weight:700;color:#5a4300}
+.receipt-drop small{color:#7a6a3a}
+.receipt-drop input[type=file]{display:none}
+.receipt-preview{display:none;margin-top:10px;align-items:center;gap:10px;padding:8px;border:1px solid #e3d3a5;border-radius:10px;background:#fff}
+.receipt-preview.show{display:flex}
+.receipt-preview img{width:56px;height:56px;object-fit:cover;border-radius:8px}
+.receipt-preview .ru-name{flex:1;font-size:.85rem;word-break:break-all}
+.receipt-preview button{border:none;background:#c0392b;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer}
+.pay-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.78rem;font-weight:700;color:#fff}
+.pay-badge.paid{background:#27ae60}.pay-badge.unpaid{background:#c0392b}
+.req-box{margin-top:10px;padding:10px;border-radius:8px;background:#f4f4f8;font-size:.9rem}
+.req-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.req-actions button{padding:7px 14px;border-radius:8px;border:1px solid #a67c00;background:#fff;color:#5a4300;cursor:pointer;font-weight:600}
+.req-actions button.danger{border-color:#c0392b;color:#c0392b}
+#reqModal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:10000;padding:16px}
+#reqModal.show{display:flex}
+#reqModal .req-card{background:#fff;border-radius:14px;padding:22px;width:100%;max-width:460px;max-height:90vh;overflow:auto}
+#reqModal textarea,#reqModal input[type=date]{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin-top:6px;font:inherit;box-sizing:border-box}
+#reqModal .req-err{color:#c0392b;font-size:.9rem;min-height:1.2em;margin-top:6px}
+#reqModal .req-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.locked-field{background:#efece6;color:#555;cursor:not-allowed;pointer-events:none;user-select:none}
+body.booking-first #inquiry .section-inner{padding-top:130px}
+#termsModal{position:fixed;inset:0;border:0;padding:0;background:transparent;max-width:none;max-height:none;width:100%;height:100%;z-index:10000}
+#termsModal::backdrop{background:rgba(0,0,0,.58)}
+#termsModal .terms-modal-card{background:#fff;border-radius:16px;width:min(900px,calc(100% - 32px));max-height:90vh;overflow:auto;margin:5vh auto;padding:28px 32px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+#termsModal .terms-modal-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}
+#termsModal h2{font-family:'Cormorant Garamond',serif;font-size:34px;color:var(--dark)}
+#termsModal .terms-updated{color:var(--muted);font-size:13px;margin-top:4px}
+#termsModal .terms-close{border:0;background:transparent;color:var(--muted);font-size:26px;cursor:pointer;line-height:1}
+#termsModal article p,#termsModal article li{font-size:15px;line-height:1.7;color:var(--text)}
+#termsModal article section+section{margin-top:22px}
+#termsModal article h3{font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--dark);margin-bottom:6px}
+#termsModal article ul{padding-left:22px}
+#termsModal .terms-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--border-light)}
+#termsModal .terms-agree-btn{border:0;border-radius:8px;background:var(--brown);color:#fff;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
+@media(max-width:600px){#termsModal .terms-modal-card{padding:22px 20px;margin:3vh auto;max-height:94vh}}
+</style>
+</head>
+<body>
+
+
+<nav id="main-nav">
+  <a href="#home" class="nav-logo">Nards<span>.</span></a>
+  <ul class="nav-links">
+    <li><a href="#home">Home</a></li>
+    <li><a href="#offers">Packages</a></li>
+    <li><a href="#services">Services</a></li>
+    <li><a href="#calendar">Availability</a></li>
+    <li><a href="#inquiry" onclick="event.preventDefault();goToBooking()">Book</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <div class="nav-actions">
+    <button id="notifBell" class="nav-icon-btn notif-bell" type="button" aria-label="Booking notifications" title="Booking notifications" style="display:none">
+      <span aria-hidden="true">&#128276;</span><span id="notifBadge" class="notif-badge" style="display:none">0</span>
+    </button>
+    <button id="customerAuthStatus" class="nav-icon-btn nav-icon-btn--login" type="button" aria-label="Customer login or signup" title="Customer login or signup">
+      <span aria-hidden="true">Login/Signup</span>
+    </button>
+    <button id="customerLogoutBtn" class="nav-icon-btn nav-icon-btn--logout" type="button" aria-label="Log out" title="Log out" style="display:none;">
+      <span aria-hidden="true">Logout</span>
+    </button>
+  </div>
+  <button class="nav-toggle" id="nav-toggle" aria-label="Open menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-nav" id="mobile-nav">
+  <a href="#home"    onclick="closeMobileNav()">Home</a>
+  <a href="#offers"  onclick="closeMobileNav()">Packages</a>
+  <a href="#services" onclick="closeMobileNav()">Services</a>
+  <a href="#calendar" onclick="closeMobileNav()">Availability</a>
+  <a href="#inquiry" onclick="event.preventDefault();closeMobileNav();goToBooking()">Book Now</a>
+  <a href="#contact" onclick="closeMobileNav()">Contact</a>
+</div>
+
+<div class="logout-modal-overlay" id="logoutConfirmModal">
+  <div class="logout-modal-card">
+    <div class="logout-modal-icon">🔒</div>
+    <div class="logout-modal-title">Log Out</div>
+    <p class="logout-modal-text">Are you sure you want to log out of your account?</p>
+    <div class="logout-modal-actions">
+      <button type="button" class="logout-modal-btn logout-modal-btn--cancel" id="logoutCancelBtn">Cancel</button>
+      <button type="button" class="logout-modal-btn logout-modal-btn--confirm" id="logoutConfirmBtn">Log Out</button>
+    </div>
+  </div>
+</div>
+
+    <dialog id="termsModal" aria-labelledby="termsModalTitle">
+      <div class="terms-modal-card">
+        <div class="terms-modal-header">
+          <div><h2 id="termsModalTitle">Terms and Conditions</h2><p class="terms-updated">Version 2026-10-15 · Last updated October 15, 2026</p></div>
+          <button type="button" class="terms-close" id="termsModalClose" aria-label="Close Terms and Conditions">&times;</button>
+        </div>
+        <article>
+          <p>Please review these terms before submitting a catering booking request. By checking the agreement box and submitting a booking, you confirm that you have read and agree to these booking terms.</p>
+          <section><h3>1. Booking requests and confirmation</h3><ul><li>Provide complete and accurate contact, event, venue, package, date, and time details.</li><li>Bookings must be made at least three full days before the event date.</li><li>A submitted booking is marked Pending while Nards Catering reviews the details and payment. A date or availability shown on the website is not a confirmation. Your booking is confirmed only after staff review and confirmation.</li></ul></section>
+          <section><h3>2. Payment and payment verification</h3><ul><li>Choose either full payment or a down payment equal to 20% of the selected package price. The amount displayed in the booking form is the amount due for the option you choose.</li><li>Payment is made through the GCash QR code provided in the booking form. You may attach a receipt with your request or submit it later through your customer booking dashboard.</li><li>Payment proof is reviewed by staff. Uploading a receipt or sending a booking request does not itself mean that payment or the booking has been verified or confirmed.</li><li>Payment must be made and proof submitted within 24 hours after the booking request. A booking without submitted payment proof in that period is automatically cancelled.</li></ul></section>
+          <section><h3>3. Cancellation and rescheduling</h3><ul><li>For a Pending or Confirmed booking, submit a cancellation or rescheduling request through the customer booking dashboard and include a reason.</li><li>Requests are reviewed by staff. Sending a request does not cancel or change the booking; the change takes effect only when approved. A requested new date and time are not reserved until staff approves the rescheduling request.</li><li>The current refund policy shown by the booking system is that a 20% down payment is non-refundable and 80% of a full payment is refundable. Contact Nards Catering to confirm how this policy applies to your booking and any refund arrangements.</li></ul></section>
+          <section><h3>4. Booking updates</h3><p>You can check booking status, payment review, and cancellation or rescheduling request updates in your customer dashboard. Keep the email address associated with your customer account accessible so you can follow your booking.</p></section>
+          <section><h3>Questions?</h3><p>Contact Nards Catering at <a href="mailto:nardscatering@gmail.com">nardscatering@gmail.com</a> if you have questions about a booking, payment, cancellation, or refund.</p></section>
+        </article>
+        <div class="terms-modal-actions"><button type="button" class="terms-agree-btn" id="termsModalAgree">I Agree</button></div>
+      </div>
+    </dialog>
+
+<div class="notif-panel" id="notifPanel" role="dialog" aria-label="Booking notifications">
+  <h4>Booking notifications</h4>
+  <div id="notifList"></div>
+</div>
+
+<section id="home">
+  <div class="hero-left">
+    <p class="hero-tag">Premium Catering &amp; Event Setup</p>
+    <h1 class="hero-h1">
+      <span class="motto-lead">Serving Taste,</span><br>
+      <em>Styling Moments.</em>
+    </h1>
+    <p class="hero-desc">
+      Nard's Catering is a catering and event setup business based in Cainta, Rizal, established in 2018.
+      Offering affordable and elegant food services and event styling for weddings, birthdays, christenings, and other special occasions.
+    </p>
+    <div class="hero-actions">
+      <button class="btn-hero-primary" onclick="goToBooking()">&#9993; Book an Event</button>
+      <button class="btn-hero-secondary" onclick="location.href='#offers'">View Packages</button>
+    </div>
+    <div class="hero-stats">
+      <div>
+        <div class="hero-stat-num">6+</div>
+        <div class="hero-stat-label">Years Experience</div>
+      </div>
+      <div>
+        <div class="hero-stat-num">500+</div>
+        <div class="hero-stat-label">Events Served</div>
+      </div>
+    </div>
+    <div class="hero-img-wrapper">
+      <div class="food-gallery">
+        <div class="food-item" tabindex="0" role="button" aria-label="View Lumpia photo">
+          <img src="gallery-photos/caps1.img.jpg" class="food-img" alt="Lumpia">
+        </div>
+        <div class="food-item" tabindex="0" role="button" aria-label="View Pasta photo">
+          <img src="gallery-photos/caps2.img.jpg" class="food-img" alt="Pasta">
+        </div>
+        <div class="food-item" tabindex="0" role="button" aria-label="View Menudo photo">
+          <img src="gallery-photos/caps3.img.jpg" class="food-img" alt="Menudo">
+        </div>
+        <div class="food-item" tabindex="0" role="button" aria-label="View Hamonado photo">
+          <img src="gallery-photos/caps4.img.jpg" class="food-img" alt="Hamonado">
+        </div>
+        <div class="food-item" tabindex="0" role="button" aria-label="View Lechon photo">
+          <img src="gallery-photos/caps5.img.jpg" class="food-img" alt="Lechon">
+        </div>
+        <div class="food-item" tabindex="0" role="button" aria-label="View Pancit photo">
+          <img src="gallery-photos/caps6.img.jpg" class="food-img" alt="Pancit">
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<dialog class="food-lightbox" id="foodLightbox" aria-label="Expanded food photo">
+  <button type="button" class="food-lightbox-close" id="foodLightboxClose" aria-label="Close photo">&times;</button>
+  <img id="foodLightboxImage" alt="">
+</dialog>
+
+<section id="offers">
+  <div class="section-inner">
+    <span class="section-badge reveal">Our Packages</span>
+    <h2 class="section-heading reveal reveal-delay-1">Food <em>Offerings &amp; Setups</em></h2>
+    <p class="section-sub reveal reveal-delay-2">Choose from our carefully crafted catering packages designed to make your event unforgettable.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div class="promo-section">
+      <h4>Available Packages</h4>
+      <div id="packages-grid" class="promo-packages">
+        <div style="grid-column:1/-1;text-align:center;color:rgba(201,150,58,0.6);padding:32px;font-size:15px">Loading packages...</div>
+      </div>
+    </div>
+
+
+  </div>
+</section>
+
+
+<section id="services">
+  <div class="section-inner">
+    <span class="section-badge reveal">What We Serve</span>
+    <h2 class="section-heading reveal reveal-delay-1">Tailored <em>Events</em></h2>
+    <p class="section-sub reveal reveal-delay-2">From intimate gatherings to grand celebrations, we bring elegance and flavor to every occasion.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div class="offer-list">
+      <div class="offer-card reveal reveal-delay-1">
+        <img src="gallery-photos/caps1.img.jpg" class="event-img" alt="Christenings">
+        <p>Christenings</p>
+      </div>
+      <div class="offer-card reveal reveal-delay-2">
+        <img src="gallery-photos/caps2.img.jpg" class="event-img" alt="Birthdays">
+        <p>Birthdays</p>
+      </div>
+      <div class="offer-card reveal reveal-delay-3">
+        <img src="gallery-photos/caps3.img.jpg" class="event-img" alt="Weddings">
+        <p>Weddings</p>
+      </div>
+      <div class="offer-card reveal reveal-delay-4">
+        <img src="gallery-photos/caps4.img.jpg" class="event-img" alt="Parties">
+        <p>Parties</p>
+      </div>
+      <div class="offer-card reveal reveal-delay-5">
+        <img src="gallery-photos/caps5.img.jpg" class="event-img" alt="House Blessing">
+        <p>House Blessing</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section id="calendar">
+  <div class="section-inner">
+    <span class="section-badge reveal">Check Availability</span>
+    <h2 class="section-heading reveal reveal-delay-1">Event <em>Calendar</em></h2>
+    <p class="section-sub reveal reveal-delay-2">Dates highlighted in gold are already booked. Choose an available date and reserve your event.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div class="cust-cal-layout reveal reveal-delay-4">
+      
+      <div class="cust-cal-card">
+        <div class="cust-cal-nav">
+          <button class="cust-cal-btn" onclick="custCalPrev()" aria-label="Previous month">&#8249;</button>
+          <span id="cust-cal-month-label"></span>
+          <button class="cust-cal-btn" onclick="custCalNext()" aria-label="Next month">&#8250;</button>
+        </div>
+        <div class="cust-cal-grid" id="cust-cal-grid"></div>
+      </div>
+
+      
+      <div class="cust-cal-info">
+        <div class="cust-cal-legend">
+          <div class="cust-leg-item"><div class="cust-leg-dot dot-booked"></div> Booked / Unavailable</div>
+          <div class="cust-leg-item"><div class="cust-leg-dot dot-today"></div> Today</div>
+          <div class="cust-leg-item"><div class="cust-leg-dot dot-avail"></div> Available</div>
+        </div>
+        <div id="cust-cal-detail">
+          <p>Click a date to check availability.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="customer-dashboard-section">
+  <div class="section-inner">
+    <span class="section-badge reveal">My Bookings</span>
+    <h2 class="section-heading reveal reveal-delay-1">Your <em>Event Dashboard</em></h2>
+    <p class="section-sub reveal reveal-delay-2">After logging in, your booked events will appear here with their status and event details.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div id="customerBookingsList" class="customer-dashboard reveal reveal-delay-4"></div>
+  </div>
+</section>
+
+<section id="inquiry">
+  <div class="section-inner">
+
+    <div id="inquiryLoginGate" class="inquiry-login-gate reveal reveal-delay-4" style="display:none">
+      <button type="button" class="inquiry-login-gate-btn" onclick="window.location.href='/customer-login'">Book Now</button>
+      <p class="inquiry-login-gate-bar">Already have an account? <a href="/customer-login">Login</a> or <a href="/customer-login">Sign Up</a> to continue.</p>
+    </div>
+
+    <div id="inquiryFormWrapper" class="inquiry-form-wrapper reveal reveal-delay-4">
+      <span class="section-badge reveal">Book Your Event</span>
+      <h2 class="section-heading reveal reveal-delay-1">Booking <em>Form</em></h2>
+      <p class="section-sub reveal reveal-delay-2">Fill in the details below and our team will confirm your reservation within 24 hours.</p>
+      <div class="gold-line reveal reveal-delay-3"></div>
+
+      <form id="inquiryForm" class="inquiry-form">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="name">Full Name</label>
+            <input type="text" id="name" name="clientName" placeholder="Your full name" required pattern="[A-Za-z\u00C0-\u00FF][A-Za-z\u00C0-\u00FF'\- ]*" title="Letters only. Numbers are not allowed in the name." autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label for="address">Venue / Address</label>
+            <input type="text" id="address" name="address" placeholder="e.g. 123 Rizal St., Brgy. San Jose, Quezon City" maxlength="200" required>
+            <small id="address-msg" style="display:none;color:#c0392b"></small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" name="email" placeholder="yourname@email.com">
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone Number</label>
+            <input type="tel" id="phone" name="phone" placeholder="09XXXXXXXXX" required inputmode="numeric"
+              pattern="\d{11}"
+              title="Phone number must be exactly 11 digits">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="event-type">Event Type</label>
+            <select id="event-type" name="eventType" required>
+              <option value="">Select event type...</option>
+              <option value="christening">Christening</option>
+              <option value="birthday">Birthday Party</option>
+              <option value="wedding">Wedding</option>
+              <option value="party">Party</option>
+              <option value="house blessing">House Blessing</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="guest-count">Package</label>
+            <select id="guest-count" name="package" required>
+              <option value="">Select a package...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="event-date">Event Date</label>
+            <input type="date" id="event-date" name="eventDate" required>
+          </div>
+          <div class="form-group">
+            <label for="event-time">Event Time</label>
+            <input type="time" id="event-time" name="eventTime" required>
+          </div>
+        </div>
+
+        <div class="payment-info" id="payment-info-box" style="display:none">
+          <p id="totalPrice">Total Price: &#8369;0</p>
+          <p id="downPayment">Down Payment (20%): &#8369;0</p>
+        </div>
+
+        <div class="form-group" id="gcash-section" style="margin-top:16px">
+          <label>Pay via GCash</label>
+          <button type="button" id="qr-toggle" class="qr-toggle" aria-expanded="false" aria-controls="gcash-qr-box">Show QR code</button>
+          <div id="gcash-qr-box" class="qr-box" hidden>
+            <p id="gcash-qr-empty" style="display:none">GCash QR is not available yet. You can still send your booking and pay later.</p>
+            <img id="gcash-qr-img" alt="GCash QR code" style="display:none">
+          </div>
+          <div class="pay-options">
+            <label class="pay-option"><input type="radio" name="paymentOption" value="full" required><span>Full payment</span></label>
+            <label class="pay-option"><input type="radio" name="paymentOption" value="down" checked><span>Down payment (20%)</span></label>
+          </div>
+          <p id="amount-to-pay" style="font-weight:bold"></p>
+          <div class="receipt-upload">
+            <label>Attach payment receipt (optional now, can be uploaded later)</label>
+            <label class="receipt-drop" id="receiptDrop">
+              <span class="ru-icon">&#128206;</span>
+              <span class="ru-title">Click to upload your receipt</span>
+              <small>JPG, PNG or WebP &middot; max 5MB</small>
+              <input type="file" id="receipt-file" name="paymentProof" accept="image/png,image/jpeg,image/webp">
+            </label>
+            <div class="receipt-preview" id="receiptPreview"><img id="receiptThumb" alt="Receipt preview"><span class="ru-name" id="receiptName"></span><button type="button" id="receiptRemove">Remove</button></div>
+          </div>
+          <p class="pay-note">Payment is <strong>not required to send your booking</strong>. It goes to our staff as <strong>Pending</strong>. Please settle the payment through the GCash QR within <strong>24 hours</strong> so our staff can confirm it; unpaid bookings are cancelled after 24 hours.</p>
+        </div>
+
+        <div class="form-group suggestion-group">
+          <label for="notes">Special Requests / Notes</label>
+          <textarea id="notes" name="notes" placeholder="e.g. dietary restrictions, theme preferences, special setup requests, allergies..."></textarea>
+        </div>
+
+        <label class="terms-acceptance" for="termsAccepted">
+          <input type="checkbox" id="termsAccepted" name="termsAccepted" value="true" required>
+          <span>I have read and agree to the <a href="/terms" id="termsFormLink">Terms and Conditions</a>.</span>
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" class="submit-btn" id="submit-btn">
+            <span class="btn-text">&#9993; Send Booking Request</span>
+          </button>
+        </div>
+        <p id="form-message" class="form-message"></p>
+
+      </form>
+    </div>
+  </div>
+</section>
+
+
+<section id="contact">
+  <div class="section-inner">
+    <span class="section-badge reveal">Get In Touch</span>
+    <h2 class="section-heading reveal reveal-delay-1">Keep in <em>Touch</em></h2>
+    <p class="section-sub reveal reveal-delay-2">We'd love to hear from you. Reach out to discuss your next event.</p>
+    <div class="gold-line reveal reveal-delay-3"></div>
+
+    <div class="contact-grid">
+      <div class="contact-info">
+        <div class="contact-item reveal reveal-delay-1">
+          <div class="contact-icon">&#128140;</div>
+          <div>
+            <div class="contact-detail-label">Email</div>
+            <div class="contact-detail-value">nardscatering@gmail.com</div>
+          </div>
+        </div>
+        <div class="contact-item reveal reveal-delay-2">
+          <div class="contact-icon">&#128241;</div>
+          <div>
+            <div class="contact-detail-label">Phone</div>
+            <div class="contact-detail-value">+63 XXX XXX XXXX</div>
+          </div>
+        </div>
+        <div class="contact-item reveal reveal-delay-3">
+          <div class="contact-icon">&#128205;</div>
+          <div>
+            <div class="contact-detail-label">Location</div>
+            <a class="contact-detail-value map-link" href="https://www.google.com/maps/search/?api=1&query=Nards+Catering+Cainta+Rizal+Philippines" target="_blank" rel="noopener noreferrer">Cainta, Rizal, Philippines</a>
+          </div>
+        </div>
+        <div class="contact-item reveal reveal-delay-4">
+          <div class="contact-icon">&#128336;</div>
+          <div>
+            <div class="contact-detail-label">Business Hours</div>
+            <div class="contact-detail-value">Mon – Sat, 8:00 AM – 6:00 PM</div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal reveal-delay-2">
+        <a class="contact-map-placeholder map-link" href="https://www.google.com/maps/search/?api=1&query=Nards+Catering+Cainta+Rizal+Philippines" target="_blank" rel="noopener noreferrer">
+          <div class="map-icon">&#128205;</div>
+          <span>Cainta, Rizal</span>
+          <span style="font-size:12px;opacity:.6">Metro Manila, Philippines</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer id="site-footer">
+  <p class="footer-copy">&#169; 2026 Nards Catering. All rights reserved.</p>
+  <ul class="footer-links">
+    <li><a href="/terms" id="termsFooterLink">Terms and Conditions</a></li>
+  </ul>
+</footer>
+
+
+<script src="/node_modules/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<script src="/Customer/name-validator.js"></script>
+<script>
+
+
+
+const mainNav = document.getElementById('main-nav');
+const mobileNav = document.getElementById('mobile-nav');
+const navToggle = document.getElementById('nav-toggle');
+const foodLightbox = document.getElementById('foodLightbox');
+const foodLightboxImage = document.getElementById('foodLightboxImage');
+const termsModal = document.getElementById('termsModal');
+
+function openTermsModal(event) {
+  if (event) event.preventDefault();
+  if (termsModal && typeof termsModal.showModal === 'function') termsModal.showModal();
+}
+
+document.getElementById('termsFormLink').addEventListener('click', openTermsModal);
+document.getElementById('termsFooterLink').addEventListener('click', openTermsModal);
+document.getElementById('termsModalClose').addEventListener('click', () => termsModal.close());
+document.getElementById('termsModalAgree').addEventListener('click', () => {
+  document.getElementById('termsAccepted').checked = true;
+  termsModal.close();
+});
+termsModal.addEventListener('click', (event) => {
+  if (event.target === termsModal) termsModal.close();
+});
+
+document.querySelectorAll('.food-item').forEach((item) => {
+  const openPhoto = () => {
+    const image = item.querySelector('.food-img');
+    foodLightboxImage.src = image.src;
+    foodLightboxImage.alt = image.alt;
+    foodLightbox.showModal();
+  };
+
+  item.addEventListener('click', openPhoto);
+  item.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openPhoto();
+    }
+  });
+});
+
+document.getElementById('foodLightboxClose').addEventListener('click', () => foodLightbox.close());
+foodLightbox.addEventListener('click', (event) => {
+  if (event.target === foodLightbox) foodLightbox.close();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && foodLightbox.open) {
+    event.preventDefault();
+    foodLightbox.close();
+  }
+});
+
+window.addEventListener('scroll', () => {
+  mainNav.classList.toggle('scrolled', window.scrollY > 60);
+});
+
+navToggle.addEventListener('click', () => {
+  mobileNav.classList.toggle('open');
+});
+
+function closeMobileNav() {
+  mobileNav.classList.remove('open');
+}
+
+
+document.addEventListener('click', (e) => {
+  if (!mainNav.contains(e.target) && !mobileNav.contains(e.target)) {
+    mobileNav.classList.remove('open');
+  }
+});
+
+document.querySelectorAll('.nav-links a').forEach((link) => {
+  link.addEventListener('click', () => {
+    document.querySelectorAll('.nav-links a').forEach((l) => l.classList.remove('active'));
+    link.classList.add('active');
+  });
+});
+
+
+
+
+const revealEls = document.querySelectorAll('.reveal');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12 });
+revealEls.forEach(el => revealObserver.observe(el));
+
+
+
+
+let customerPackages = [];
+
+async function loadPackages() {
+  try {
+    const res = await fetch('/packages');
+    if (!res.ok) throw new Error();
+    customerPackages = await res.json();
+  } catch(e) {
+    customerPackages = [];
+  }
+
+  const grid = document.getElementById('packages-grid');
+  if (!customerPackages.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:rgba(201,150,58,0.6);padding:32px">No packages available yet.</div>';
+  } else {
+    grid.innerHTML = customerPackages.map((p, i) => {
+      const featured = Number(p.is_popular) === 1 ? ' featured' : '';
+
+      const assetStrip = (p.assets || []).length
+        ? `<div class="pkg-assets-strip">
+            ${(p.assets||[]).map(a=>`<div class="pkg-asset-item"><span class="pkg-asset-qty">${a.qty_required}</span><span class="pkg-asset-name">&nbsp;${a.name}</span></div>`).join('')}
+           </div>` : '';
+
+      const freebieStrip = (p.freebies || []).length
+        ? `<div class="pkg-freebies-strip">
+            ${(p.freebies||[]).map(f=>`<span class="pkg-freebie-tag">&#10003; ${f.name}</span>`).join('')}
+           </div>` : '';
+
+      const dishMap = {};
+      (p.dishes || []).forEach(d => {
+        if (!dishMap[d.category]) dishMap[d.category] = [];
+        dishMap[d.category].push(d.name);
+      });
+      const dishHtml = Object.keys(dishMap).length
+        ? `<div class="pkg-section-label">&#127869; What's Included</div>
+           <div class="pkg-dish-grid">
+             ${Object.entries(dishMap).map(([cat,names])=>
+               `<div class="pkg-dish-group">
+                  <div class="pkg-dish-cat">${cat}</div>
+                  ${names.map(n=>`<div class="pkg-dish-item">&bull; ${n}</div>`).join('')}
+                </div>`).join('')}
+           </div>`
+        : '<div class="pkg-dish-empty">&#127869; Menu details coming soon</div>';
+
+      return `<div class="promo-package${featured}">
+        <div class="promo-header">
+          <span class="pax">${p.name}</span>
+          <span class="price">&#8369;${Number(p.price).toLocaleString('en-PH')}</span>
+        </div>
+        <div class="pkg-min-guests">Min. ${p.min_guests} guests</div>
+        ${assetStrip}
+        ${freebieStrip}
+        <div class="pkg-divider"></div>
+        <div class="pkg-dishes-section">${dishHtml}</div>
+      </div>`;
+    }).join('');
+  }
+
+  
+  const sel = document.getElementById('guest-count');
+  sel.innerHTML = '<option value="">Select a package...</option>' +
+    customerPackages.map(p =>
+      `<option value="${p.name}" data-price="${p.price}">${p.name} — Min. ${p.min_guests} guests (&#8369;${Number(p.price).toLocaleString('en-PH')})</option>`
+    ).join('');
+}
+
+
+const packageSelect = document.getElementById('guest-count');
+const totalPriceEl  = document.getElementById('totalPrice');
+const downPayEl     = document.getElementById('downPayment');
+const payInfoBox    = document.getElementById('payment-info-box');
+
+packageSelect.addEventListener('change', function() {
+  const selected = this.options[this.selectedIndex];
+  const price    = parseFloat(selected?.dataset?.price || 0);
+  updateAmountToPay();
+  if (!price) {
+    payInfoBox.style.display = 'none';
+    return;
+  }
+  payInfoBox.style.display = 'flex';
+  totalPriceEl.textContent = 'Total Price: \u20b1' + price.toLocaleString('en-PH');
+  downPayEl.textContent    = 'Down Payment (20%): \u20b1' + (price * 0.2).toLocaleString('en-PH');
+  updateAmountToPay();
+});
+
+loadPackages();
+
+function updateAmountToPay() {
+  const el = document.getElementById('amount-to-pay');
+  const option = document.querySelector('input[name="paymentOption"]:checked')?.value;
+  const price = parseFloat(packageSelect.options[packageSelect.selectedIndex]?.dataset?.price || 0);
+  if (!option || !price) { el.textContent = ''; return; }
+  const amount = option === 'down' ? price * 0.2 : price;
+  el.textContent = 'Amount to pay: \u20b1' + amount.toLocaleString('en-PH');
+}
+document.querySelectorAll('input[name="paymentOption"]').forEach(r => r.addEventListener('change', updateAmountToPay));
+
+document.getElementById('qr-toggle').addEventListener('click', (e) => {
+  const box = document.getElementById('gcash-qr-box');
+  box.hidden = !box.hidden;
+  e.currentTarget.textContent = box.hidden ? 'Show QR code' : 'Hide QR code';
+  e.currentTarget.setAttribute('aria-expanded', String(!box.hidden));
+});
+
+(async function loadGcashQr() {
+  try {
+    const res = await fetch('/settings/gcash-qr');
+    const { url } = await res.json();
+    if (url) {
+      const img = document.getElementById('gcash-qr-img');
+      img.src = url;
+      img.style.display = '';
+      return;
+    }
+  } catch (e) { /* fall through to empty notice */ }
+  document.getElementById('gcash-qr-empty').style.display = '';
+})();
+
+const phoneInput = document.getElementById('phone');
+phoneInput.addEventListener('input', () => {
+  const digits = phoneInput.value.replace(/\D/g, '');
+  if (digits.length > 11) {
+    showPopup('error', 'Phone number too long', 'Phone number must be exactly 11 digits. You entered ' + digits.length + ' digits.');
+    phoneInput.value = digits.slice(0, 11);
+    return;
+  }
+  phoneInput.value = digits;
+});
+
+function showPopup(icon, title, text) {
+  return Swal.fire({ icon, title, text, position: 'center', confirmButtonText: 'OK', confirmButtonColor: '#3A2D1A' });
+}
+
+function escHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Server-side validator is the source of truth; this only shows the result early.
+async function checkAddress() {
+  const input = document.getElementById('address');
+  const msg = document.getElementById('address-msg');
+  try {
+    const res = await fetch('/bookings/validate-address', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: input.value })
+    });
+    const result = await res.json();
+    msg.textContent = result.valid ? '' : result.message;
+    msg.style.display = result.valid ? 'none' : 'block';
+    input.setCustomValidity(result.valid ? '' : result.message);
+    return result.valid;
+  } catch (e) {
+    return true;
+  }
+}
+document.getElementById('name').addEventListener('input', (e) => {
+  const cleaned = e.target.value.replace(/[^A-Za-z\u00C0-\u00FF'\- ]/g, '');
+  if (cleaned !== e.target.value) e.target.value = cleaned;
+});
+document.getElementById('address').addEventListener('blur', () => { if (document.getElementById('address').value.trim()) checkAddress(); });
+document.getElementById('address').addEventListener('input', () => {
+  document.getElementById('address').setCustomValidity('');
+  document.getElementById('address-msg').style.display = 'none';
+});
+
+function formatTimeLeft(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+function isBookingPaid(booking) {
+  return Boolean(booking.paymentProof) || String(booking.paymentStatus || '').toLowerCase() === 'paid';
+}
+
+function requestSectionHtml(booking) {
+  const status = (booking.status || 'pending').toLowerCase();
+  let html = '';
+  if (booking.requestType) {
+    const label = booking.requestType === 'cancel' ? 'Cancellation' : 'Reschedule';
+    const newDate = booking.requestNewDate ? ' &middot; preferred: ' + escHtml(String(booking.requestNewDate).slice(0, 10)) + (booking.requestNewTime ? ' ' + escHtml(String(booking.requestNewTime).slice(0, 5)) : '') : '';
+    html += `<div class="req-box"><strong>${label} request ${Number(booking.requestHandled) ? '(' + (booking.requestDecision || 'handled') + ' by staff)' : '(waiting for staff)'}</strong>${newDate}<br>${escHtml(booking.requestReason || '')}</div>`;
+  }
+  const open = booking.requestType && !Number(booking.requestHandled);
+  if (['pending', 'confirmed'].includes(status) && !open) {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const eventDay = booking.eventDate ? String(booking.eventDate).split('T')[0] : '';
+    // Rescheduling is no longer offered on the day of the event (or after it).
+    const canReschedule = !eventDay || eventDay > todayStr;
+    html += `<div class="req-actions">${canReschedule ? `<button type="button" data-req="reschedule" data-id="${booking.id}">Reschedule</button>` : ''}<button type="button" class="danger" data-req="cancel" data-id="${booking.id}">Cancel booking</button></div>`;
+  }
+  return html;
+}
+
+function paymentSectionHtml(booking) {
+  if (!booking.paymentOption) return '';
+  const status = (booking.status || 'pending').toLowerCase();
+  const amount = '\u20b1' + Number(booking.amountDue || 0).toLocaleString('en-PH');
+  if (status === 'cancelled' && !booking.paymentProof) {
+    return '<div class="customer-booking-pay" style="margin-top:10px;color:#c0392b"><strong>Payment not received within 24 hours. This booking was cancelled.</strong></div>';
+  }
+  if (status !== 'pending') return '';
+  if (booking.paymentProof) {
+    return `<div class="customer-booking-pay" style="margin-top:10px"><span class="pay-badge paid">PAID</span> <strong>Receipt received for review.</strong> Our staff will confirm your booking shortly.</div>`;
+  }
+  return `<div class="customer-booking-pay" style="margin-top:10px;padding:10px;border:1px solid #e0a800;border-radius:8px;background:#fff8e1">
+    <span class="pay-badge unpaid">UNPAID</span> <strong>Payment needed: ${amount}</strong> &mdash; time left: <strong>${formatTimeLeft(Number(booking.paymentSecondsLeft) || 0)}</strong><br>
+    <small>Pay through the GCash QR in the booking form, then upload your receipt here. Unpaid bookings are cancelled after 24 hours.</small>
+    <div class="receipt-upload" data-id="${booking.id}">
+      <label class="receipt-drop"><span class="ru-icon">&#128206;</span><span class="ru-title">Upload receipt</span><small>JPG, PNG or WebP &middot; max 5MB</small>
+        <input type="file" class="pay-file" accept="image/png,image/jpeg,image/webp"></label>
+      <div class="receipt-preview"><span class="ru-name"></span><button type="button" class="pay-send" style="background:#27ae60">Send receipt</button></div>
+      <div class="pay-msg" style="color:#c0392b;font-size:.85rem;margin-top:4px"></div>
+    </div>
+  </div>`;
+}
+
+
+
+
+
+let custCalYear  = new Date().getFullYear();
+let custCalMonth = new Date().getMonth();
+let custCalBookedDates = new Set();  
+let custCalAllBookings = [];         
+
+function custCalTodayStr() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+
+function minBookingStr() {
+  const n = new Date();
+  n.setDate(n.getDate() + 4);
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+
+async function loadCustCalBookings() {
+  try {
+    const res = await fetch('/bookings');
+    if (!res.ok) throw new Error();
+    custCalAllBookings = await res.json();
+    custCalBookedDates = new Set(
+      custCalAllBookings
+        .filter(r => (r.status || '').toLowerCase() === 'confirmed')
+        .map(r => r.eventDate ? r.eventDate.split('T')[0] : '')
+        .filter(Boolean)
+    );
+  } catch(e) {
+    custCalAllBookings = [];
+    custCalBookedDates = new Set();
+  }
+  renderCustCalendar();
+}
+
+function renderCustCalendar() {
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('cust-cal-month-label').textContent = `${monthNames[custCalMonth]} ${custCalYear}`;
+
+  const grid    = document.getElementById('cust-cal-grid');
+  const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let html = dayLabels.map(d => `<div class="cust-cal-day-label">${d}</div>`).join('');
+
+  const firstDay    = new Date(custCalYear, custCalMonth, 1).getDay();
+  const daysInMonth = new Date(custCalYear, custCalMonth + 1, 0).getDate();
+  const todayStr    = custCalTodayStr();
+
+  for (let i = 0; i < firstDay; i++) html += '<div></div>';
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr  = `${custCalYear}-${String(custCalMonth + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday  = dateStr === todayStr;
+    const isBooked = custCalBookedDates.has(dateStr);
+
+    let cls = 'cust-cal-cell';
+    if (isToday)  cls += ' cust-cal-today';
+    if (isBooked) cls += ' cust-cal-booked';
+
+    const dot = isBooked ? '<span class="cust-cal-dot"></span>' : '';
+
+    html += `<div class="${cls}" onclick="custCalSelectDay('${dateStr}')">
+      <span class="cust-cal-num">${d}</span>
+      <div class="cust-cal-dots">${dot}</div>
+    </div>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function custCalPrev() {
+  custCalMonth--;
+  if (custCalMonth < 0) { custCalMonth = 11; custCalYear--; }
+  renderCustCalendar();
+}
+function custCalNext() {
+  custCalMonth++;
+  if (custCalMonth > 11) { custCalMonth = 0; custCalYear++; }
+  renderCustCalendar();
+}
+
+function custCalSelectDay(dateStr) {
+  
+  document.querySelectorAll('.cust-cal-cell').forEach(c => c.classList.remove('cust-cal-selected'));
+  document.querySelectorAll('.cust-cal-cell').forEach(c => {
+    if (c.getAttribute('onclick') === `custCalSelectDay('${dateStr}')`) c.classList.add('cust-cal-selected');
+  });
+
+  const detail   = document.getElementById('cust-cal-detail');
+  const label    = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-PH', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  const todayStr = custCalTodayStr();
+  const isBooked = custCalBookedDates.has(dateStr);
+  const isPast   = dateStr < todayStr;
+  const isTooSoon = !isPast && dateStr < minBookingStr();
+
+  
+  const dayEvents = custCalAllBookings.filter(
+    r => r.eventDate && r.eventDate.split('T')[0] === dateStr && (r.status || '').toLowerCase() === 'confirmed'
+  );
+
+  if (isBooked) {
+    const eventLines = dayEvents.map(r =>
+      `<div style="font-size:12px;color:var(--muted);margin-top:4px">&#8226; ${r.eventType || 'Event'} &mdash; ${r.guests || 0} pax</div>`
+    ).join('');
+    detail.innerHTML = `<div class="cust-cal-booked-notice">
+      <span>&#128197;</span>
+      <div>
+        <strong>${label}</strong>
+        <p>This date is already reserved and unavailable.</p>
+        ${eventLines}
+        <p class="cust-cal-notice-sub">Please choose another date.</p>
+        <button class="cust-cal-book-btn" onclick="goToBooking()">Pick Another Date</button>
+      </div>
+    </div>`;
+  } else if (isPast) {
+    detail.innerHTML = `<div class="cust-cal-avail-notice">
+      <span>&#128198;</span>
+      <div>
+        <strong>${label}</strong>
+        <p>This date has already passed.</p>
+      </div>
+    </div>`;
+  } else if (isTooSoon) {
+    detail.innerHTML = `<div class="cust-cal-avail-notice">
+      <span>&#9203;</span>
+      <div>
+        <strong>${label}</strong>
+        <p>Bookings need at least 3 days notice. The earliest date you can book is ${new Date(minBookingStr() + 'T00:00:00').toLocaleDateString('en-PH', { month:'long', day:'numeric', year:'numeric' })}.</p>
+      </div>
+    </div>`;
+  } else {
+    detail.innerHTML = `<div class="cust-cal-avail-notice">
+      <span>&#9989;</span>
+      <div>
+        <strong>${label}</strong>
+        <p>This date is available! Book now to reserve your event.</p>
+        <button class="cust-cal-book-btn" onclick="goToBooking('${dateStr}')">
+          Book This Date
+        </button>
+      </div>
+    </div>`;
+  }
+}
+
+loadCustCalBookings();
+
+setInterval(loadCustCalBookings, 2 * 60 * 1000);
+
+
+const eventDateInput = document.getElementById('event-date');
+if (eventDateInput) {
+  eventDateInput.min = minBookingStr();
+}
+
+
+
+
+const CUSTOMER_SESSION_KEY = 'nards_customer_session';
+
+function getCustomerSession() {
+  try {
+    const raw = sessionStorage.getItem(CUSTOMER_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function fillBookingIdentity(client) {
+  if (!client) return;
+  const fields = [['name', client.name], ['email', client.email], ['phone', client.contact || client.phone]];
+  fields.forEach(([id, value]) => {
+    const input = document.getElementById(id);
+    if (!input || !value) return;
+    input.value = value;
+    input.readOnly = true;
+    input.tabIndex = -1;
+    input.classList.add('locked-field');
+  });
+}
+
+// Logged-in customers get the booking form at the top of the page; it moves back when logged out.
+const inquiryEl = document.getElementById('inquiry');
+const inquiryAnchor = document.createComment('inquiry-home');
+inquiryEl.parentNode.insertBefore(inquiryAnchor, inquiryEl);
+function placeInquirySection(loggedIn) {
+  if (loggedIn) {
+    const first = document.getElementById('home');
+    if (inquiryEl.nextElementSibling !== first) first.parentNode.insertBefore(inquiryEl, first);
+  } else if (inquiryAnchor.nextSibling !== inquiryEl) {
+    inquiryAnchor.parentNode.insertBefore(inquiryEl, inquiryAnchor.nextSibling);
+  }
+  document.body.classList.toggle('booking-first', loggedIn);
+}
+
+function setCustomerSession(client) {
+  sessionStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(client));
+  updateCustomerAuthUI();
+  renderCustomerBookings();
+  fillBookingIdentity(client);
+}
+
+function clearCustomerSession() {
+  sessionStorage.removeItem(CUSTOMER_SESSION_KEY);
+  updateCustomerAuthUI();
+  renderCustomerBookings();
+}
+
+function updateCustomerAuthUI() {
+  const authStatus = document.getElementById('customerAuthStatus');
+  const logoutBtn = document.getElementById('customerLogoutBtn');
+  const notifBell = document.getElementById('notifBell');
+  const gate = document.getElementById('inquiryLoginGate');
+  const formWrapper = document.getElementById('inquiryFormWrapper');
+  const session = getCustomerSession();
+  placeInquirySection(Boolean(session));
+  if (!authStatus) return;
+
+  if (!session) {
+    authStatus.classList.remove('logged-in');
+    authStatus.title = 'Not logged in';
+    authStatus.setAttribute('aria-label', 'Not logged in');
+    authStatus.style.display = '';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    if (notifBell) notifBell.style.display = 'none';
+    if (gate) gate.style.display = '';
+    if (formWrapper) formWrapper.style.display = 'none';
+    return;
+  }
+
+  authStatus.classList.add('logged-in');
+  authStatus.title = `Logged in as ${session.name} (${session.email})`;
+  authStatus.setAttribute('aria-label', `Logged in as ${session.name} (${session.email})`);
+  authStatus.style.display = 'none';
+  if (logoutBtn) logoutBtn.style.display = '';
+  if (notifBell) notifBell.style.display = '';
+  if (gate) gate.style.display = 'none';
+  if (formWrapper) formWrapper.style.display = '';
+
+  fillBookingIdentity(session);
+}
+
+function goToBooking(dateStr) {
+  if (!getCustomerSession()) {
+    window.location.href = '/customer-login';
+    return;
+  }
+  if (dateStr) {
+    if (dateStr < minBookingStr()) {
+      showPopup('info', 'Date not available', 'Bookings need at least 3 days notice. Please pick a later date.');
+      document.getElementById('inquiry').scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    const eventDateEl = document.getElementById('event-date');
+    if (eventDateEl) eventDateEl.value = dateStr;
+  }
+  document.getElementById('inquiry').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function renderCustomerBookings() {
+  const container = document.getElementById('customerBookingsList');
+  if (!container) return;
+
+  const session = getCustomerSession();
+  if (!session) {
+    container.innerHTML = '<div class="customer-booking-empty">Please log in with your Gmail account to view your bookings.</div>';
+    return;
+  }
+
+  try {
+    const res = await fetch('/bookings');
+    if (!res.ok) throw new Error('Failed to load bookings');
+    const bookings = await res.json();
+
+    // Do not wipe a proof form the customer is filling in.
+    if (container.contains(document.activeElement) && document.activeElement.matches('input')) return;
+    if ([...container.querySelectorAll('.pay-file')].some((f) => f.files.length) || [...container.querySelectorAll('.pay-ref')].some((f) => f.value)) return;
+    const userBookings = bookings.filter((booking) => {
+      const bookingEmail = (booking.email || '').trim().toLowerCase();
+      const bookingName = (booking.clientName || '').trim().toLowerCase();
+      const sessionEmail = (session.email || '').trim().toLowerCase();
+      const sessionName = (session.name || '').trim().toLowerCase();
+      return bookingEmail === sessionEmail || bookingName === sessionName;
+    });
+
+    if (!userBookings.length) {
+      container.innerHTML = '<div class="customer-booking-empty">You have no bookings yet. Once you send a request, it will appear here.</div>';
+      updateNotifications(session, []);
+      return;
+    }
+
+    updateNotifications(session, userBookings);
+
+    notifyConfirmedBookings(session, userBookings);
+
+    container.innerHTML = userBookings.map((booking) => {
+      const date = booking.eventDate ? new Date(booking.eventDate + 'T00:00:00').toLocaleDateString('en-PH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }) : 'Date not set';
+
+      return `
+        <div class="customer-booking-card">
+          <div class="customer-booking-card-header">
+            <strong>${booking.eventType || 'Event'} · ${booking.package || 'Package'}</strong>
+            <span class="customer-booking-status">${(booking.status || 'pending').toUpperCase()}</span>
+          </div>
+          <div class="customer-booking-meta">
+            <div><strong>Date:</strong> ${date}</div>
+            <div><strong>Guests:</strong> ${booking.guests || 0}</div>
+            <div><strong>Phone:</strong> ${booking.phone || 'N/A'}</div>
+            <div><strong>Address:</strong> ${escHtml(booking.address || 'N/A')}</div>
+          </div>
+          ${paymentSectionHtml(booking)}
+          ${requestSectionHtml(booking)}
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    container.innerHTML = '<div class="customer-booking-empty">Unable to load your bookings. Please try again later.</div>';
+  }
+}
+
+function clearReceiptPreview() {
+  const i = document.getElementById('receipt-file');
+  if (i) i.value = '';
+  const p = document.getElementById('receiptPreview');
+  if (p) p.classList.remove('show');
+  const d = document.getElementById('receiptDrop');
+  if (d) d.classList.remove('has-file');
+}
+
+(function setupReceiptUi() {
+  const input = document.getElementById('receipt-file');
+  if (input) {
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return clearReceiptPreview();
+      if (file.size > 5 * 1024 * 1024) { alert('Receipt must be 5MB or smaller.'); return clearReceiptPreview(); }
+      document.getElementById('receiptThumb').src = URL.createObjectURL(file);
+      document.getElementById('receiptName').textContent = file.name;
+      document.getElementById('receiptPreview').classList.add('show');
+      document.getElementById('receiptDrop').classList.add('has-file');
+    });
+    document.getElementById('receiptRemove').addEventListener('click', clearReceiptPreview);
+  }
+
+  const list = document.getElementById('customerBookingsList');
+  list.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('pay-file')) return;
+    const box = e.target.closest('.receipt-upload');
+    const file = e.target.files[0];
+    box.querySelector('.ru-name').textContent = file ? file.name : '';
+    box.querySelector('.receipt-preview').classList.toggle('show', Boolean(file));
+  });
+  list.addEventListener('click', async (e) => {
+    const sendBtn = e.target.closest('.pay-send');
+    if (sendBtn) {
+      const box = sendBtn.closest('.receipt-upload');
+      const file = box.querySelector('.pay-file').files[0];
+      const msg = box.querySelector('.pay-msg');
+      const session = getCustomerSession();
+      if (!file || !session) return;
+      const fd = new FormData();
+      fd.append('email', session.email);
+      fd.append('paymentProof', file);
+      sendBtn.disabled = true;
+      try {
+        const res = await fetch('/bookings/' + box.dataset.id + '/payment', { method: 'POST', body: fd });
+        const out = await res.json();
+        if (!res.ok) throw new Error(out.error || 'Upload failed.');
+        box.querySelector('.pay-file').value = '';
+        renderCustomerBookings();
+      } catch (err) {
+        msg.textContent = err.message;
+        sendBtn.disabled = false;
+      }
+      return;
+    }
+    const reqBtn = e.target.closest('[data-req]');
+    if (reqBtn) openRequestModal(reqBtn.dataset.req, reqBtn.dataset.id);
+  });
+})();
+
+let reqState = { type: '', id: '' };
+function openRequestModal(type, id) {
+  reqState = { type, id };
+  let m = document.getElementById('reqModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'reqModal';
+    m.innerHTML = `<div class="req-card"><h3 id="reqTitle"></h3>
+      <div id="reqDateWrap" style="margin-top:10px"><label>Preferred new date<input type="date" id="reqDate"></label><small style="color:#7a6a3a">Must be at least 3 full days from today.</small><label style="display:block;margin-top:8px">Preferred new time<input type="time" id="reqTime"></label></div>
+      <label style="display:block;margin-top:10px">Reason / letter to our staff<textarea id="reqReason" rows="5" maxlength="1000" placeholder="Please explain why you need to cancel or reschedule (valid note, at least 20 characters)."></textarea></label>
+      <div class="req-err" id="reqErr"></div>
+      <div class="req-btns"><button type="button" id="reqClose">Close</button><button type="button" id="reqSend" style="background:#a67c00;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer">Send request</button></div></div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('show'); });
+    document.getElementById('reqClose').addEventListener('click', () => m.classList.remove('show'));
+    document.getElementById('reqSend').addEventListener('click', submitRequest);
+  }
+  const min = new Date(); min.setDate(min.getDate() + 4);
+  const dateInput = document.getElementById('reqDate');
+  dateInput.min = `${min.getFullYear()}-${String(min.getMonth() + 1).padStart(2, '0')}-${String(min.getDate()).padStart(2, '0')}`;
+  dateInput.value = '';
+  document.getElementById('reqTime').value = '';
+  document.getElementById('reqReason').value = '';
+  document.getElementById('reqErr').textContent = '';
+  document.getElementById('reqTitle').textContent = type === 'cancel' ? 'Cancel this booking' : 'Reschedule this booking';
+  document.getElementById('reqDateWrap').style.display = type === 'reschedule' ? 'block' : 'none';
+  m.classList.add('show');
+}
+
+const CONTACT_EMAIL = 'nardscatering@gmail.com';
+const CONTACT_PHONE = '+63 XXX XXX XXXX';
+
+function validNote(text) {
+  const t = text.trim();
+  const words = t.split(/\s+/).filter((w) => /[A-Za-z]{2,}/.test(w));
+  if (t.length < 20) return 'Please write a valid note of at least 20 characters (' + t.length + '/20).';
+  if (words.length < 4 || (t.match(/[A-Za-z]/g) || []).length < 15 || /(.)\1{4,}/.test(t) || new Set(words.map((w) => w.toLowerCase())).size < 3) return 'Please write a valid note using complete words that explain your reason.';
+  return '';
+}
+
+function submitRequest() {
+  const err = document.getElementById('reqErr');
+  const noteErr = validNote(document.getElementById('reqReason').value);
+  if (noteErr) { err.textContent = noteErr; return; }
+  if (reqState.type === 'reschedule') {
+    if (!document.getElementById('reqDate').value) { err.textContent = 'Choose your preferred new date.'; return; }
+    if (!document.getElementById('reqTime').value) { err.textContent = 'Choose your preferred new time.'; return; }
+  }
+  err.textContent = '';
+  const isCancel = reqState.type === 'cancel';
+  const c = document.createElement('div');
+  c.id = 'reqConfirm';
+  c.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10001;padding:16px';
+  c.innerHTML = `<div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:100%;text-align:center">
+    <div style="font-size:2.2rem">${isCancel ? '&#9888;&#65039;' : '&#128197;'}</div>
+    <h3 style="margin:6px 0">${isCancel ? 'Are you sure you want to cancel?' : 'Are you sure you want to reschedule?'}</h3>
+    <p style="margin:0 0 12px;color:#555">${isCancel ? 'Your cancellation request will be sent to our staff for review.' : 'Your reschedule request will be sent to our staff for review.'}</p>
+    <div style="background:#fff8e1;border:1px solid #e0a800;border-radius:10px;padding:10px;font-size:.9rem;text-align:left">
+      <strong>For a faster update, contact Nard's Catering:</strong><br>
+      &#9993; Gmail: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a><br>
+      &#9742; Contact number: <strong>${CONTACT_PHONE}</strong>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+      <button type="button" id="reqBack" style="padding:8px 16px;border-radius:8px;border:1px solid #999;background:#fff;cursor:pointer">No, go back</button>
+      <button type="button" id="reqYes" style="padding:8px 16px;border-radius:8px;border:none;background:${isCancel ? '#c0392b' : '#a67c00'};color:#fff;cursor:pointer">Yes, ${isCancel ? 'cancel booking' : 'reschedule'}</button>
+    </div></div>`;
+  document.body.appendChild(c);
+  document.getElementById('reqBack').addEventListener('click', () => c.remove());
+  document.getElementById('reqYes').addEventListener('click', async () => { c.remove(); await sendRequest(); });
+}
+
+async function sendRequest() {
+  const session = getCustomerSession();
+  const err = document.getElementById('reqErr');
+  if (!session) return;
+  const res = await fetch('/bookings/' + reqState.id + '/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: session.email,
+      type: reqState.type,
+      reason: document.getElementById('reqReason').value,
+      newDate: document.getElementById('reqDate').value,
+      newTime: document.getElementById('reqTime').value
+    })
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) { err.textContent = out.error || 'Could not send request.'; return; }
+  document.getElementById('reqModal').classList.remove('show');
+  showPopup('success', 'Request sent', out.message + ' For a faster update, contact Nard\'s Catering at ' + CONTACT_EMAIL + ' or ' + CONTACT_PHONE + '.');
+  renderCustomerBookings();
+}
+
+function ensureCustomerLoggedIn() {
+  const session = getCustomerSession();
+  if (!session) {
+    const msgEl = document.getElementById('form-message');
+    msgEl.className = 'form-message error';
+    msgEl.textContent = 'Please log in with your Gmail account before booking.';
+    window.location.href = '/customer-login';
+    return false;
+  }
+
+  fillBookingIdentity(session);
+  return true;
+}
+
+document.getElementById('customerAuthStatus').addEventListener('click', () => {
+  const session = getCustomerSession();
+  if (session) return;
+
+  window.location.href = '/customer-login';
+});
+
+document.getElementById('customerLogoutBtn').addEventListener('click', () => {
+  document.getElementById('logoutConfirmModal').classList.add('show');
+});
+
+document.getElementById('logoutCancelBtn').addEventListener('click', () => {
+  document.getElementById('logoutConfirmModal').classList.remove('show');
+});
+
+document.getElementById('logoutConfirmBtn').addEventListener('click', () => {
+  document.getElementById('logoutConfirmModal').classList.remove('show');
+  clearCustomerSession();
+});
+
+document.getElementById('logoutConfirmModal').addEventListener('click', (event) => {
+  if (event.target === event.currentTarget) event.currentTarget.classList.remove('show');
+});
+
+updateCustomerAuthUI();
+renderCustomerBookings();
+setInterval(renderCustomerBookings, 60 * 1000);
+
+function notifyConfirmedBookings(session, bookings) {
+  const key = 'nards_seen_confirmed_' + (session.email || '').toLowerCase();
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { seen = []; }
+  const fresh = bookings.filter(b => (b.status || '').toLowerCase() === 'confirmed' && !seen.includes(b.id));
+  if (!fresh.length || document.getElementById('bookingConfirmedToast')) return;
+
+  const toast = document.createElement('div');
+  toast.id = 'bookingConfirmedToast';
+  toast.setAttribute('role', 'alert');
+  toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10000;width:min(340px,90vw);text-align:center;background:#1f7a3d;color:#fff;padding:24px 28px;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.45)';
+  const title = document.createElement('strong');
+  title.textContent = '\u2713 Booking confirmed!';
+  const body = document.createElement('div');
+  body.style.margin = '6px 0 10px';
+  body.textContent = fresh.map(b => `${b.eventType || 'Event'} on ${b.eventDate || ''}`).join('; ');
+  const btn = document.createElement('button');
+  btn.textContent = 'OK';
+  btn.style.cssText = 'background:#fff;color:#1f7a3d;border:0;padding:6px 16px;border-radius:6px;cursor:pointer';
+  btn.addEventListener('click', () => {
+    localStorage.setItem(key, JSON.stringify([...new Set([...seen, ...fresh.map(b => b.id)])]));
+    toast.remove();
+  });
+  toast.append(title, body, btn);
+  document.body.appendChild(toast);
+}
+
+let currentNotifs = [];
+let notifSeenKey = '';
+
+function notifMessage(b) {
+  const what = `${b.eventType || 'Event'}${b.eventDate ? ' on ' + b.eventDate.split('T')[0] : ''}`;
+  switch ((b.status || 'pending').toLowerCase()) {
+    case 'confirmed': return `Your booking for ${what} is confirmed.`;
+    case 'cancelled':
+      return `Your booking for ${what} was cancelled.${b.cancellationReason ? ` Reason: ${b.cancellationReason}` : ''}`;
+    case 'completed': return `Your event ${what} is completed. Thank you for choosing Nard's!`;
+    default:
+      if (b.paymentOption && !b.paymentProof) return `Your booking for ${what} is pending. Please pay within 24 hours or it will be cancelled.`;
+      return `Your booking for ${what} is awaiting confirmation.`;
+  }
+}
+
+function refundNote(b) {
+  if (b.paymentOption === 'full') return ' Refund policy: for a full payment, 80% of your payment is refundable.';
+  if (b.paymentOption === 'down') return ' Refund policy: the 20% down payment is non-refundable.';
+  return ' Refund policy: the 20% down payment is non-refundable; for a full payment, 80% is refundable.';
+}
+
+function requestNotif(b) {
+  if (!b.requestType) return null;
+  const what = `${b.eventType || 'Event'}${b.eventDate ? ' on ' + b.eventDate.split('T')[0] : ''}`;
+  const kind = b.requestType === 'cancel' ? 'cancellation' : 'reschedule';
+  const note = b.requestResponse ? ` Staff note: ${b.requestResponse}` : '';
+  if (!Number(b.requestHandled)) return { key: 'sent', message: `Your ${kind} request for ${what} was sent. Waiting for staff to review it.` };
+  if (b.requestDecision === 'approved') {
+    return { key: 'approved', message: b.requestType === 'cancel'
+      ? `Your cancellation request was approved. The booking for ${what} is cancelled and moved to the booking archive.${note}${refundNote(b)}`
+      : `Your reschedule request was approved. Your event is now on ${what}${b.eventTime ? ' at ' + String(b.eventTime).slice(0, 5) : ''}.${note}` };
+  }
+  return { key: 'declined', message: `Your ${kind} request for ${what} was declined.${note}${refundNote(b)} Please contact ${CONTACT_EMAIL} or ${CONTACT_PHONE}.` };
+}
+
+function updateNotifications(session, bookings) {
+  notifSeenKey = 'nards_seen_status_' + (session.email || '').toLowerCase();
+  let seen = {};
+  try { seen = JSON.parse(localStorage.getItem(notifSeenKey) || '{}'); } catch (e) { seen = {}; }
+
+  currentNotifs = [];
+  [...bookings].sort((a, b) => b.id - a.id).forEach((b) => {
+    const st = (b.status || 'pending').toLowerCase();
+    const r = requestNotif(b);
+    if (r) currentNotifs.push({ id: b.id + '-req', status: r.key, label: 'Request: ' + r.key, message: r.message, unread: seen[b.id + '-req'] !== r.key });
+    currentNotifs.push({ id: b.id, status: st, message: notifMessage(b), unread: seen[b.id] !== st });
+  });
+
+  const unreadCount = currentNotifs.filter((n) => n.unread).length;
+  const badge = document.getElementById('notifBadge');
+  badge.textContent = unreadCount;
+  badge.style.display = unreadCount ? 'flex' : 'none';
+
+  const list = document.getElementById('notifList');
+  list.replaceChildren();
+  if (!currentNotifs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'notif-empty';
+    empty.textContent = 'No booking updates yet.';
+    list.appendChild(empty);
+    return;
+  }
+  currentNotifs.forEach((n) => {
+    const item = document.createElement('div');
+    item.className = 'notif-item' + (n.unread ? ' unread' : '');
+    item.textContent = n.message;
+    const small = document.createElement('small');
+    small.textContent = n.label || ('Status: ' + n.status.charAt(0).toUpperCase() + n.status.slice(1));
+    item.appendChild(small);
+    list.appendChild(item);
+  });
+}
+
+document.getElementById('notifBell').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const panel = document.getElementById('notifPanel');
+  const opening = !panel.classList.contains('open');
+  panel.classList.toggle('open', opening);
+  if (opening && notifSeenKey) {
+    const seen = {};
+    currentNotifs.forEach((n) => { seen[n.id] = n.status; });
+    localStorage.setItem(notifSeenKey, JSON.stringify(seen));
+    document.getElementById('notifBadge').style.display = 'none';
+  }
+});
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('notifPanel');
+  if (!panel.contains(e.target)) panel.classList.remove('open');
+});
+
+document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.querySelector('.btn-text').textContent = 'Submitting...';
+
+  if (!ensureCustomerLoggedIn()) {
+    btn.disabled = false;
+    btn.querySelector('.btn-text').textContent = '\u2709 Send Booking Request';
+    return;
+  }
+
+  const session = getCustomerSession();
+  const data = {
+    clientName: document.getElementById('name').value,
+    address:    document.getElementById('address').value,
+    email:      document.getElementById('email').value,
+    eventType:  document.getElementById('event-type').value,
+    package:    document.getElementById('guest-count').value,
+    eventDate:  document.getElementById('event-date').value,
+    eventTime:  document.getElementById('event-time').value,
+    phone:      document.getElementById('phone').value,
+    notes:      document.getElementById('notes').value
+  };
+
+  if (session && data.email && session.email.toLowerCase() !== data.email.trim().toLowerCase()) {
+    const msgEl = document.getElementById('form-message');
+    msgEl.className = 'form-message error';
+    msgEl.textContent = 'Please use the email address of the logged-in Gmail account.';
+    btn.disabled = false;
+    btn.querySelector('.btn-text').textContent = '\u2709 Send Booking Request';
+    return;
+  }
+
+  if (data.eventDate && data.eventDate < minBookingStr()) {
+    const msgEl = document.getElementById('form-message');
+    msgEl.className = 'form-message error';
+    msgEl.textContent = 'Bookings need at least 3 days notice.';
+    await showPopup('error', 'Date too soon', 'Bookings need at least 3 days notice. The earliest date you can book is ' + new Date(minBookingStr() + 'T00:00:00').toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' }) + '.');
+    btn.disabled = false;
+    btn.querySelector('.btn-text').textContent = '\u2709 Send Booking Request';
+    return;
+  }
+
+  const resetBtn = () => {
+    btn.disabled = false;
+    btn.querySelector('.btn-text').textContent = '\u2709 Send Booking Request';
+  };
+  if (!window.isRealName(data.clientName)) {
+    await showPopup('error', 'Invalid name', 'Please enter your real full name (first and last name). Random letters are not accepted.');
+    resetBtn();
+    return;
+  }
+  if (!/^\d{11}$/.test(data.phone)) {
+    await showPopup('error', 'Invalid phone number', 'Phone number must be exactly 11 digits.');
+    resetBtn();
+    return;
+  }
+  const paymentOption = document.querySelector('input[name="paymentOption"]:checked')?.value;
+  if (!paymentOption) {
+    await showPopup('warning', 'Payment option needed', 'Please choose Full payment or Down payment (20%).');
+    resetBtn();
+    return;
+  }
+  if (!(await checkAddress())) {
+    await showPopup('error', 'Invalid venue address', document.getElementById('address-msg').textContent || 'Please enter a valid address in the Philippines.');
+    resetBtn();
+    return;
+  }
+
+  const pkgOption = packageSelect.options[packageSelect.selectedIndex];
+  const pkgPrice = parseFloat(pkgOption?.dataset?.price || 0);
+  const amountToPay = paymentOption === 'down' ? pkgPrice * 0.2 : pkgPrice;
+  const confirmation = await Swal.fire({
+    title: 'Confirm your booking',
+    html: `<div style="text-align:left;line-height:1.9">
+      <div><strong>Name:</strong> ${escHtml(data.clientName)}</div>
+      <div><strong>Event:</strong> ${escHtml(data.eventType)}</div>
+      <div><strong>Package:</strong> ${escHtml(data.package)}</div>
+      <div><strong>Date:</strong> ${escHtml(data.eventDate)}${data.eventTime ? ' at ' + escHtml(data.eventTime) : ''}</div>
+      <div><strong>Venue:</strong> ${escHtml(data.address)}</div>
+      <div><strong>Payment:</strong> ${paymentOption === 'down' ? 'Down payment (20%)' : 'Full payment'} \u2014 \u20b1${amountToPay.toLocaleString('en-PH')}<br><small>Pay within 24 hours so staff can confirm your booking, or it will be cancelled.</small></div>
+    </div>`,
+    position: 'center',
+    showCancelButton: true,
+    confirmButtonText: 'Confirm booking',
+    cancelButtonText: 'Review',
+    confirmButtonColor: '#3A2D1A',
+    reverseButtons: true
+  });
+  if (!confirmation.isConfirmed) {
+    resetBtn();
+    return;
+  }
+  const formData = new FormData();
+  Object.entries(data).forEach(([k, v]) => formData.append(k, v));
+  formData.append('paymentOption', paymentOption);
+  formData.append('termsAccepted', document.getElementById('termsAccepted').checked ? 'true' : 'false');
+  const receiptInput = document.getElementById('receipt-file');
+  if (receiptInput && receiptInput.files[0]) formData.append('paymentProof', receiptInput.files[0]);
+
+  try {
+    const res = await fetch('/bookings', {
+      method:  'POST',
+      body:    formData
+    });
+
+    const result = await res.json();
+    const msgEl  = document.getElementById('form-message');
+    msgEl.className = 'form-message';
+
+    if (res.ok) {
+      msgEl.classList.add('success');
+      msgEl.textContent = result.awaitingPayment
+        ? '\u2713 Booking submitted as Pending. Please pay within 24 hours.'
+        : '\u2713 Booking submitted successfully! Staff will verify your payment.';
+      e.target.reset();
+      clearReceiptPreview();
+      updateAmountToPay();
+      payInfoBox.style.display = 'none';
+      btn.querySelector('.btn-text').textContent = '\u2713 Booking Sent!';
+      loadCustCalBookings(); 
+      renderCustomerBookings();
+      if (result.awaitingPayment) {
+        showPopup('warning', 'Payment required within 24 hours', 'Your booking is Pending. Please settle the payment through the GCash QR within 24 hours so our staff can confirm it, or the booking will be cancelled automatically.');
+      } else {
+        showPopup('success', 'Booking submitted', 'Your payment proof is being verified by our staff.');
+      }
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.querySelector('.btn-text').textContent = '\u2709 Send Booking Request';
+      }, 4000);
+    } else {
+      msgEl.classList.add('error');
+      msgEl.textContent = result.error || 'Something went wrong. Please try again.';
+      showPopup('error', 'Booking not sent', result.error || 'Something went wrong. Please try again.');
+      btn.disabled = false;
+      btn.querySelector('.btn-text').textContent = '\u2709 Send Booking Request';
+    }
+  } catch(err) {
+    const msgEl = document.getElementById('form-message');
+    msgEl.className = 'form-message error';
+    msgEl.textContent = 'Unable to connect to the server. Please try again later.';
+    btn.disabled = false;
+    btn.querySelector('.btn-text').textContent = '\u2709 Send Booking Request';
+  }
+});
+
+// Support chatbot: answers come from the server using live package, payment and booking data.
+(function initChatbot() {
+  const css = document.createElement('style');
+  css.textContent = `
+    #chatFab{position:fixed;right:20px;bottom:20px;z-index:9000;min-height:64px;border:2px solid #D6B66A;border-radius:999px;background:#3A2D1A;color:#fff;display:flex;align-items:center;justify-content:center;gap:11px;padding:0 22px;font-family:'Jost',sans-serif;font-size:16px;font-weight:700;letter-spacing:.03em;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .18s,box-shadow .18s,background .18s}
+    #chatFab:hover{transform:translateY(-3px);background:#4A3922;box-shadow:0 9px 26px rgba(0,0,0,.45)}
+    #chatFab:focus-visible{outline:3px solid #D6B66A;outline-offset:3px}
+    #chatFab .chat-fab-icon{font-size:30px;line-height:1}
+    @media(max-width:480px){#chatFab{right:14px;bottom:14px;min-height:58px;padding:0 18px;font-size:15px}#chatFab .chat-fab-icon{font-size:27px}}
+    #chatBox{position:fixed;right:20px;bottom:88px;z-index:9000;width:min(360px,calc(100vw - 40px));height:480px;max-height:calc(100vh - 110px);background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);display:none;flex-direction:column;overflow:hidden;color:#222}
+    #chatBox.open{display:flex}
+    #chatHead{background:#3A2D1A;color:#fff;padding:12px 14px;font-weight:bold;display:flex;justify-content:space-between;align-items:center}
+    #chatHead button{background:none;border:0;color:#fff;font-size:20px;cursor:pointer}
+    #chatLog{flex:1;overflow-y:auto;padding:12px;background:#f6f3ee;display:flex;flex-direction:column;gap:8px}
+    .chat-msg{max-width:85%;padding:8px 12px;border-radius:12px;white-space:pre-line;font-size:14px;line-height:1.4}
+    .chat-msg.bot{background:#fff;align-self:flex-start;border:1px solid #e5dfd3}
+    .chat-msg.me{background:#3A2D1A;color:#fff;align-self:flex-end}
+    .chat-contact-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .chat-contact-links a{color:#76501C;font-weight:600;text-decoration:underline}
+    #chatSuggest{display:flex;flex-wrap:wrap;gap:6px;padding:6px 12px;background:#f6f3ee}
+    #chatSuggest button{border:1px solid #3A2D1A;background:#fff;color:#3A2D1A;border-radius:14px;padding:4px 10px;font-size:12px;cursor:pointer}
+    #chatForm{display:flex;border-top:1px solid #ddd}
+    #chatInput{flex:1;border:0;padding:12px;font-size:14px;outline:none}
+    #chatForm button{border:0;background:#3A2D1A;color:#fff;padding:0 16px;cursor:pointer}
+  `;
+  document.head.appendChild(css);
+
+  const fab = document.createElement('button');
+  fab.id = 'chatFab';
+  fab.setAttribute('aria-label', 'Open Nards Support chat');
+  const fabIcon = document.createElement('span');
+  fabIcon.className = 'chat-fab-icon';
+  fabIcon.setAttribute('aria-hidden', 'true');
+  fabIcon.textContent = '\u{1F4AC}';
+  const fabLabel = document.createElement('span');
+  fabLabel.textContent = 'Nards Support';
+  fab.append(fabIcon, fabLabel);
+  const box = document.createElement('div');
+  box.id = 'chatBox';
+  box.innerHTML = `<div id="chatHead"><span>Nard's Support</span><button type="button" aria-label="Close chat">&times;</button></div>
+    <div id="chatLog" aria-live="polite"></div><div id="chatSuggest"></div>
+    <form id="chatForm"><input id="chatInput" maxlength="300" placeholder="Ask about packages, booking, payment..." autocomplete="off"><button type="submit">Send</button></form>`;
+  document.body.append(fab, box);
+
+  const log = box.querySelector('#chatLog');
+  const suggest = box.querySelector('#chatSuggest');
+  const input = box.querySelector('#chatInput');
+  let started = false;
+
+  function addMsg(text, who, showContactLinks = false) {
+    const el = document.createElement('div');
+    el.className = 'chat-msg ' + who;
+    el.textContent = text;
+    if (who === 'bot' && showContactLinks) {
+      const links = document.createElement('div');
+      links.className = 'chat-contact-links';
+      const contactLink = document.createElement('a');
+      contactLink.href = '#contact';
+      contactLink.textContent = 'View contact details';
+      const emailLink = document.createElement('a');
+      emailLink.href = 'mailto:nardscatering@gmail.com';
+      emailLink.textContent = 'Email our team';
+      links.append(contactLink, emailLink);
+      el.appendChild(links);
+    }
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  }
+  function setSuggestions(list) {
+    suggest.replaceChildren();
+    (list || []).forEach((s) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = s;
+      b.addEventListener('click', () => send(s));
+      suggest.appendChild(b);
+    });
+  }
+  async function send(text) {
+    addMsg(text, 'me');
+    setSuggestions([]);
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, email: getCustomerSession()?.email || '' })
+      });
+      const data = await res.json();
+      addMsg(data.reply || 'Sorry, I could not answer that.', 'bot', data.contact === true);
+      setSuggestions(data.suggestions);
+    } catch (e) {
+      addMsg('I am sorry, but I cannot respond right now. Please visit our Contact section or email our team at nardscatering@gmail.com for assistance.', 'bot', true);
+    }
+  }
+
+  fab.addEventListener('click', () => {
+    box.classList.toggle('open');
+    if (box.classList.contains('open') && !started) {
+      started = true;
+      const customerName = String(getCustomerSession()?.name || '').trim();
+      const greeting = customerName
+        ? `Hello, ${customerName}! Welcome to Nard's Catering Support. How may I assist you today?`
+        : 'Hello! Welcome to Nard\'s Catering Support. How may I assist you today?';
+      addMsg(greeting, 'bot');
+      setSuggestions(['Packages and prices', 'How do I book?', 'Payment methods', 'Check my booking', 'Is a date available?']);
+    }
+    if (box.classList.contains('open')) input.focus();
+  });
+  box.querySelector('#chatHead button').addEventListener('click', () => box.classList.remove('open'));
+  box.querySelector('#chatForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    send(text);
+  });
+})();
+</script>
+
+</body>
+</html>
