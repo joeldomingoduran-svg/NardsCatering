@@ -148,7 +148,7 @@ exports.createBooking = async (req, res) => {
       amountDue = paymentOption === 'down' ? Math.round(price * 20) / 100 : price;
       optionValue = paymentOption;
       refValue = hasRef ? String(gcashRef).trim() : null;
-      proofPath = req.file ? `/uploads/${req.file.filename}` : null;
+      proofPath = req.file ? req.file.url : null;
     }
 
     const awaitingPayment = Boolean(optionValue) && !proofPath;
@@ -185,7 +185,7 @@ exports.submitPaymentProof = async (req, res) => {
     if (ref && !/^[A-Za-z0-9]{8,20}$/.test(ref)) return res.status(400).json({ error: 'Enter a valid GCash reference number.' });
     if (!req.file) return res.status(400).json({ error: 'Please attach your payment receipt.' });
 
-    await pool.query('UPDATE Bookings SET gcashRef = ?, paymentProof = ?, paymentDeadline = NULL WHERE id = ?', [ref || null, `/uploads/${req.file.filename}`, booking.id]);
+    await pool.query('UPDATE Bookings SET gcashRef = ?, paymentProof = ?, paymentDeadline = NULL WHERE id = ?', [ref || null, req.file.url, booking.id]);
     await writeAudit({ username: booking.email, role: 'customer' }, 'Submitted payment receipt', 'bookings', booking.id, ref ? `GCash ref ${ref}` : 'Receipt attached');
     res.json({ message: 'Payment proof submitted. Our staff will verify it shortly.' });
   } catch (err) {

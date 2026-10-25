@@ -12,7 +12,7 @@ exports.getGcashQr = async (req, res) => {
 exports.setGcashQr = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Please choose an image.' });
-    const url = `/uploads/${req.file.filename}`;
+    const url = req.file.url;
     await pool.query(
       "INSERT INTO Settings (settingKey, settingValue) VALUES ('gcashQr', ?) ON DUPLICATE KEY UPDATE settingValue = VALUES(settingValue)",
       [url]

@@ -55,6 +55,7 @@ const schemaReady = (async () => {
   await pool.ensureOperationsArchiveSchema?.();
 })();
 schemaReady.then(() => {
+  if (process.env.VERCEL) return;
   const expire = () => require('./Backend/Controller/bookingsController').expireUnpaidBookings().catch(() => {});
   expire();
   setInterval(expire, 5 * 60 * 1000);
@@ -129,6 +130,10 @@ app.use('/chat',      require('./Backend/Routes/chat'));
 
 
 // Loopback only: the site is not reachable from other machines.
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, '127.0.0.1', () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

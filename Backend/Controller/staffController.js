@@ -68,7 +68,7 @@ exports.updateOwnProfile = async (req, res) => {
     const name = String(req.body.name || '').trim();
     if (!isRealName(name)) return res.status(400).json({ error: 'Enter your real full name.' });
 
-    const profileImage = req.file ? `/uploads/${req.file.filename}` : null;
+    const profileImage = req.file ? req.file.url : null;
     await pool.query(
       `UPDATE StaffUsers SET name = ?${profileImage ? ', profileImage = ?' : ''}
        WHERE id = ? AND is_active = 1`,
