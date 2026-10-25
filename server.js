@@ -27,6 +27,10 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname), { dotfiles: 'deny' }));
+// Pages like /login, /admin use relative asset links (e.g. "Login.css"), which resolve to the site root.
+['Login', 'Admin', 'Manager', 'Staff', 'Customer'].forEach((dir) => {
+  app.use(express.static(path.join(__dirname, dir), { dotfiles: 'deny', index: false }));
+});
 
 // Records every successful change made by a logged-in admin or staff member.
 app.use((req, res, next) => {
