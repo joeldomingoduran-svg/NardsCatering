@@ -68,7 +68,7 @@
   const errorText  = document.getElementById('error-text');
   const loginBtn   = document.getElementById('loginBtn');
   const togglePw   = document.getElementById('togglePw');
-  const API_BASE = window.location.port === '3000' ? '' : 'http://localhost:3000';
+  const API_BASE = ['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000' && window.location.port !== '' ? 'http://localhost:3000' : '';
 
   togglePw.addEventListener('click', () => {
     const hidden = passwordEl.type === 'password';
