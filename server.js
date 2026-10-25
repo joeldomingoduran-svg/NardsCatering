@@ -75,7 +75,12 @@ app.use(async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Database not ready:', error.message);
-    res.status(503).json({ error: `Database is not ready: ${error.message}` });
+    let target = 'DATABASE_URL not set';
+    try {
+      const u = new URL(process.env.DATABASE_URL);
+      target = `${u.protocol}//${u.username.split('.')[0]}@${u.hostname}:${u.port || '(none)'}`;
+    } catch (e) { if (process.env.DATABASE_URL) target = 'DATABASE_URL is not a valid URL'; }
+    res.status(503).json({ error: `Database is not ready: ${error.message} [using ${target}]` });
   }
 });
 

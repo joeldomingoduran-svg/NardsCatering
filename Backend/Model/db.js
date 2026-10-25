@@ -5,9 +5,10 @@ const missingUrlError = 'DATABASE_URL is not set. Add the Supabase Session poole
 
 const pool = new Pool({
   connectionString,
-  max: 10,
+  ssl: connectionString && !/localhost|127\.0\.0\.1/.test(connectionString) ? { rejectUnauthorized: false } : undefined,
+  max: process.env.VERCEL ? 3 : 10,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000
+  connectionTimeoutMillis: 15_000
 });
 const queryPool = pool.query.bind(pool);
 
