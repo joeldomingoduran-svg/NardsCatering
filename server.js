@@ -58,6 +58,8 @@ schemaReady.then(() => {
   const expire = () => require('./Backend/Controller/bookingsController').expireUnpaidBookings().catch(() => {});
   expire();
   setInterval(expire, 5 * 60 * 1000);
+}).catch((error) => {
+  console.error('Database initialization failed:', error.message);
 });
 
 app.use(async (req, res, next) => {

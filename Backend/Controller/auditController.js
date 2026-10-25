@@ -7,8 +7,8 @@ exports.getAuditLog = async (req, res) => {
     const params = [];
     if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) { where.push('createdAt >= ?'); params.push(`${from} 00:00:00`); }
     if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) { where.push('createdAt <= ?'); params.push(`${to} 23:59:59`); }
-    if (user) { where.push('username LIKE ?'); params.push(`%${String(user).slice(0, 50)}%`); }
-    if (action) { where.push('action LIKE ?'); params.push(`%${String(action).slice(0, 50)}%`); }
+    if (user) { where.push('username ILIKE ?'); params.push(`%${String(user).slice(0, 50)}%`); }
+    if (action) { where.push('action ILIKE ?'); params.push(`%${String(action).slice(0, 50)}%`); }
 
     const [rows] = await pool.query(
       `SELECT id, username, role, action, entity, entityId, details, createdAt
@@ -30,12 +30,12 @@ exports.getLoginActivity = async (req, res) => {
     if (['admin', 'manager', 'staff', 'customer'].includes(role)) { where.push('role = ?'); params.push(role); }
     if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) { where.push('createdAt >= ?'); params.push(`${from} 00:00:00`); }
     if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) { where.push('createdAt <= ?'); params.push(`${to} 23:59:59`); }
-    if (user) { where.push('username LIKE ?'); params.push(`%${String(user).slice(0, 50)}%`); }
+    if (user) { where.push('username ILIKE ?'); params.push(`%${String(user).slice(0, 50)}%`); }
 
     // Staff and admin logins come from LoginHistory (includes older ones); customers from the audit log.
     const [rows] = await pool.query(
       `SELECT username, role, createdAt FROM (
-         SELECT username, role, logged_in_at AS createdAt FROM LoginHistory
+         SELECT username, role::text AS role, logged_in_at AS createdAt FROM LoginHistory
          UNION ALL
          SELECT username, role, createdAt FROM AuditLog WHERE action = 'Logged in' AND role = 'customer'
        ) logins
