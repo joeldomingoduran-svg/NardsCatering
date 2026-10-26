@@ -19,9 +19,7 @@ exports.login = async (req, res) => {
   try {
     const username = String(req.body.username || '').trim();
     const password = String(req.body.password || '');
-    const requestedRole = String(req.body.role || '').trim().toLowerCase();
     if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
-    if (!['admin', 'manager', 'staff'].includes(requestedRole)) return res.status(400).json({ error: 'Select an account type.' });
 
     const [rows] = await pool.query(
       'SELECT id, name, username, password, role, profileImage, is_active, created_at FROM StaffUsers WHERE username = ? LIMIT 1',
@@ -30,13 +28,6 @@ exports.login = async (req, res) => {
     const user = rows[0];
     if (!user || !user.is_active || user.password !== password) {
       return res.status(401).json({ error: 'Invalid username or password.' });
-    }
-    if (user.role !== requestedRole) {
-      const accountType = { admin: 'Administrator', manager: 'Manager' }[user.role] || 'Staff';
-      return res.status(401).json({
-        code: 'ROLE_MISMATCH',
-        error: `This account is registered as ${accountType}. Select ${accountType} and try again.`
-      });
     }
     await pool.query(
       'INSERT INTO LoginHistory (user_id, username, role) VALUES (?, ?, ?)',

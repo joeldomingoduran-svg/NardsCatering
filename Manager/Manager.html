@@ -20,7 +20,7 @@
 
 
 <header class="topnav">
-  <button type="button" class="btn-back" id="back-btn" onclick="goBack()" title="Go back" aria-label="Go back" hidden>
+  <button type="button" class="btn-back" id="back-btn" onclick="goBack()" title="Go back" aria-label="Go back">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
   </button>
   <button type="button" class="brand" id="brand-toggle" title="Show or hide the menu" aria-expanded="true"><span class="brand-name">Nards<span>.</span></span><small>Manager</small></button>
@@ -41,12 +41,6 @@
     <button class="btn-logout" onclick="logout()">Logout</button>
   </div>
 </header>
-<script>
-  document.getElementById('brand-toggle').addEventListener('click', function () {
-    const hidden = document.querySelector('.topnav').classList.toggle('menu-hidden');
-    this.setAttribute('aria-expanded', String(!hidden));
-  });
-</script>
 
 <div class="main">
   <div class="page-head">
@@ -332,15 +326,21 @@
     <div class="view" id="view-sales">
       <div class="card" style="margin-bottom:20px">
         <div class="card-title">💰 Booking Sales Analytics</div>
-        <div class="search-bar">
-          <select id="sales-period" onchange="renderSalesAnalytics()" title="Period">
-            <option value="weekly">WEEKLY</option>
-            <option value="monthly" selected>MONTHLY</option>
-            <option value="yearly">YEARLY</option>
-          </select>
-          <input type="date" id="sales-week" onchange="renderSalesAnalytics()" title="Pick any day in the week" style="display:none">
-          <select id="sales-year" onchange="renderSalesAnalytics()" title="Year"></select>
-          <span style="font-size:13px;color:var(--text-muted)" id="sales-range"></span>
+        <div class="sales-filters">
+          <div class="form-group"><label for="sales-period">View by</label>
+            <select id="sales-period" onchange="renderSalesAnalytics()">
+              <option value="weekly">Weekly (days of a week)</option>
+              <option value="monthly" selected>Monthly (months of a year)</option>
+              <option value="yearly">Yearly (all years)</option>
+            </select>
+          </div>
+          <div class="form-group"><label for="sales-week">Week containing</label><input type="date" id="sales-week" onchange="renderSalesAnalytics()" style="display:none"></div>
+          <div class="form-group"><label for="sales-year">Year</label><select id="sales-year" onchange="renderSalesAnalytics()"></select></div>
+          <span class="sales-range-label" id="sales-range"></span>
+          <div class="sales-actions">
+            <button type="button" class="btn btn-outline btn-sm" onclick="exportSalesData('csv')">⬇ Export CSV</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="exportSalesData('xlsx')">⬇ Export Excel</button>
+          </div>
         </div>
         <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
           <div class="stat-card stat-accent"><div class="stat-label">Sales (Confirmed + Completed)</div><div class="stat-value" id="sales-total">₱0</div></div>
@@ -443,7 +443,7 @@
     
     <div class="view" id="view-reports">
       <div class="section-header" style="justify-content:flex-end" id="reports-print-actions">
-        <button class="btn btn-primary" onclick="printBusinessReport()">🖨️ Export as PDF</button>
+        <button class="btn btn-outline" onclick="exportReportExcel()">📊 Export to Excel</button>
       </div>
       <div class="report-print-sheet" id="reports-print-sheet">
         <header class="report-print-header">
@@ -539,11 +539,14 @@
       </div>
       <div class="form-group"><label>Event Date *</label><input id="bk-date" type="date"></div>
       <div class="form-group"><label>Event Time</label><input id="bk-time" type="time"></div>
-      <div class="form-group"><label>Number of Guests *</label><select id="bk-guests"><option value="">Select guests</option><option value="25">25 pax</option><option value="50">50 pax</option><option value="100">100 pax</option></select></div>
+      <div class="form-group"><label>Number of Guests *</label><input id="bk-guests" type="number" min="1" step="1" placeholder="Select a package first"></div>
       <div class="form-group"><label>Package</label><select id="bk-package"><option value="">Select package...</option></select></div>
       <div class="form-group"><label>Venue</label><input id="bk-venue" type="text" placeholder="Event venue address"></div>
-      <div class="form-group"><label>Total Amount (₱) *</label><input id="bk-amount" type="number" min="0" placeholder="25000"></div>
-      <div class="form-group"><label>Down Payment (₱)</label><input id="bk-dp" type="number" min="0" placeholder="5000"></div>
+      <div class="form-group"><label>Package Price (₱)</label><input id="bk-pkgprice" type="number" readonly placeholder="Auto-filled from package"></div>
+      <div class="form-group"><label>Additional Request</label><input id="bk-addreq" type="text" placeholder="e.g. Extra dessert station"></div>
+      <div class="form-group"><label>Additional Cost (₱)</label><input id="bk-addcost" type="number" min="0" placeholder="0"></div>
+      <div class="form-group"><label>Total Amount (₱) *</label><input id="bk-amount" type="number" min="0" readonly placeholder="Auto-computed"></div>
+      <div class="form-group"><label>Down Payment (₱) <small>(20%)</small></label><input id="bk-dp" type="number" min="0" readonly placeholder="Auto-computed"></div>
       <div class="form-group full"><label>Special Notes</label><textarea id="bk-notes" placeholder="Dietary restrictions, special requests, etc."></textarea></div>
     </div>
     <div class="modal-actions">
@@ -588,7 +591,7 @@
     <div class="form-grid">
       <div class="form-group"><label>Ingredient Name *</label><input id="ing-name" type="text" placeholder="e.g. Chicken Breast"></div>
       <div class="form-group"><label>Category</label>
-        <select id="ing-cat">
+        <select id="ing-cat" data-dropdown="inventory_category">
           <option>Meat & Poultry</option><option>Seafood</option><option>Vegetables</option>
           <option>Dairy</option><option>Grains & Rice</option><option>Spices & Condiments</option>
           <option>Beverages</option><option>Other</option>
@@ -596,7 +599,7 @@
       </div>
       <div class="form-group"><label>Current Stock *</label><input id="ing-stock" type="number" min="0" step="1" placeholder="50"></div>
       <div class="form-group"><label>Unit</label>
-        <select id="ing-unit"><option>kg</option><option>g</option><option>L</option><option>mL</option><option>pcs</option><option>sacks</option><option>boxes</option><option>cans</option></select>
+        <select id="ing-unit" data-dropdown="inventory_unit"><option>kg</option><option>g</option><option>L</option><option>mL</option><option>pcs</option><option>sacks</option><option>boxes</option><option>cans</option></select>
       </div>
       <div class="form-group"><label>Minimum Required *</label><input id="ing-min" type="number" min="0" step="1" placeholder="10"></div>
       <div class="form-group"><label>Good Stock Level</label><input id="ing-good" type="number" min="0" step="1" placeholder="50"></div>
@@ -669,7 +672,7 @@
       <div class="form-group full"><label>Asset Name *</label><input id="ast-name" type="text" placeholder="e.g. Round Table, Monobloc Chair"></div>
       <div class="form-group"><label>Quantity *</label><input id="ast-qty" type="number" min="0" placeholder="50"></div>
       <div class="form-group"><label>Unit</label>
-        <select id="ast-unit">
+        <select id="ast-unit" data-dropdown="asset_unit">
           <option value="pcs">pcs</option>
           <option value="sets">sets</option>
           <option value="units">units</option>
@@ -1102,8 +1105,7 @@ function navigate(view, isBack) {
   const activeView = document.querySelector('.view.active');
   const currentView = activeView ? activeView.id.replace('view-', '') : '';
   if (!isBack && currentView && currentView !== view) navHistory.push(currentView);
-  const backBtn = document.getElementById('back-btn');
-  if (backBtn) backBtn.hidden = view === 'bookings' && navHistory.length === 0;
+  // The back button stays visible on every page.
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
@@ -1219,6 +1221,8 @@ function paymentFieldsFromRow(row) {
     amountDue: row.amountDue != null ? Number(row.amountDue) : null,
     gcashRef: row.gcashRef || '',
     paymentProof: row.paymentProof || '',
+    addReq: row.additional_request || '',
+    addCost: Number(row.additional_cost) || 0,
     paid: Boolean(row.paymentProof) || String(row.paymentStatus || '').toLowerCase() === 'paid',
     requestType: row.requestType || '',
     requestReason: row.requestReason || '',
@@ -1388,7 +1392,7 @@ async function openBookingModal(idx) {
     document.getElementById('bk-event').value = booking.event || '';
     document.getElementById('bk-date').value = booking.date || '';
     document.getElementById('bk-time').value = booking.time || '';
-    document.getElementById('bk-guests').value = ['25', '50', '100'].includes(String(booking.guests)) ? String(booking.guests) : '';
+    document.getElementById('bk-guests').value = booking.guests || '';
     document.getElementById('bk-package').value = booking.package || '';
     document.getElementById('bk-venue').value = booking.venue || '';
     document.getElementById('bk-amount').value = booking.amount || '';
@@ -1420,6 +1424,7 @@ async function openMenuModal(packageId) {
   document.getElementById('mn-name').value  = '';
   document.getElementById('mn-price').value = '';
   document.getElementById('mn-min').value   = '';
+  document.getElementById('mn-max').value   = '';
   document.getElementById('mn-assets-container').innerHTML = '';
   document.getElementById('mn-dishes-container').innerHTML = '';
   document.getElementById('mn-freebies-container').innerHTML = '';
@@ -1433,6 +1438,7 @@ async function openMenuModal(packageId) {
         document.getElementById('mn-name').value  = pkg.name;
         document.getElementById('mn-price').value = pkg.price;
         document.getElementById('mn-min').value   = pkg.min_guests;
+        document.getElementById('mn-max').value   = pkg.max_guests || 0;
         (pkg.assets   || []).forEach(a => addAssetRow(a.asset_id, a.qty_required));
         (pkg.dishes   || []).forEach(d => addDishRow(d.dish_id));
         (pkg.freebies || []).forEach(f => addFreebieRow(f.name));
@@ -1461,7 +1467,6 @@ async function saveBooking() {
   const event  = document.getElementById('bk-event').value;
   const date   = document.getElementById('bk-date').value;
   const guests = document.getElementById('bk-guests').value;
-  if (guests && !['25', '50', '100'].includes(guests)) { notify('Guests must be 25, 50 or 100 pax', '⚠️'); return; }
   const amount = document.getElementById('bk-amount').value;
   if (!client || !event || !date || !guests || !amount) { notify('Please fill all required fields', '⚠️'); return; }
   if (!window.isRealName(client)) { notify('Enter the client\'s real full name.', '⚠️'); return; }
@@ -1481,6 +1486,8 @@ async function saveBooking() {
     venue:   document.getElementById('bk-venue').value.trim(),
     amount:  parseFloat(amount),
     dp:      parseFloat(document.getElementById('bk-dp').value) || 0,
+    addReq:  document.getElementById('bk-addreq').value.trim(),
+    addCost: parseFloat(document.getElementById('bk-addcost').value) || 0,
     status:  originalBooking?.status || 'Pending',
     cancellationReason: originalBooking?.cancellationReason || '',
     notes:   document.getElementById('bk-notes').value.trim()
@@ -1501,6 +1508,8 @@ async function saveBooking() {
           phone: booking.phone,
           email: booking.email,
           guests: booking.guests,
+          additionalRequest: booking.addReq,
+          additionalCost: booking.addCost,
           notes: booking.notes
         })
       });
@@ -1603,6 +1612,8 @@ async function saveMenu() {
   const name      = document.getElementById('mn-name').value.trim();
   const price     = document.getElementById('mn-price').value;
   const minGuests = document.getElementById('mn-min').value;
+  const maxGuests = document.getElementById('mn-max').value;
+  if (maxGuests && Number(maxGuests) > 0 && Number(maxGuests) < Number(minGuests || 0)) { notify('Max. guests cannot be lower than min. guests.', '⚠️'); return; }
   if (!name || !price) { notify('Fill required fields', '⚠️'); return; }
   const duplicate = packagesList.find(pkg => pkg.id !== editPackageId
     && String(pkg.name || '').trim().toLowerCase() === name.toLowerCase());
@@ -1629,7 +1640,7 @@ async function saveMenu() {
     const name = row.querySelector('.freebie-row-input').value.trim();
     if (name) freebies.push({ name });
   }
-  const body = { name, price: parseFloat(price), min_guests: parseInt(minGuests) || 0, assets, dishes, freebies };
+  const body = { name, price: parseFloat(price), min_guests: parseInt(minGuests) || 0, max_guests: parseInt(maxGuests) || 0, assets, dishes, freebies };
   try {
     const url    = editPackageId ? `${API}/packages/${editPackageId}` : `${API}/packages`;
     const method = editPackageId ? 'PUT' : 'POST';
@@ -1846,7 +1857,7 @@ function renderBookings() {
           <td>${b.guests || '-'}</td>
           <td>${auditEscape(b.package || '-')}</td>
           <td>${statusBadge(b.status)}${b.requestType && !b.requestHandled ? `<br><span class="badge badge-gold" style="margin-top:4px">${b.requestType === 'cancel' ? 'Cancel request' : 'Resched request'}</span>` : ''}</td>
-          <td>${b.paid ? '<span class="badge" style="background:#27ae60;color:#fff">Paid</span>' : '<span class="badge" style="background:#c0392b;color:#fff">Unpaid</span>'}${b.paymentProof ? `<br><button type="button" class="btn btn-outline btn-sm" onclick="openReceiptModal('${auditEscape(b.paymentProof)}')" style="font-size:12px;padding:3px 8px">Receipt</button>` : ''}</td>
+          <td>${window.paymentCell(b)}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" onclick="showConfirmation(data.bookings[${realIdx}])">View</button>
           <button class="btn btn-outline btn-sm" onclick="openBookingModal(${realIdx})">Edit</button>
@@ -1945,7 +1956,7 @@ async function renderMenuCards() {
             </div>
             <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700;color:var(--gold-dark);margin-bottom:4px;padding-right:260px">${p.name}</div>
             <div style="font-size:28px;font-weight:700;color:var(--dark);margin-bottom:4px">₱${Number(p.price).toLocaleString('en-PH')}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Min. ${p.min_guests} guests</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Min. ${p.min_guests} guests &middot; ${p.max_guests ? `Max. ${p.max_guests} guests` : `No guest limit`}</div>
             <div class="divider"></div>
             <div style="margin-top:10px">
               <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">Assets</div>
@@ -3292,5 +3303,7 @@ fetchPackages().then(() => syncInventoryFromAPI()).then(() => syncFromAPI()).the
 });
 </script>
 <script src="/Admin/password-toggle.js"></script>
+<script src="/Admin/booking-form.js"></script>
+<script src="/Admin/portal-ui.js"></script>
 </body>
 </html>

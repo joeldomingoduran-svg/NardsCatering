@@ -18,7 +18,7 @@
   </div>
 
   <div class="login-heading">Team Sign In</div>
-  <div class="login-sub">Sign in as an administrator or staff member.</div>
+  <div class="login-sub">Sign in with your username and password.</div>
 
   <div class="error-msg" id="error-msg">
     <span>🔒</span>
@@ -42,17 +42,7 @@
         <button type="button" class="toggle-pw" id="togglePw" title="Show/hide password">👁</button>
       </div>
     </div>
-    <div class="form-group">
-      <label for="loginRole">Account Type</label>
-      <div class="input-wrap">
-        <select id="loginRole" name="role" required>
-          <option value="admin">Administrator</option>
-          <option value="manager">Manager</option>
-          <option value="staff">Staff</option>
-        </select>
-      </div>
-    </div>
-    <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+<button type="submit" class="btn-login" id="loginBtn">Sign In</button>
   </form>
 
   
@@ -63,7 +53,7 @@
   const form       = document.getElementById('loginForm');
   const usernameEl = document.getElementById('username');
   const passwordEl = document.getElementById('password');
-  const loginRoleEl = document.getElementById('loginRole');
+  
   const errorMsg   = document.getElementById('error-msg');
   const errorText  = document.getElementById('error-text');
   const loginBtn   = document.getElementById('loginBtn');
@@ -77,13 +67,13 @@
     passwordEl.focus();
   });
 
-  [usernameEl, passwordEl, loginRoleEl].forEach(inp => {
+  [usernameEl, passwordEl].forEach(inp => {
     inp.addEventListener('input', () => {
       inp.classList.remove('error');
       errorMsg.classList.remove('show');
     });
   });
-  loginRoleEl.addEventListener('change', () => errorMsg.classList.remove('show'));
+
 
   form.addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -97,7 +87,7 @@
       const response = await fetch(`${API_BASE}/staff/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, role: loginRoleEl.value })
+        body: JSON.stringify({ username, password })
       });
       const rawResponse = await response.text();
       let result;
@@ -109,9 +99,7 @@
       if (!response.ok) {
         throw new Error(result.error || 'Invalid username or password.');
       }
-      if (!result.user || result.user.role !== loginRoleEl.value) {
-        throw new Error('The selected account type does not match this account.');
-      }
+      if (!result.user) throw new Error('Invalid response from server.');
 
       sessionStorage.setItem('nards_internal_token', result.token);
       sessionStorage.setItem('nards_internal_user', JSON.stringify(result.user));

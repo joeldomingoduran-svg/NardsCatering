@@ -38,6 +38,7 @@ app.use((req, res, next) => {
   res.on('finish', () => {
     if (!req.user || res.statusCode >= 400) return;
     const [entity, id, sub] = req.originalUrl.split('?')[0].split('/').filter(Boolean);
+    if (entity === 'notifications') return;
     const verb = req.method === 'POST' ? 'Created' : req.method === 'DELETE' ? 'Deleted' : 'Updated';
     const action = sub === 'status' && req.body?.status
       ? `Set status to ${req.body.status}`
@@ -48,16 +49,22 @@ app.use((req, res, next) => {
 });
 
 const pool = require('./Backend/Model/db');
-const schemaReady = (async () => {
-  await pool.ensureAuditSchema?.();
-  await pool.ensureClientTableSchema?.();
-  await pool.ensureOtpPaymentSchema?.();
+const initSchema = async () => {
   await pool.ensureStaffUsersTableSchema?.();
-  await pool.ensureLoginHistoryTableSchema?.();
-  await pool.ensureInventoryTableSchema?.();
-  await pool.ensureAssetsTableSchema?.();
-  await pool.ensureOperationsArchiveSchema?.();
-})();
+};
+let schemaPromise = null;
+let schemaOk = false;
+const getSchemaReady = () => {
+  if (schemaOk) return Promise.resolve();
+  if (!schemaPromise) {
+    schemaPromise = initSchema().then(() => { schemaOk = true; }).catch((error) => {
+      schemaPromise = null; // retry on the next request
+      throw error;
+    });
+  }
+  return schemaPromise;
+};
+const schemaReady = getSchemaReady();
 schemaReady.then(() => {
   if (process.env.VERCEL) return;
   const expire = () => require('./Backend/Controller/bookingsController').expireUnpaidBookings().catch(() => {});
@@ -71,7 +78,7 @@ app.use(async (req, res, next) => {
   const wantsPage = req.method === 'GET' && (req.headers.accept || '').includes('text/html');
   if (wantsPage) return next();
   try {
-    await schemaReady;
+    await getSchemaReady();
     next();
   } catch (error) {
     console.error('Database not ready:', error.message);
@@ -137,6 +144,9 @@ app.use('/dishes',    require('./Backend/Routes/dishes'));
 app.use('/settings',  require('./Backend/Routes/settings'));
 app.use('/audit',     require('./Backend/Routes/audit'));
 app.use('/chat',      require('./Backend/Routes/chat'));
+app.use('/roles',     require('./Backend/Routes/roles'));
+app.use('/dropdowns', require('./Backend/Routes/dropdowns'));
+app.use('/notifications', require('./Backend/Routes/notifications'));
 
 
 

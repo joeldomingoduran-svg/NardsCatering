@@ -109,3 +109,23 @@ function renderSalesAnalytics() {
     ? rows.map(([type, v]) => `<tr><td>${auditEscape(type)}</td><td>${v.count}</td><td><strong>${fmtMoney(v.amount)}</strong></td></tr>`).join('')
     : '<tr><td colspan="3">No sales recorded for this period.</td></tr>';
 }
+
+function exportSalesData(format) {
+  const period = document.getElementById('sales-period').value;
+  const { buckets, keyOf, inRange, range, unit } = salesBuckets(period);
+  const idx = new Map(buckets.map((b, i) => [b.key, i]));
+  const revenue = new Array(buckets.length).fill(0);
+  const counts = new Array(buckets.length).fill(0);
+  inRange.forEach(b => {
+    const i = idx.get(keyOf(b));
+    if (i === undefined) return;
+    counts[i]++;
+    if (b.status === 'Confirmed' || b.status === 'Completed') revenue[i] += Number(b.amount) || 0;
+  });
+  const rows = [[unit, 'Bookings', 'Sales (Confirmed + Completed)']]
+    .concat(buckets.map((b, i) => [b.label, counts[i], revenue[i]]))
+    .concat([['Total', counts.reduce((s, n) => s + n, 0), revenue.reduce((s, n) => s + n, 0)]]);
+  const name = 'sales-' + period + '-' + String(range).replace(/[^\w]+/g, '-');
+  if (format === 'xlsx') NardsExport.xlsx(name, [{ name: 'Sales per ' + unit, rows }]);
+  else NardsExport.csv(name, rows);
+}

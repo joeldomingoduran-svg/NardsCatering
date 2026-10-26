@@ -3,6 +3,8 @@ const router = express.Router();
 const bookingsController = require('../Controller/bookingsController');
 const { requireInternalUser } = require('../Middleware/authMiddleware');
 const upload = require('../Middleware/upload');
+const { requirePermission } = require('../Model/permissions');
+const canManage = [requireInternalUser, requirePermission('bookings.manage')];
 
 router.get('/eventtypes', bookingsController.getEventTypes);
 router.get('/today',      bookingsController.getTodayEvents);
@@ -15,11 +17,11 @@ router.get('/', bookingsController.getAllBookings);
 router.post('/', upload.receipt('paymentProof'), bookingsController.createBooking);
 router.post('/:id/payment', upload.receipt('paymentProof'), bookingsController.submitPaymentProof);
 router.post('/:id/request', bookingsController.requestChange);
-router.patch('/:id/request/resolve', requireInternalUser, bookingsController.resolveRequest);
+router.patch('/:id/request/resolve', ...canManage, bookingsController.resolveRequest);
 router.get('/:id', bookingsController.getBookingById);
-router.patch('/:id/status', requireInternalUser, bookingsController.updateBookingStatus);
-router.patch('/:id/archive', requireInternalUser, bookingsController.archiveBooking);
-router.put('/:id', requireInternalUser, bookingsController.updateBooking);
-router.delete('/:id', requireInternalUser, bookingsController.deleteBooking);
+router.patch('/:id/status', ...canManage, bookingsController.updateBookingStatus);
+router.patch('/:id/archive', ...canManage, bookingsController.archiveBooking);
+router.put('/:id', ...canManage, bookingsController.updateBooking);
+router.delete('/:id', ...canManage, bookingsController.deleteBooking);
 
 module.exports = router;

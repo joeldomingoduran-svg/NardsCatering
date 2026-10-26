@@ -1,10 +1,21 @@
 const pool = require('../Model/db');
 const { writeAudit } = require('../Model/audit');
-const { isRealName } = require('../Model/validators');
+const { isRealName, isValidEmail, isWithinBusinessHours } = require('../Model/validators');
+const { notify } = require('../Model/notifications');
 const { validatePhilippineAddress } = require('../Model/address');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_missing_key');
 
 const TERMS_VERSION = '2026-10-15';
+
+// Rejects a guest count above the package limit (a limit of 0 means no limit).
+async function guestLimitError(packageName, guests) {
+  const count = Number(guests);
+  if (!Number.isFinite(count) || count < 0) return 'Enter a valid number of guests.';
+  const [rows] = await pool.query('SELECT name, max_guests FROM Packages WHERE name = ? LIMIT 1', [packageName]);
+  const max = rows.length ? Number(rows[0].max_guests) : 0;
+  if (max > 0 && count > max) return `The ${rows[0].name} allows a maximum of ${max} guests.`;
+  return null;
+}
 
 exports.createPaymentIntent = async (req, res) => {
   try {
@@ -115,6 +126,12 @@ exports.createBooking = async (req, res) => {
     }
     const addressCheck = validatePhilippineAddress(address);
     if (!addressCheck.valid) return res.status(400).json({ error: addressCheck.message });
+    if (email && !isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+    if (eventTime && !isWithinBusinessHours(eventTime)) {
+      return res.status(400).json({ error: 'Event time must be within business hours (8:00 AM to 6:00 PM).' });
+    }
+    const guestError = await guestLimitError(eventPackage, guests || 0);
+    if (guestError) return res.status(400).json({ error: guestError });
 
     // Multipart requests come from the customer form; admin JSON requests skip payment.
     let amountDue = null, proofPath = null, refValue = null, optionValue = null;
@@ -161,6 +178,7 @@ exports.createBooking = async (req, res) => {
     if (optionValue) {
       await writeAudit({ username: email || clientName, role: 'customer' }, 'Submitted booking', 'bookings', result.insertId, `${eventType} on ${eventDate}, GCash ${optionValue} payment${awaitingPayment ? ' (awaiting payment, 24h)' : ''}`);
     }
+    await notify('booking', 'New booking request', `${clientName} booked ${eventType} on ${eventDate}.`, ['admin', 'manager', 'staff'], 'bookings');
     res.status(201).json({ message: "Booking created", bookingId: result.insertId, awaitingPayment, amountDue });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -187,6 +205,7 @@ exports.submitPaymentProof = async (req, res) => {
 
     await pool.query('UPDATE Bookings SET gcashRef = ?, paymentProof = ?, paymentDeadline = NULL WHERE id = ?', [ref || null, req.file.url, booking.id]);
     await writeAudit({ username: booking.email, role: 'customer' }, 'Submitted payment receipt', 'bookings', booking.id, ref ? `GCash ref ${ref}` : 'Receipt attached');
+    await notify('payment', 'Payment receipt submitted', `Booking #${booking.id} (${booking.clientName}) sent a payment receipt for review.`, ['admin', 'manager', 'staff'], 'bookings');
     res.json({ message: 'Payment proof submitted. Our staff will verify it shortly.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -253,6 +272,7 @@ exports.requestChange = async (req, res) => {
       [type, reason, newDate, newTime, booking.id]
     );
     await writeAudit({ username: booking.email, role: 'customer' }, type === 'cancel' ? 'Requested cancellation' : 'Requested reschedule', 'bookings', booking.id, reason.slice(0, 200));
+    await notify('request', type === 'cancel' ? 'Cancellation requested' : 'Reschedule requested', `Booking #${booking.id} (${booking.clientName}) needs a decision.`, ['admin', 'manager', 'staff'], 'bookings');
     res.json({ message: type === 'cancel' ? 'Your cancellation request was sent to our staff.' : 'Your reschedule request was sent to our staff.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -277,6 +297,7 @@ exports.resolveRequest = async (req, res) => {
       await pool.query('UPDATE Bookings SET eventDate = ?, eventTime = ? WHERE id = ?', [booking.requestNewDate, booking.requestNewTime, booking.id]);
     }
     await pool.query('UPDATE Bookings SET requestHandled = 1, requestDecision = ?, requestResponse = ? WHERE id = ?', [decision, response || null, booking.id]);
+    await notify('approval', `Request ${decision}`, `The ${booking.requestType} request for booking #${booking.id} was ${decision} by ${req.user.username}.`, ['admin', 'manager', 'staff'], 'bookings');
     res.json({ message: `Request ${decision}.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -378,6 +399,7 @@ exports.updateBookingStatus = async (req, res) => {
     );
 
     await conn.commit();
+    await notify('status', 'Booking status updated', `Booking #${req.params.id} is now ${status} (by ${req.user?.username || 'system'}).`, ['admin', 'manager', 'staff'], 'bookings');
     res.json({
       message: "Booking status updated",
       inventoryDeducted: isTransitionToConfirmed
@@ -392,21 +414,28 @@ exports.updateBookingStatus = async (req, res) => {
 
 exports.updateBooking = async (req, res) => {
   try {
-    const { clientName, address, eventType,     package: eventPackage, eventDate, eventTime, phone, email, guests, notes } = req.body;
+    const { clientName, address, eventType,     package: eventPackage, eventDate, eventTime, phone, email, guests, notes, additionalRequest, additionalCost } = req.body;
     if (!clientName || !address || !eventType || !eventPackage || !eventDate || !phone) {
       return res.status(400).json({ error: "All fields are required" });
     }
-    if (![25, 50, 100].includes(Number(guests))) {
-      return res.status(400).json({ error: 'Guests must be 25, 50 or 100 pax.' });
+    if (!Number.isInteger(Number(guests)) || Number(guests) < 1) {
+      return res.status(400).json({ error: 'Enter a valid number of guests.' });
     }
+    const guestError = await guestLimitError(eventPackage, guests);
+    if (guestError) return res.status(400).json({ error: guestError });
+    if (email && !isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+    if (eventTime && !isWithinBusinessHours(eventTime)) {
+      return res.status(400).json({ error: 'Event time must be within business hours (8:00 AM to 6:00 PM).' });
+    }
+    const extraCost = Math.max(0, Number(additionalCost) || 0);
     const [current] = await pool.query('SELECT address FROM Bookings WHERE id = ?', [req.params.id]);
     if (current.length && current[0].address !== address) {
       const addressCheck = validatePhilippineAddress(address);
       if (!addressCheck.valid) return res.status(400).json({ error: addressCheck.message });
     }
     const [result] = await pool.query(
-      `UPDATE Bookings SET clientName=?, address=?, eventType=?, package=?,       eventDate=?, eventTime=?, phone=?, email=?, guests=?, notes=? WHERE id=?`,
-            [clientName, address, eventType, eventPackage, eventDate, validTime(eventTime), phone, email || null, guests || 0, notes || null, req.params.id]
+      `UPDATE Bookings SET clientName=?, address=?, eventType=?, package=?,       eventDate=?, eventTime=?, phone=?, email=?, guests=?, notes=?, additional_request=?, additional_cost=? WHERE id=?`,
+            [clientName, address, eventType, eventPackage, eventDate, validTime(eventTime), phone, email || null, guests || 0, notes || null, String(additionalRequest || '').slice(0, 500) || null, extraCost, req.params.id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: "Booking not found" });
     res.json({ message: "Booking updated" });
@@ -429,16 +458,13 @@ exports.archiveBooking = async (req, res) => {
 exports.getEventTypes = async (req, res) => {
   const fallback = ['Wedding', 'Birthday Party', 'Christening', 'Debut', 'Baptismal', 'Party', 'Anniversary', 'House Blessing', 'Corporate Event', 'Other'];
   try {
-    const [rows] = await pool.query("SELECT DISTINCT eventType FROM Bookings WHERE eventType IS NOT NULL AND eventType != '' ORDER BY eventType ASC");
-    const fromDb = rows.map(r => r.eventType);
-    
-    const merged = [...fromDb, ...fallback.filter(f => !fromDb.some(d => d.toLowerCase() === f.toLowerCase()))];
-    res.json(merged);
+    // The dropdown library (managed by administrators) is the source of truth.
+    const [rows] = await pool.query("SELECT label FROM dropdown_options WHERE category = 'event_type' AND is_active = 1 ORDER BY sort_order ASC, id ASC");
+    res.json(rows.length ? rows.map((r) => r.label) : fallback);
   } catch (err) {
     res.json(fallback);
   }
 };
-
 exports.deleteBooking = async (req, res) => {
   try {
     const [result] = await pool.query("DELETE FROM Bookings WHERE id = ?", [req.params.id]);

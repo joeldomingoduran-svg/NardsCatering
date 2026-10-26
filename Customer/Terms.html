@@ -10,6 +10,13 @@
     .terms-page{max-width:900px;margin:0 auto;padding:48px 24px 64px}
     .terms-header{margin-bottom:28px}
     .terms-header a{color:var(--gold-dark);font-weight:600}
+    .terms-header .terms-back{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;background:#3A2D1A;color:#fff;border:1.5px solid #fff;border-radius:999px;box-shadow:0 0 0 1.5px #3A2D1A;text-decoration:none;font-weight:600;transition:transform .2s,background .2s,color .2s;animation:backIn .5s ease both}
+    .terms-back .arrow{display:inline-block;transition:transform .25s}
+    .terms-header .terms-back:hover{background:#fff;color:#3A2D1A;transform:translateX(-3px)}
+    .terms-header .terms-back:hover .arrow{animation:backNudge .6s ease-in-out infinite}
+    @keyframes backIn{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+    @keyframes backNudge{0%,100%{transform:translateX(0)}50%{transform:translateX(-4px)}}
+    @media(prefers-reduced-motion:reduce){.terms-header .terms-back,.terms-back:hover .arrow{animation:none}}
     .terms-header h1{font-family:'Cormorant Garamond',serif;font-size:clamp(36px,6vw,56px);line-height:1.1;margin:18px 0 10px}
     .terms-updated{color:var(--muted);font-size:13px}
     .terms-content{padding:36px;background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius-lg);box-shadow:var(--shadow-md)}
@@ -25,7 +32,7 @@
 <body>
   <main class="terms-page">
     <header class="terms-header">
-      <a href="/customer">← Back to Nards Catering</a>
+      <a class="terms-back" href="/customer"><span class="arrow">←</span> Back to Nards Catering</a>
       <h1>Terms and Conditions</h1>
       <p class="terms-updated">Version 2026-10-15 · Last updated October 15, 2026</p>
     </header>

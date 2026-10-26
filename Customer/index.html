@@ -536,6 +536,7 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
           <div class="form-group">
             <label for="email">Email Address</label>
             <input type="email" id="email" name="email" placeholder="yourname@email.com">
+            <small id="email-msg" style="display:none;color:#c0392b"></small>
           </div>
           <div class="form-group">
             <label for="phone">Phone Number</label>
@@ -567,12 +568,22 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
 
         <div class="form-row">
           <div class="form-group">
+            <label for="guests">Number of Guests</label>
+            <input type="number" id="guests" name="guests" min="1" step="1" required placeholder="Select a package first">
+            <small id="guests-msg" style="display:none;color:#c0392b"></small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
             <label for="event-date">Event Date</label>
             <input type="date" id="event-date" name="eventDate" required>
+            <small id="date-msg" style="display:none;color:#c0392b"></small>
           </div>
           <div class="form-group">
             <label for="event-time">Event Time</label>
-            <input type="time" id="event-time" name="eventTime" required>
+            <input type="time" id="event-time" name="eventTime" required min="08:00" max="18:00" step="1800">
+            <small id="time-msg" style="display:none;color:#c0392b"></small>
           </div>
         </div>
 
@@ -835,7 +846,7 @@ async function loadPackages() {
           <span class="pax">${p.name}</span>
           <span class="price">&#8369;${Number(p.price).toLocaleString('en-PH')}</span>
         </div>
-        <div class="pkg-min-guests">Min. ${p.min_guests} guests</div>
+        <div class="pkg-min-guests">Min. ${p.min_guests} guests${Number(p.max_guests) ? ` &middot; Max. ${p.max_guests} guests` : ''}</div>
         ${assetStrip}
         ${freebieStrip}
         <div class="pkg-divider"></div>
@@ -848,7 +859,7 @@ async function loadPackages() {
   const sel = document.getElementById('guest-count');
   sel.innerHTML = '<option value="">Select a package...</option>' +
     customerPackages.map(p =>
-      `<option value="${p.name}" data-price="${p.price}">${p.name} — Min. ${p.min_guests} guests (&#8369;${Number(p.price).toLocaleString('en-PH')})</option>`
+      `<option value="${p.name}" data-price="${p.price}" data-min="${p.min_guests || 0}" data-max="${p.max_guests || 0}">${p.name} — Min. ${p.min_guests} guests${Number(p.max_guests) ? `, Max. ${p.max_guests}` : ''} (&#8369;${Number(p.price).toLocaleString('en-PH')})</option>`
     ).join('');
 }
 
@@ -858,8 +869,54 @@ const totalPriceEl  = document.getElementById('totalPrice');
 const downPayEl     = document.getElementById('downPayment');
 const payInfoBox    = document.getElementById('payment-info-box');
 
+function fieldMsg(inputId, msgId, text) {
+  const input = document.getElementById(inputId), msg = document.getElementById(msgId);
+  msg.textContent = text || '';
+  msg.style.display = text ? 'block' : 'none';
+  input.style.borderColor = text ? '#c0392b' : '';
+  return !text;
+}
+function checkGuests() {
+  const opt = packageSelect.options[packageSelect.selectedIndex];
+  const input = document.getElementById('guests');
+  const min = Number(opt?.dataset?.min || 0), max = Number(opt?.dataset?.max || 0), v = Number(input.value);
+  let text = '';
+  if (input.value !== '' && (!Number.isInteger(v) || v < 1)) text = 'Enter a whole number of guests.';
+  else if (max && v > max) text = `${opt.value} allows a maximum of ${max} guests.`;
+  else if (min && input.value !== '' && v < min) text = `${opt.value} requires at least ${min} guests.`;
+  return fieldMsg('guests', 'guests-msg', text);
+}
+function checkEmailField() {
+  const v = document.getElementById('email').value.trim();
+  return fieldMsg('email', 'email-msg', v && !/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(v) ? 'Enter a valid email address, for example name@email.com.' : '');
+}
+function checkEventTime() {
+  const v = document.getElementById('event-time').value;
+  const m = /^(\d{2}):(\d{2})/.exec(v);
+  const mins = m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+  let text = '';
+  if (v && !(mins >= 480 && mins <= 1080)) text = 'Event time must be between 8:00 AM and 6:00 PM. Midnight is not available.';
+  else if (v && mins % 30 !== 0) text = 'Choose a 30-minute slot, for example 10:00 or 10:30.';
+  return fieldMsg('event-time', 'time-msg', text);
+}
+function checkEventDate() {
+  const v = document.getElementById('event-date').value;
+  return fieldMsg('event-date', 'date-msg', v && v < custCalTodayStr() ? 'Past dates cannot be selected.' : '');
+}
+document.getElementById('guests').addEventListener('input', checkGuests);
+document.getElementById('email').addEventListener('blur', checkEmailField);
+document.getElementById('email').addEventListener('input', () => { if (document.getElementById('email-msg').style.display === 'block') checkEmailField(); });
+document.getElementById('event-time').addEventListener('change', checkEventTime);
+document.getElementById('event-date').addEventListener('change', checkEventDate);
+
 packageSelect.addEventListener('change', function() {
   const selected = this.options[this.selectedIndex];
+  const gi = document.getElementById('guests');
+  const gmax = Number(selected?.dataset?.max || 0), gmin = Number(selected?.dataset?.min || 0);
+  if (gmax) gi.max = gmax; else gi.removeAttribute('max');
+  gi.min = gmin || 1;
+  gi.placeholder = selected?.value ? `${gmin ? 'Min ' + gmin : 'Any'}${gmax ? ', max ' + gmax : ''}` : 'Select a package first';
+  if (gi.value) checkGuests();
   const price    = parseFloat(selected?.dataset?.price || 0);
   updateAmountToPay();
   if (!price) {
@@ -873,6 +930,18 @@ packageSelect.addEventListener('change', function() {
 });
 
 loadPackages();
+
+(async function loadEventTypes() {
+  try {
+    const res = await fetch('/bookings/eventtypes');
+    if (!res.ok) return;
+    const types = await res.json();
+    if (!Array.isArray(types) || !types.length) return;
+    const select = document.getElementById('event-type');
+    select.innerHTML = '<option value="">Select event type...</option>' +
+      types.map(t => `<option value="${escHtml(t)}">${escHtml(t)}</option>`).join('');
+  } catch (e) { /* keep the built-in list */ }
+})();
 
 function updateAmountToPay() {
   const el = document.getElementById('amount-to-pay');
@@ -1668,9 +1737,18 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
     package:    document.getElementById('guest-count').value,
     eventDate:  document.getElementById('event-date').value,
     eventTime:  document.getElementById('event-time').value,
+    guests:     parseInt(document.getElementById('guests').value, 10) || 0,
     phone:      document.getElementById('phone').value,
     notes:      document.getElementById('notes').value
   };
+
+  if (![checkEmailField(), checkGuests(), checkEventTime(), checkEventDate()].every(Boolean)) {
+    document.getElementById('form-message').className = 'form-message error';
+    document.getElementById('form-message').textContent = 'Please fix the highlighted fields.';
+    btn.disabled = false;
+    btn.querySelector('.btn-text').textContent = '\u2709 Send Booking Request';
+    return;
+  }
 
   if (session && data.email && session.email.toLowerCase() !== data.email.trim().toLowerCase()) {
     const msgEl = document.getElementById('form-message');

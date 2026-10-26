@@ -178,8 +178,18 @@
     color:#B6BDB9;
     letter-spacing:.3px;
   }
-  .auth-back a{ color:#DDE1DE; font-weight:600; }
-  .auth-back a:hover{ text-decoration:underline; }
+  .auth-back a{
+    display:inline-flex; align-items:center; gap:6px; margin-left:4px; padding:6px 14px;
+    color:#fff; font-weight:600; border:1.5px solid #fff; border-radius:999px;
+    text-decoration:none; transition:transform .2s, background .2s, color .2s;
+    animation:backIn .5s ease both;
+  }
+  .auth-back a::before{ content:"←"; display:inline-block; transition:transform .25s; }
+  .auth-back a:hover{ background:#fff; color:#2B1A0E; transform:translateX(-3px); }
+  .auth-back a:hover::before{ animation:backNudge .6s ease-in-out infinite; }
+  @keyframes backIn{ from{opacity:0; transform:translateX(-14px);} to{opacity:1; transform:none;} }
+  @keyframes backNudge{ 0%,100%{transform:translateX(0);} 50%{transform:translateX(-4px);} }
+  @media (prefers-reduced-motion:reduce){ .auth-back a, .auth-back a:hover::before{ animation:none; } }
 
   .auth-modal-overlay{
     position:fixed;
@@ -302,7 +312,7 @@
 
 <div class="auth-wrap">
   <h1 class="auth-heading">Welcome to <em>Nard's Catering and Setup</em></h1>
-  <p class="auth-sub">Log in or create an account with your Gmail address to book and manage your events.</p>
+  <p class="auth-sub">Log in or create an account to book and manage your events.</p>
   <div class="gold-line"></div>
 
   <div class="auth-error" id="auth-error">
@@ -321,7 +331,7 @@
       <input type="email" id="loginEmail" placeholder="yourname@gmail.com" required>
       <label for="loginPassword">Password</label>
       <input type="password" id="loginPassword" placeholder="Password" required>
-      <button type="submit" class="auth-submit" id="loginSubmitBtn">Login with Gmail</button>
+      <button type="submit" class="auth-submit" id="loginSubmitBtn">Login</button>
       <a href="#" id="forgotLink" class="auth-hint" style="text-align:center;margin-top:0">Forgot password?</a>
     </form>
   </div>
@@ -567,14 +577,36 @@
     }
   }
 
+  const EMAIL_FORMAT = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
+
+  // Inline email format feedback shown under each email field.
+  ['loginEmail', 'signupEmail', 'forgotEmail'].forEach((id) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.setAttribute('novalidate', '');
+    const msg = document.createElement('span');
+    msg.className = 'auth-hint';
+    msg.setAttribute('role', 'alert');
+    msg.style.cssText = 'color:#c0392b;display:none';
+    msg.textContent = 'Enter a valid email address, for example name@email.com.';
+    input.insertAdjacentElement('afterend', msg);
+    const check = () => {
+      const bad = input.value.trim() !== '' && !EMAIL_FORMAT.test(input.value.trim());
+      msg.style.display = bad ? 'block' : 'none';
+      input.style.borderColor = bad ? '#c0392b' : '';
+      return !bad;
+    };
+    input.addEventListener('blur', check);
+    input.addEventListener('input', () => { if (msg.style.display === 'block') check(); });
+  });
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError();
     const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
 
-    if (!email || !/^[^\s@]+@gmail\.com$/i.test(email)) {
-      showError('Please enter a valid Gmail address.');
+    if (!EMAIL_FORMAT.test(email)) {
+      showError('Please enter a valid email address, for example name@email.com.');
       return;
     }
 
@@ -594,7 +626,7 @@
           showStep('otpPanel', result.email || email.toLowerCase());
           document.getElementById('otpHint').textContent = 'Your account is not verified. Enter the code sent to your Gmail, or resend it.';
           btn.disabled = false;
-          btn.textContent = 'Login with Gmail';
+          btn.textContent = 'Login';
           return;
         }
         throw new Error(result.error || 'Login failed.');
@@ -605,7 +637,7 @@
     } catch (err) {
       showError(err.message || 'Unable to connect to the server. Please try again.');
       btn.disabled = false;
-      btn.textContent = 'Login with Gmail';
+      btn.textContent = 'Login';
     }
   });
 
@@ -633,8 +665,12 @@
       showError('Contact number must be exactly 11 digits (e.g. 09171234567).');
       return;
     }
+    if (!EMAIL_FORMAT.test(email)) {
+      showError('Please enter a valid email address, for example name@email.com.');
+      return;
+    }
     if (!/^[^\s@]+@gmail\.com$/i.test(email)) {
-      showError('Please use a valid Gmail address.');
+      showError('Please use a Gmail address (name@gmail.com).');
       return;
     }
     if (password.length < 8 || !/[^A-Za-z0-9]/.test(password)) {

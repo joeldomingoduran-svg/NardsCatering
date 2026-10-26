@@ -21,4 +21,16 @@ function isRealName(value) {
 
 const isElevenDigitPhone = (value) => /^09\d{9}$/.test(String(value || '').trim());
 
-module.exports = { isRealName, isElevenDigitPhone };
+const isValidEmail = (value) => /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(String(value || '').trim());
+
+// Events may start from opening time until closing time (Mon-Sat, 8:00 AM - 6:00 PM).
+const OPENING_MINUTES = 8 * 60;
+const CLOSING_MINUTES = 18 * 60;
+function isWithinBusinessHours(time) {
+  const m = /^(\d{2}):(\d{2})/.exec(String(time || ''));
+  if (!m) return false;
+  const minutes = Number(m[1]) * 60 + Number(m[2]);
+  return minutes >= OPENING_MINUTES && minutes <= CLOSING_MINUTES;
+}
+
+module.exports = { isRealName, isElevenDigitPhone, isValidEmail, isWithinBusinessHours };

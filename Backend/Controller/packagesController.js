@@ -71,10 +71,14 @@ exports.createPackage = async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { name, price, min_guests, assets, dishes, freebies } = req.body;
+    const { name, price, min_guests, max_guests, assets, dishes, freebies } = req.body;
     if (!name || price == null) {
       await conn.rollback();
       return res.status(400).json({ error: 'Name and price are required' });
+    }
+    if (Number(max_guests) > 0 && Number(max_guests) < Number(min_guests || 0)) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Maximum guests cannot be less than minimum guests.' });
     }
     const [existing] = await conn.query(
       'SELECT id FROM Packages WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) LIMIT 1',
@@ -85,8 +89,8 @@ exports.createPackage = async (req, res) => {
       return res.status(409).json({ error: 'A package with this name already exists' });
     }
     const [result] = await conn.query(
-      'INSERT INTO Packages (name, price, min_guests) VALUES (?, ?, ?)',
-      [name, price, min_guests || 0]
+      'INSERT INTO Packages (name, price, min_guests, max_guests) VALUES (?, ?, ?, ?)',
+      [name, price, min_guests || 0, max_guests || 0]
     );
     const packageId = result.insertId;
     if (Array.isArray(assets) && assets.length) {
@@ -128,10 +132,14 @@ exports.updatePackage = async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { name, price, min_guests, assets, dishes, freebies } = req.body;
+    const { name, price, min_guests, max_guests, assets, dishes, freebies } = req.body;
     if (!name || price == null) {
       await conn.rollback();
       return res.status(400).json({ error: 'Name and price are required' });
+    }
+    if (Number(max_guests) > 0 && Number(max_guests) < Number(min_guests || 0)) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Maximum guests cannot be less than minimum guests.' });
     }
     const [existing] = await conn.query(
       'SELECT id FROM Packages WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) AND id<>? LIMIT 1',
@@ -142,8 +150,8 @@ exports.updatePackage = async (req, res) => {
       return res.status(409).json({ error: 'A package with this name already exists' });
     }
     const [result] = await conn.query(
-      'UPDATE Packages SET name=?, price=?, min_guests=? WHERE id=?',
-      [name, price, min_guests || 0, req.params.id]
+      'UPDATE Packages SET name=?, price=?, min_guests=?, max_guests=? WHERE id=?',
+      [name, price, min_guests || 0, max_guests || 0, req.params.id]
     );
     if (!result.affectedRows) {
       await conn.rollback();
