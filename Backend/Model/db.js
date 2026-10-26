@@ -1,6 +1,10 @@
 const { Pool } = require('pg');
 
-const connectionString = process.env.DATABASE_URL;
+const rawUrl = process.env.DATABASE_URL;
+// Serverless instances are short-lived, so use Supabase's transaction pooler (6543) instead of session mode (5432).
+const connectionString = rawUrl && process.env.VERCEL && /pooler\.supabase\.com:5432\//.test(rawUrl)
+  ? rawUrl.replace('pooler.supabase.com:5432/', 'pooler.supabase.com:6543/')
+  : rawUrl;
 const missingUrlError = 'DATABASE_URL is not set. Add the Supabase Session pooler connection string to the environment variables.';
 
 const pool = new Pool({
@@ -8,8 +12,12 @@ const pool = new Pool({
   ssl: connectionString && !/localhost|127\.0\.0\.1/.test(connectionString) ? { rejectUnauthorized: false } : undefined,
   max: process.env.VERCEL ? 3 : 10,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 15_000
+  connectionTimeoutMillis: 15_000,
+  statement_timeout: 20_000,
+  keepAlive: true
 });
+// A dropped idle connection must not crash the function.
+pool.on('error', (error) => console.error('Idle database client error:', error.message));
 const queryPool = pool.query.bind(pool);
 
 const quotedIdentifiers = [
@@ -105,7 +113,13 @@ async function verifyConnection() {
 // Hardcoded admin account, created on startup if it does not exist yet.
 async function ensureAdminAccount() {
   await verifyConnection();
-  await pool.query('ALTER TABLE StaffUsers ADD COLUMN IF NOT EXISTS profileImage varchar(255)');
+  // Avoid ALTER TABLE (takes a heavy lock) unless the column is actually missing.
+  const [cols] = await pool.query(
+    "SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'staffusers' AND column_name = 'profileimage' LIMIT 1"
+  );
+  if (!cols.length) {
+    await pool.query('ALTER TABLE StaffUsers ADD COLUMN IF NOT EXISTS profileImage varchar(255)');
+  }
   const [rows] = await pool.query('SELECT id FROM StaffUsers WHERE username = ? LIMIT 1', ['Admin']);
   if (!rows.length) {
     await pool.query(
