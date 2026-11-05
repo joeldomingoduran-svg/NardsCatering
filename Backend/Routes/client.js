@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const clientsController = require('../Controller/clientController');
-const { requireInternalUser, requireAdmin } = require('../Middleware/authMiddleware');
+const { requireInternalUser, requireAdmin, requireCustomer } = require('../Middleware/authMiddleware');
 
 router.post('/signup', clientsController.signupClient);
 router.post('/login', clientsController.loginClient);
@@ -9,6 +9,9 @@ router.post('/verify-otp', clientsController.verifyOtp);
 router.post('/resend-otp', clientsController.resendOtp);
 router.post('/forgot-password', clientsController.forgotPassword);
 router.post('/reset-password', clientsController.resetPassword);
+router.get('/me/profile', requireCustomer, clientsController.getOwnProfile);
+router.put('/me/profile', requireCustomer, clientsController.updateOwnProfile);
+router.post('/me/change-password', requireCustomer, clientsController.changeOwnPassword);
 router.get('/', requireInternalUser, clientsController.getAllClients);
 router.post('/', requireInternalUser, requireAdmin, clientsController.createClient);
 router.get('/:id', requireInternalUser, clientsController.getClientById);

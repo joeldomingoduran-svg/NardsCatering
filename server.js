@@ -158,6 +158,7 @@ app.use('/chat',      require('./Backend/Routes/chat'));
 app.use('/roles',     require('./Backend/Routes/roles'));
 app.use('/dropdowns', require('./Backend/Routes/dropdowns'));
 app.use('/notifications', require('./Backend/Routes/notifications'));
+app.use('/employees', require('./Backend/Routes/employees'));
 
 
 

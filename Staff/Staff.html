@@ -1807,7 +1807,7 @@ function renderBookings() {
           <td>${b.guests || '-'}</td>
           <td>${auditEscape(b.package || '-')}</td>
           <td>${statusBadge(b.status)}${b.requestType && !b.requestHandled ? `<br><span class="badge badge-gold" style="margin-top:4px">${b.requestType === 'cancel' ? 'Cancel request' : 'Resched request'}</span>` : ''}</td>
-          <td>${window.paymentCell(b)}</td>
+          <td>${b.paid ? '<span class="badge" style="background:#27ae60;color:#fff">Paid</span>' : '<span class="badge" style="background:#c0392b;color:#fff">Unpaid</span>'}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" onclick="showConfirmation(data.bookings[${realIdx}])">View</button>
           ${bookingArchiveView
@@ -2275,6 +2275,7 @@ function showConfirmation(booking) {
       ${booking.gcashRef ? `<div class="confirm-field"><label>GCash Reference</label><p>${auditEscape(booking.gcashRef)}</p></div>` : ''}
       ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}
       ${booking.paymentOption || booking.paymentProof ? `<div class="confirm-field"><label>Payment Status</label><p><strong style="color:${booking.paid ? '#27ae60' : '#c0392b'}">${booking.paid ? 'PAID' : 'UNPAID'}</strong></p></div>` : ''}
+      ${booking.paymentProof ? `<div class="confirm-field"><label>Receipt</label><p><button class="btn btn-primary btn-sm" onclick="openReceiptModal('${auditEscape(booking.paymentProof)}')">View receipt</button></p></div>` : ''}
       ${booking.cancellationReason ? `<div class="confirm-field" style="grid-column:1/-1"><label>Cancellation Reason</label><p>${auditEscape(booking.cancellationReason)}</p></div>` : ''}
       ${booking.notes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Special Notes</label><p>${auditEscape(booking.notes)}</p></div>` : ''}
     </div>

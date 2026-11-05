@@ -3,6 +3,7 @@ const pool = require('../Model/db');
 const { sendCodeEmail } = require('../Model/mailer');
 const { writeAudit } = require('../Model/audit');
 const { isRealName, isElevenDigitPhone } = require('../Model/validators');
+const { createAuthToken } = require('../Middleware/authMiddleware');
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -156,10 +157,41 @@ exports.loginClient = async (req, res) => {
     const client = rows[0];
     const safeClient = { id: client.id, name: client.name, contact: client.contact, email: client.email };
     await writeAudit({ username: client.email, role: 'customer' }, 'Logged in', 'session', client.id, null);
-    res.json({ message: 'Login successful.', client: safeClient });
+    res.json({ message: 'Login successful.', token: createAuthToken({ id: client.id, name: client.name, username: client.email, role: 'customer' }), client: safeClient });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+};
+
+exports.getOwnProfile = async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT id, name, contact, email, isVerified FROM Clients WHERE id = ? LIMIT 1', [req.user.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Customer profile not found.' });
+    res.json({ client: rows[0] });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+};
+
+exports.updateOwnProfile = async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    const contact = String(req.body.contact || '').trim();
+    if (!isRealName(name) || !isValidContact(contact)) return res.status(400).json({ error: 'Enter a valid full name and 11-digit contact number.' });
+    await pool.query('UPDATE Clients SET name = ?, contact = ? WHERE id = ?', [name, contact, req.user.id]);
+    res.json({ message: 'Profile updated.' });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+};
+
+exports.changeOwnPassword = async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!isStrongPassword(newPassword)) return res.status(400).json({ error: 'New password must be at least 8 characters and include a special character.' });
+    const [rows] = await pool.query('SELECT password FROM Clients WHERE id = ? AND isVerified = 1 LIMIT 1', [req.user.id]);
+    if (!rows.length || rows[0].password !== currentPassword) return res.status(400).json({ error: 'Current password is incorrect.' });
+    if (currentPassword === newPassword) return res.status(400).json({ error: 'New password must be different from the current password.' });
+    await pool.query('UPDATE Clients SET password = ? WHERE id = ?', [newPassword, req.user.id]);
+    res.json({ message: 'Password updated.' });
+  } catch (error) { res.status(500).json({ error: error.message }); }
 };
 
 exports.verifyOtp = async (req, res) => {

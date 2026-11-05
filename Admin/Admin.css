@@ -575,13 +575,14 @@ textarea { resize: vertical; min-height: 80px; }
 }
 
 /* Sales analytics */
-.sales-chart { display:flex; align-items:flex-end; gap:8px; height:240px; padding-top:8px; }
+.sales-chart { display:flex; align-items:flex-end; gap:8px; height:240px; padding:16px 12px 8px; border-radius:16px; background:linear-gradient(145deg,rgba(18,28,48,.98),rgba(22,52,66,.94)); box-shadow:inset 0 1px rgba(255,255,255,.12),0 12px 28px rgba(17,35,55,.16); }
 .sales-bar-col { flex:1; min-width:0; height:100%; display:flex; flex-direction:column; align-items:center; }
 .sales-bar-value { font-size:10px; color:var(--text-muted); height:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-.sales-bar-track { flex:1; width:100%; display:flex; align-items:flex-end; background:rgba(0,0,0,.04); border-radius:6px 6px 0 0; }
-.sales-bar-fill { width:100%; background:var(--gold); border-radius:6px 6px 0 0; min-height:2px; transition:height .3s; }
+.sales-bar-track { flex:1; width:100%; display:flex; align-items:flex-end; background:linear-gradient(90deg,rgba(255,255,255,.08),rgba(255,255,255,.02)); border-radius:6px 6px 0 0; }
+.sales-bar-fill { width:100%; background:linear-gradient(180deg,#52e0c4,#31a7d8); border-radius:6px 6px 0 0; min-height:2px; transition:height .7s cubic-bezier(.2,.8,.2,1); animation:salesBarRise .8s ease both; box-shadow:0 0 14px rgba(82,224,196,.28); }
 .sales-bar-fill.sales-bar-alt { background:var(--dark); }
-.sales-bar-label { font-size:12px; margin-top:6px; color:var(--text); }
+.sales-bar-label { font-size:12px; margin-top:6px; color:#d5e7ee; }
+@keyframes salesBarRise { from { transform:scaleY(0); transform-origin:bottom; opacity:.2; } to { transform:scaleY(1); opacity:1; } }
 @media (max-width:700px) { .sales-chart { gap:3px; } .sales-bar-value { display:none; } }
 
 /* ===== Sidebar layout, profile popover, alerts, table tools (portal-ui.js) ===== */

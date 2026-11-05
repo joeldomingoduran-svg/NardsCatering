@@ -633,6 +633,7 @@
       }
 
       sessionStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(result.client));
+      sessionStorage.setItem('nards_customer_token', result.token || '');
       goToCustomerSite();
     } catch (err) {
       showError(err.message || 'Unable to connect to the server. Please try again.');

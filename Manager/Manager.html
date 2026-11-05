@@ -33,6 +33,7 @@
     <button class="nav-item" onclick="navigate('dishes')">Dishes</button>
     <button class="nav-item" onclick="navigate('sales')">Sales Analytics</button>
     <button class="nav-item" onclick="navigate('profile')">My Profile</button>
+    <button class="nav-item" onclick="navigate('employees')">Employees</button>
   </nav>
   <div class="topnav-actions">
     <button class="btn-notif-bell" id="notif-bell-btn" onclick="openEventNotifications()" title="Event notifications">
@@ -294,7 +295,11 @@
       </div>
     </div>
 
-    <div class="view" id="view-profile">
+    <div class="view" id="view-employees">
+      <div class="roles-page-head"><div><span class="eyebrow">Operations</span><h2>Employees</h2><p>Maintain the team roster and assign the right people to each event.</p></div><button class="btn btn-primary" onclick="openEmployeeModal()">+ Add employee</button></div>
+      <div class="card employee-filters"><input id="employee-search" placeholder="Search name or address" oninput="filterEmployees()"><select id="employee-role-filter" onchange="filterEmployees()"><option value="">All job roles</option></select></div>
+      <div class="card roles-table-card"><div class="table-wrap"><table class="roles-table"><thead><tr><th>Name</th><th>Age</th><th>Address</th><th>Job role</th><th>Status</th><th>Actions</th></tr></thead><tbody id="employees-tbody"></tbody></table></div></div>
+    </div>    <div class="view" id="view-profile">
       <div class="staff-profile-grid">
         <div class="card">
           <div class="card-title">Staff information</div>
@@ -1109,7 +1114,7 @@ function navigate(view, isBack) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
-  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', sales:'Sales Analytics', audit:'Audit Trail', profile:'My Profile', staff:'Users & Settings' };
+  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', sales:'Sales Analytics', audit:'Audit Trail', profile:'My Profile', staff:'Users & Settings', employees:'Employees' };
   document.getElementById('pageTitle').textContent = titles[view] || view;
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + view + "'")) n.classList.add('active');
@@ -1125,6 +1130,7 @@ function navigate(view, isBack) {
   if (view === 'reports')   renderReports();
   if (view === 'sales')     syncFromAPI().then(() => renderSalesAnalytics());
   if (view === 'profile')   loadOwnProfile();
+  if (view === 'employees') loadEmployees();
   if (view === 'staff')     { loadStaffUsers(); loadGcashQrPreview(); }
 }
 
@@ -1857,7 +1863,7 @@ function renderBookings() {
           <td>${b.guests || '-'}</td>
           <td>${auditEscape(b.package || '-')}</td>
           <td>${statusBadge(b.status)}${b.requestType && !b.requestHandled ? `<br><span class="badge badge-gold" style="margin-top:4px">${b.requestType === 'cancel' ? 'Cancel request' : 'Resched request'}</span>` : ''}</td>
-          <td>${window.paymentCell(b)}</td>
+          <td>${b.paid ? '<span class="badge" style="background:#27ae60;color:#fff">Paid</span>' : '<span class="badge" style="background:#c0392b;color:#fff">Unpaid</span>'}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" onclick="showConfirmation(data.bookings[${realIdx}])">View</button>
           <button class="btn btn-outline btn-sm" onclick="openBookingModal(${realIdx})">Edit</button>
@@ -2326,6 +2332,7 @@ function showConfirmation(booking) {
       ${booking.gcashRef ? `<div class="confirm-field"><label>GCash Reference</label><p>${auditEscape(booking.gcashRef)}</p></div>` : ''}
       ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}
       ${booking.paymentOption || booking.paymentProof ? `<div class="confirm-field"><label>Payment Status</label><p><strong style="color:${booking.paid ? '#27ae60' : '#c0392b'}">${booking.paid ? 'PAID' : 'UNPAID'}</strong></p></div>` : ''}
+      ${booking.paymentProof ? `<div class="confirm-field"><label>Receipt</label><p><button class="btn btn-primary btn-sm" onclick="openReceiptModal('${auditEscape(booking.paymentProof)}')">View receipt</button></p></div>` : ''}
       ${booking.cancellationReason ? `<div class="confirm-field" style="grid-column:1/-1"><label>Cancellation Reason</label><p>${auditEscape(booking.cancellationReason)}</p></div>` : ''}
       ${booking.notes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Special Notes</label><p>${auditEscape(booking.notes)}</p></div>` : ''}
     </div>
@@ -3303,7 +3310,9 @@ fetchPackages().then(() => syncInventoryFromAPI()).then(() => syncFromAPI()).the
 });
 </script>
 <script src="/Admin/password-toggle.js"></script>
+<div class="modal-overlay" id="employee-modal"><div class="modal role-modal-card"><div class="modal-title"><span id="employee-modal-title">Add employee</span><button class="modal-close" onclick="closeModal('employee-modal')">✕</button></div><div class="form-group"><label>Name *</label><input id="employee-name" maxlength="120"></div><div class="form-row"><div class="form-group"><label>Age *</label><input id="employee-age" type="number" min="15" max="100"></div><div class="form-group"><label>Job role *</label><input id="employee-job-role" maxlength="60" placeholder="Cook, Driver, Server"></div></div><div class="form-group"><label>Address *</label><textarea id="employee-address" maxlength="255"></textarea></div><div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('employee-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEmployee()">Save employee</button></div></div></div>
 <script src="/Admin/booking-form.js"></script>
+<script src="/Admin/employees.js"></script>
 <script src="/Admin/portal-ui.js"></script>
 </body>
 </html>

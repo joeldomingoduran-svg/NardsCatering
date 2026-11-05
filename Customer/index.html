@@ -295,6 +295,9 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
     <li><a href="#contact">Contact</a></li>
   </ul>
   <div class="nav-actions">
+    <button id="customerProfileBtn" class="nav-icon-btn" type="button" aria-label="My profile" title="My profile" style="display:none">
+      <span aria-hidden="true">&#128100; Profile</span>
+    </button>
     <button id="notifBell" class="nav-icon-btn notif-bell" type="button" aria-label="Booking notifications" title="Booking notifications" style="display:none">
       <span aria-hidden="true">&#128276;</span><span id="notifBadge" class="notif-badge" style="display:none">0</span>
     </button>
@@ -309,6 +312,25 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
     <span></span><span></span><span></span>
   </button>
 </nav>
+<div id="customerProfileModal" class="terms-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="customerProfileTitle">
+  <div class="terms-modal-content" style="max-width:520px">
+    <div class="terms-modal-header"><h2 id="customerProfileTitle">My Profile</h2><button type="button" class="modal-close" id="closeCustomerProfile" aria-label="Close">&times;</button></div>
+    <form id="customerProfileForm">
+      <label for="profileName">Full name</label><input id="profileName" required>
+      <label for="profileContact">Contact number</label><input id="profileContact" required>
+      <p id="profileEmail" style="opacity:.7"></p>
+      <button class="btn btn-primary" type="submit">Save profile</button>
+    </form>
+    <hr>
+    <form id="customerPasswordForm">
+      <h3>Change password</h3>
+      <label for="customerCurrentPassword">Current password</label><input id="customerCurrentPassword" type="password" required>
+      <label for="customerNewPassword">New password</label><input id="customerNewPassword" type="password" minlength="8" required>
+      <label for="customerConfirmPassword">Confirm new password</label><input id="customerConfirmPassword" type="password" minlength="8" required>
+      <button class="btn btn-primary" type="submit">Update password</button>
+    </form>
+  </div>
+</div>
 <div class="mobile-nav" id="mobile-nav">
   <a href="#home"    onclick="closeMobileNav()">Home</a>
   <a href="#offers"  onclick="closeMobileNav()">Packages</a>
@@ -988,6 +1010,10 @@ phoneInput.addEventListener('input', () => {
 function showPopup(icon, title, text) {
   return Swal.fire({ icon, title, text, position: 'center', confirmButtonText: 'OK', confirmButtonColor: '#3A2D1A' });
 }
+function confirmPopup(title, text) {
+  if (window.Swal) return Swal.fire({ icon: 'question', title, text, showCancelButton: true, confirmButtonText: 'Confirm', cancelButtonText: 'Cancel' }).then(result => result.isConfirmed);
+  return Promise.resolve(window.confirm(title + '\n\n' + text));
+}
 
 function escHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1281,6 +1307,7 @@ function setCustomerSession(client) {
 
 function clearCustomerSession() {
   sessionStorage.removeItem(CUSTOMER_SESSION_KEY);
+  sessionStorage.removeItem('nards_customer_token');
   updateCustomerAuthUI();
   renderCustomerBookings();
 }
@@ -1289,9 +1316,11 @@ function updateCustomerAuthUI() {
   const authStatus = document.getElementById('customerAuthStatus');
   const logoutBtn = document.getElementById('customerLogoutBtn');
   const notifBell = document.getElementById('notifBell');
+  const profileBtn = document.getElementById('customerProfileBtn');
   const gate = document.getElementById('inquiryLoginGate');
   const formWrapper = document.getElementById('inquiryFormWrapper');
   const session = getCustomerSession();
+  profileBtn.style.display = session ? 'inline-flex' : 'none';
   placeInquirySection(Boolean(session));
   if (!authStatus) return;
 
@@ -1564,6 +1593,52 @@ function ensureCustomerLoggedIn() {
     window.location.href = '/customer-login';
     return false;
   }
+
+  function customerAuthHeaders() {
+    return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (sessionStorage.getItem('nards_customer_token') || '') };
+  }
+
+  async function openCustomerProfile() {
+    const res = await fetch('/clients/me/profile', { headers: customerAuthHeaders() });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) return showPopup('error', 'Profile unavailable', out.error || 'Please log in again.');
+    document.getElementById('profileName').value = out.client.name || '';
+    document.getElementById('profileContact').value = out.client.contact || '';
+    document.getElementById('profileEmail').textContent = out.client.email || '';
+    document.getElementById('customerProfileModal').style.display = 'flex';
+  }
+
+  document.getElementById('customerProfileBtn').addEventListener('click', openCustomerProfile);
+  document.getElementById('closeCustomerProfile').addEventListener('click', () => {
+    document.getElementById('customerProfileModal').style.display = 'none';
+  });
+  document.getElementById('customerProfileForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const confirmed = await confirmPopup('Save profile changes?', 'Your customer details will be updated.');
+    if (!confirmed) return;
+    const res = await fetch('/clients/me/profile', { method: 'PUT', headers: customerAuthHeaders(), body: JSON.stringify({
+      name: document.getElementById('profileName').value, contact: document.getElementById('profileContact').value
+    })});
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) return showPopup('error', 'Update failed', out.error || 'Could not update profile.');
+    const session = getCustomerSession();
+    setCustomerSession({ ...session, name: document.getElementById('profileName').value, contact: document.getElementById('profileContact').value });
+    showPopup('success', 'Profile updated', out.message);
+  });
+  document.getElementById('customerPasswordForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const next = document.getElementById('customerNewPassword').value;
+    if (next !== document.getElementById('customerConfirmPassword').value) return showPopup('error', 'Passwords do not match', 'Confirm the new password and try again.');
+    const confirmed = await confirmPopup('Change password?', 'You will need the new password the next time you log in.');
+    if (!confirmed) return;
+    const res = await fetch('/clients/me/change-password', { method: 'POST', headers: customerAuthHeaders(), body: JSON.stringify({
+      currentPassword: document.getElementById('customerCurrentPassword').value, newPassword: next
+    })});
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) return showPopup('error', 'Password update failed', out.error || 'Could not change password.');
+    event.target.reset();
+    showPopup('success', 'Password updated', out.message);
+  });
 
   fillBookingIdentity(session);
   return true;

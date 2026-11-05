@@ -60,4 +60,17 @@ function requireManager(req, res, next) {
   next();
 }
 
-module.exports = { createAuthToken, requireInternalUser, requireAdmin, requireManager };
+function requireCustomer(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  try {
+    const user = decodeToken(token);
+    if (!user || user.role !== 'customer') return res.status(401).json({ error: 'Customer login required.' });
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid customer login token.' });
+  }
+}
+
+module.exports = { createAuthToken, requireInternalUser, requireAdmin, requireManager, requireCustomer };

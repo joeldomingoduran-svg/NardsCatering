@@ -24,6 +24,8 @@
         <button class="nav-item" onclick="navigate('audit')">Audit Trail</button>
     <button class="nav-item" onclick="navigate('logins')">Login Activity</button>
     <button class="nav-item" onclick="navigate('staff')">Users &amp; Settings</button>
+    <button class="nav-item" onclick="navigate('profile')">My Admin Profile</button>
+    <button class="nav-item" onclick="navigate('employees')">Employees</button>
     <button class="nav-item" onclick="navigate('roles')">Roles &amp; Permissions</button>
     <button class="nav-item" onclick="navigate('dropdowns')">Dropdown Library</button>
   </nav>
@@ -334,7 +336,33 @@
       </div>
     </div>
 
-    
+    <div class="view" id="view-employees">
+      <div class="roles-page-head"><div><span class="eyebrow">Operations</span><h2>Employees</h2><p>Maintain the team roster and assign the right people to each event.</p></div><button class="btn btn-primary" onclick="openEmployeeModal()">+ Add employee</button></div>
+      <div class="card employee-filters"><input id="employee-search" placeholder="Search name or address" oninput="filterEmployees()"><select id="employee-role-filter" onchange="filterEmployees()"><option value="">All job roles</option></select></div>
+      <div class="card roles-table-card"><div class="table-wrap"><table class="roles-table"><thead><tr><th>Name</th><th>Age</th><th>Address</th><th>Job role</th><th>Status</th><th>Actions</th></tr></thead><tbody id="employees-tbody"></tbody></table></div></div>
+    </div>    <div class="view" id="view-profile">
+      <div class="staff-profile-grid">
+        <div class="card">
+          <div class="card-title">Administrator profile</div>
+          <div class="staff-profile-identity">
+            <div class="staff-profile-avatar"><span id="staff-profile-initials">?</span><img id="staff-profile-photo" alt="Profile photo"></div>
+            <p id="staff-profile-username"></p><p id="staff-profile-role">Administrator</p>
+          </div>
+          <div class="form-group"><label for="staff-profile-name">Full name</label><input id="staff-profile-name" type="text" maxlength="255" autocomplete="name"></div>
+          <div class="form-group"><label for="staff-profile-photo-input">Profile photo</label><input id="staff-profile-photo-input" type="file" accept="image/jpeg,image/png,image/webp"></div>
+          <p id="staff-profile-message" role="status"></p><button class="btn btn-primary" onclick="saveOwnProfile()">Save profile</button>
+        </div>
+        <div class="card">
+          <div class="card-title">Change administrator password</div>
+          <p class="role-modal-help">For security, enter your current password, use a strong new password, and confirm the change before it is saved.</p>
+          <div class="form-group"><label for="current-password">Current password</label><input id="current-password" type="password" autocomplete="current-password"></div>
+          <div class="form-group"><label for="new-password">New password</label><input id="new-password" type="password" autocomplete="new-password"></div>
+          <div class="form-group"><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password"></div>
+          <p id="profile-message" role="status"></p><button class="btn btn-primary" onclick="changeOwnPassword()">Update password</button>
+        </div>
+      </div>
+    </div>
+
     <div class="view" id="view-roles">
       <div class="roles-page-head">
         <div>
@@ -1069,6 +1097,50 @@ const navHistory = [];
 function goBack() {
   navigate(navHistory.pop() || 'dashboard', true);
 }
+function setOwnProfilePhoto(url, name) {
+  const photo = document.getElementById('staff-profile-photo');
+  const initials = document.getElementById('staff-profile-initials');
+  if (url) { photo.src = url; photo.style.display = 'block'; initials.style.display = 'none'; }
+  else { photo.removeAttribute('src'); photo.style.display = 'none'; initials.textContent = String(name || '?').split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase(); initials.style.display = 'block'; }
+}
+async function loadOwnProfile() {
+  const message = document.getElementById('staff-profile-message');
+  try {
+    const res = await fetch(`${API}/staff/me`); const result = await res.json().catch(() => ({}));
+    if (!res.ok || !result.user) throw new Error(result.error || 'Could not load your profile.');
+    const user = result.user;
+    document.getElementById('staff-profile-name').value = user.name || '';
+    document.getElementById('staff-profile-username').textContent = `@${user.username || ''}`;
+    setOwnProfilePhoto(user.profileImage || '', user.name);
+    message.textContent = '';
+  } catch (error) { message.textContent = error.message; message.style.color = 'var(--danger)'; }
+}
+async function saveOwnProfile() {
+  const nameInput = document.getElementById('staff-profile-name');
+  const formData = new FormData(); formData.append('name', nameInput.value.trim());
+  const file = document.getElementById('staff-profile-photo-input').files[0];
+  if (file) formData.append('profileImage', file);
+  if (!nameInput.value.trim()) return notify('Enter your full name.', '⚠️');
+  const res = await fetch(`${API}/staff/me`, { method: 'PUT', body: formData });
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok) return notify(result.error || 'Could not update your profile.', '❌');
+  INTERNAL_USER = { ...INTERNAL_USER, ...result.user }; sessionStorage.setItem('nards_internal_user', JSON.stringify(INTERNAL_USER));
+  setOwnProfilePhoto(result.user.profileImage || '', result.user.name); notify('Profile updated.', '✅');
+}
+async function changeOwnPassword() {
+  const currentPassword = document.getElementById('current-password').value;
+  const newPassword = document.getElementById('new-password').value;
+  const confirmPassword = document.getElementById('confirm-password').value;
+  if (!currentPassword || newPassword.length < 8 || !/[^A-Za-z0-9]/.test(newPassword)) return notify('Use a new password with at least 8 characters and one special character.', '⚠️');
+  if (newPassword !== confirmPassword) return notify('The new passwords do not match.', '⚠️');
+  const confirmation = await Swal.fire({ icon: 'warning', title: 'Update administrator password?', text: 'You will need the new password on your next login.', showCancelButton: true, confirmButtonText: 'Yes, update password', cancelButtonText: 'Review', confirmButtonColor: '#3A2D1A' });
+  if (!confirmation.isConfirmed) return;
+  const res = await fetch(`${API}/staff/change-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword, newPassword }) });
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok) return notify(result.error || 'Could not update the password.', '❌');
+  ['current-password', 'new-password', 'confirm-password'].forEach(id => { document.getElementById(id).value = ''; });
+  await Swal.fire({ icon: 'success', title: 'Password updated', text: 'Your administrator password has been changed.', confirmButtonColor: '#3A2D1A' });
+}
 /* ---------- Roles & Permissions ---------- */
 async function loadRolesMatrix() {
   try {
@@ -1228,7 +1300,7 @@ function navigate(view, isBack) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
-  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', sales:'Sales Analytics', audit:'Audit Trail', logins:'Login Activity', staff:'Users & Settings', roles:'Roles & Permissions', dropdowns:'Dropdown Library' };
+  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', sales:'Sales Analytics', audit:'Audit Trail', logins:'Login Activity', staff:'Users & Settings', profile:'My Admin Profile', employees:'Employees', roles:'Roles & Permissions', dropdowns:'Dropdown Library' };
   document.getElementById('pageTitle').textContent = titles[view] || view;
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + view + "'")) n.classList.add('active');
@@ -1245,6 +1317,8 @@ function navigate(view, isBack) {
   if (view === 'audit')     loadAuditLog();
   if (view === 'logins')    loadLoginActivity();
   if (view === 'staff')     { loadStaffUsers(); loadGcashQrPreview(); }
+  if (view === 'profile')  loadOwnProfile();
+  if (view === 'employees') loadEmployees();
   if (view === 'roles')     loadRolesMatrix();
   if (view === 'dropdowns') loadDropdowns();
 }
@@ -3070,7 +3144,9 @@ fetchPackages().then(() => syncInventoryFromAPI()).then(() => syncFromAPI()).the
 });
 </script>
 <script src="/Admin/password-toggle.js"></script>
+<div class="modal-overlay" id="employee-modal"><div class="modal role-modal-card"><div class="modal-title"><span id="employee-modal-title">Add employee</span><button class="modal-close" onclick="closeModal('employee-modal')">✕</button></div><div class="form-group"><label>Name *</label><input id="employee-name" maxlength="120"></div><div class="form-row"><div class="form-group"><label>Age *</label><input id="employee-age" type="number" min="15" max="100"></div><div class="form-group"><label>Job role *</label><input id="employee-job-role" maxlength="60" placeholder="Cook, Driver, Server"></div></div><div class="form-group"><label>Address *</label><textarea id="employee-address" maxlength="255"></textarea></div><div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('employee-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEmployee()">Save employee</button></div></div></div>
 <script src="/Admin/booking-form.js"></script>
+<script src="/Admin/employees.js"></script>
 <script src="/Admin/portal-ui.js"></script>
 </body>
 </html>
