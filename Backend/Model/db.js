@@ -139,6 +139,16 @@ async function ensureExtraSchema() {
     created_at timestamp NOT NULL DEFAULT NOW())`);
   await pool.query(`CREATE TABLE IF NOT EXISTS notification_state (
     user_id integer PRIMARY KEY, last_read_id integer NOT NULL DEFAULT 0)`);
+  await pool.query('ALTER TABLE StaffUsers ALTER COLUMN role TYPE varchar(20) USING role::text');
+  await pool.query(`CREATE TABLE IF NOT EXISTS role_definitions (
+    role varchar(20) PRIMARY KEY, display_name varchar(60) NOT NULL, description varchar(255),
+    is_active smallint NOT NULL DEFAULT 1, is_system smallint NOT NULL DEFAULT 0,
+    created_at timestamp NOT NULL DEFAULT NOW(), updated_at timestamp NOT NULL DEFAULT NOW())`);
+  await pool.query(`INSERT INTO role_definitions (role, display_name, description, is_system)
+    VALUES ('admin', 'Administrator', 'Full access to every system module.', 1),
+           ('manager', 'Manager', 'Manages bookings, operations, reports and staff workflows.', 1),
+           ('staff', 'Staff', 'Manages day-to-day bookings and customer requests.', 1)
+    ON CONFLICT (role) DO NOTHING RETURNING role`);
   await require('./permissions').seedPermissions();
   await require('../Controller/dropdownsController').seedDropdowns();
 }

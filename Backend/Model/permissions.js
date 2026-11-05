@@ -23,6 +23,7 @@ const DEFAULTS = {
   manager: ['bookings.view', 'bookings.manage', 'calendar.view', 'clients.view', 'inventory.manage', 'packages.manage', 'assets.manage', 'dishes.manage', 'reports.view', 'sales.view', 'audit.view'],
   staff: ['bookings.view', 'bookings.manage', 'calendar.view']
 };
+const SYSTEM_ROLES = ['admin', 'manager', 'staff'];
 const EDITABLE_ROLES = ['manager', 'staff'];
 
 let cache = null;
@@ -31,8 +32,11 @@ let cacheAt = 0;
 async function loadMatrix() {
   if (cache && Date.now() - cacheAt < 15000) return cache;
   const [rows] = await pool.query('SELECT role, permission, allowed FROM role_permissions');
-  const matrix = { admin: new Set(ALL), manager: new Set(), staff: new Set() };
-  rows.forEach((r) => { if (EDITABLE_ROLES.includes(r.role) && Number(r.allowed)) matrix[r.role].add(r.permission); });
+  const matrix = { admin: new Set(ALL) };
+  rows.forEach((r) => {
+    if (!matrix[r.role]) matrix[r.role] = new Set();
+    if (Number(r.allowed)) matrix[r.role].add(r.permission);
+  });
   cache = matrix;
   cacheAt = Date.now();
   return matrix;
@@ -70,4 +74,23 @@ async function seedPermissions() {
   }
 }
 
-module.exports = { PERMISSIONS, EDITABLE_ROLES, permissionsFor, requirePermission, clearCache, seedPermissions, loadMatrix };
+async function seedRole(role, permissions = []) {
+  for (const key of ALL) {
+    await pool.query(
+      'INSERT INTO role_permissions (role, permission, allowed) VALUES (?, ?, ?) ON CONFLICT (role, permission) DO NOTHING RETURNING role',
+      [role, key, permissions.includes(key) ? 1 : 0]
+    );
+  }
+}
+
+module.exports = {
+  PERMISSIONS,
+  SYSTEM_ROLES,
+  EDITABLE_ROLES,
+  permissionsFor,
+  requirePermission,
+  clearCache,
+  seedPermissions,
+  seedRole,
+  loadMatrix
+};

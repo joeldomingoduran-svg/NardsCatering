@@ -116,6 +116,11 @@ Use this guide for consistent alpha testing of every module. Record Pass/Fail an
 | RP-05 | Locked permissions | Look at "admin only" items. | They are disabled and cannot be given to Manager/Staff. |
 | RP-06 | Non-admin access | As Manager call `GET /roles`. | 403 Forbidden. |
 | RP-07 | Admin unaffected | Remove all permissions from other roles. | Admin keeps full access. |
+| RP-08 | Role table | Open the role-management page. | Admin, Manager and Staff appear in a clean selection table with user counts, access counts and status. |
+| RP-09 | Add custom role | Click Add role; create Driver with booking/calendar view permissions. | Driver appears as an active custom role with its selected permissions. |
+| RP-10 | Edit custom role | Edit Driver's name and description. | The updated role profile appears without changing its role key. |
+| RP-11 | Deactivate custom role | Deactivate Driver, then attempt a Driver login. | The role is marked Inactive and assigned users cannot log in until it is activated again. |
+| RP-12 | Assign custom role | Create an internal account and choose Driver as its role. | The account receives Driver permissions and the role user count increases. |
 
 ## 9. Dropdown library (Admin only)
 

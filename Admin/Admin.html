@@ -320,7 +320,7 @@
           <div class="form-group"><label for="staff-name">Full Name</label><input id="staff-name" type="text" placeholder="Staff name"></div>
           <div class="form-group"><label for="staff-username">Username</label><input id="staff-username" type="text" placeholder="staff.username"></div>
           <div class="form-group"><label for="staff-password">Password</label><input id="staff-password" type="password" placeholder="At least 6 characters"></div>
-          <div class="form-group"><label for="staff-role">Account Type</label><select id="staff-role"><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
+          <div class="form-group"><label for="staff-role">Account Role</label><select id="staff-role"><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
         </div>
         <button class="btn btn-primary" onclick="createStaffUser()">Create Account</button>
       </div>
@@ -336,10 +336,41 @@
 
     
     <div class="view" id="view-roles">
-      <div class="card" style="padding:18px">
-        <h3 style="margin-top:0">Roles &amp; Permissions</h3>
-        <p style="margin:0 0 14px;color:var(--text-muted)">Choose what each role can see and do. Administrators always have full access, and access-management permissions stay admin-only. Changes apply within a few seconds.</p>
+      <div class="roles-page-head">
+        <div>
+          <span class="eyebrow">Access control</span>
+          <h2>Roles &amp; Permissions</h2>
+          <p>Define operational access for administrators, managers, staff and future specialist roles.</p>
+        </div>
+        <button class="btn btn-primary" type="button" onclick="openRoleModal()">+ Add role</button>
+      </div>
+      <div class="roles-summary" id="roles-summary"></div>
+      <div class="card roles-table-card">
+        <div class="roles-table-heading">
+          <div><strong>System roles</strong><span>Manage status and permissions by role.</span></div>
+          <span class="roles-refresh" id="roles-updated"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="roles-table">
+            <thead><tr><th>Role</th><th>Description</th><th>Users</th><th>Access</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="roles-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="roles-permissions-card card">
+        <div class="roles-table-heading"><div><strong id="permission-editor-title">Permission editor</strong><span>Select the modules this role can use.</span></div></div>
         <div id="roles-grid"></div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="role-modal">
+      <div class="modal role-modal-card">
+        <div class="modal-title"><span id="role-modal-title">Add role</span><button class="modal-close" onclick="closeModal('role-modal')">✕</button></div>
+        <p class="role-modal-help">Use a clear operational title such as Cook, Driver or Event Coordinator. Role names are used for access control and login assignments.</p>
+        <div class="form-group"><label for="role-display-name">Role name *</label><input id="role-display-name" maxlength="60" placeholder="e.g. Driver"></div>
+        <div class="form-group"><label for="role-description">Description</label><textarea id="role-description" maxlength="255" placeholder="What does this role manage?"></textarea></div>
+        <div class="role-permission-picker"><strong>Initial permissions</strong><span>Administration permissions remain administrator-only.</span><div id="role-modal-permissions"></div></div>
+        <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('role-modal')">Cancel</button><button class="btn btn-primary" onclick="saveRoleModal()">Save role</button></div>
       </div>
     </div>
 
@@ -1040,23 +1071,52 @@ function goBack() {
 }
 /* ---------- Roles & Permissions ---------- */
 async function loadRolesMatrix() {
-  const box = document.getElementById('roles-grid');
   try {
     const res = await fetch(`${API}/roles`);
     if (!res.ok) throw new Error();
     const m = await res.json();
-    const groups = [...new Set(m.permissions.map(p => p.group))];
-    const locked = ['roles.manage', 'users.manage', 'dropdowns.manage'];
-    box.innerHTML = m.editableRoles.map(role => `
-      <div class="perm-group" data-role="${role}">
-        <h4 style="text-transform:capitalize">${role}</h4>
-        ${groups.map(g => `<div style="margin:8px 0 2px;font-weight:600;font-size:13px">${auditEscape(g)}</div>` + m.permissions.filter(p => p.group === g).map(p => `
-          <label class="perm-row"><input type="checkbox" value="${p.key}" ${m.roles[role].includes(p.key) ? 'checked' : ''} ${locked.includes(p.key) ? 'disabled' : ''}> ${auditEscape(p.label)}${locked.includes(p.key) ? ' <small>(admin only)</small>' : ''}</label>`).join('')).join('')}
-        <button class="btn btn-primary" style="margin-top:12px" onclick="saveRolePermissions('${role}')">Save ${role} permissions</button>
-      </div>`).join('');
+    window.rolesMatrix = m;
+    const definitions = m.definitions || [];
+    document.getElementById('roles-tbody').innerHTML = definitions.length ? definitions.map(r => `
+      <tr>
+        <td><div class="role-name-cell"><span class="role-icon">${r.is_system ? '◆' : '✦'}</span><strong>${auditEscape(r.display_name)}</strong><small>${auditEscape(r.role)}</small></div></td>
+        <td>${auditEscape(r.description || 'No description')}</td>
+        <td><span class="role-user-count">${r.user_count || 0}</span></td>
+        <td><span class="role-access-count">${r.role === 'admin' ? 'All modules' : `${(m.roles[r.role] || []).length} permissions`}</span></td>
+        <td><span class="status-pill ${Number(r.is_active) ? 'active' : 'inactive'}">${Number(r.is_active) ? 'Active' : 'Inactive'}</span></td>
+        <td><div class="role-actions">
+          <button class="icon-action" title="Edit role" onclick="openRoleModal('${r.role}')">Edit</button>
+          ${r.is_system ? '<span class="protected-role">Protected</span>' : `<button class="icon-action ${Number(r.is_active) ? 'danger' : 'success'}" onclick="toggleRoleStatus('${r.role}', ${Number(r.is_active) ? 0 : 1})">${Number(r.is_active) ? 'Deactivate' : 'Activate'}</button>`}
+          <button class="icon-action" onclick="selectRolePermissions('${r.role}')">Permissions</button>
+        </div></td>
+      </tr>`).join('') : '<tr><td colspan="6">No roles configured.</td></tr>';
+    document.getElementById('roles-summary').innerHTML = [
+      ['Total roles', definitions.length, 'Across all operations'],
+      ['Active roles', definitions.filter(r => Number(r.is_active)).length, 'Available for assignment'],
+      ['Custom roles', definitions.filter(r => !Number(r.is_system)).length, 'Specialist access profiles'],
+      ['Assigned users', definitions.reduce((sum, r) => sum + Number(r.user_count || 0), 0), 'Internal accounts']
+    ].map(x => `<div class="role-summary-card"><span>${x[0]}</span><strong>${x[1]}</strong><small>${x[2]}</small></div>`).join('');
+    document.getElementById('roles-updated').textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    selectRolePermissions(definitions.find(r => !Number(r.is_system) && Number(r.is_active))?.role || 'manager');
   } catch (e) {
-    box.innerHTML = '<p>Could not load permissions.</p>';
+    document.getElementById('roles-tbody').innerHTML = '<tr><td colspan="6">Could not load roles.</td></tr>';
   }
+}
+
+function permissionMarkup(role, target) {
+  const m = window.rolesMatrix;
+  const groups = [...new Set(m.permissions.map(p => p.group))];
+  const locked = ['roles.manage', 'users.manage', 'dropdowns.manage'];
+  return groups.map(g => `<div class="permission-group"><h4>${auditEscape(g)}</h4><div class="permission-options">` +
+    m.permissions.filter(p => p.group === g).map(p => `<label class="permission-option"><input type="checkbox" value="${p.key}" ${role === 'admin' || (m.roles[role] || []).includes(p.key) ? 'checked' : ''} ${role === 'admin' || locked.includes(p.key) ? 'disabled' : ''}><span><strong>${auditEscape(p.label)}</strong>${locked.includes(p.key) ? '<small>Administrator only</small>' : ''}</span></label>`).join('') +
+    '</div></div>').join('');
+}
+
+function selectRolePermissions(role) {
+  if (!window.rolesMatrix || !window.rolesMatrix.roles[role]) return;
+  const definition = window.rolesMatrix.definitions.find(r => r.role === role);
+  document.getElementById('permission-editor-title').textContent = `${definition?.display_name || role} permissions`;
+  document.getElementById('roles-grid').innerHTML = `<div class="permission-editor" data-role="${role}">${permissionMarkup(role)}<button class="btn btn-primary" onclick="saveRolePermissions('${role}')">Save permissions</button></div>`;
 }
 
 async function saveRolePermissions(role) {
@@ -1064,6 +1124,42 @@ async function saveRolePermissions(role) {
   const res = await fetch(`${API}/roles/${role}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ permissions }) });
   const out = await res.json().catch(() => ({}));
   notify(res.ok ? `Permissions for ${role} saved.` : (out.error || 'Could not save permissions.'), res.ok ? '✅' : '❌');
+  if (res.ok) loadRolesMatrix();
+}
+
+function openRoleModal(role) {
+  window.editingRole = role || null;
+  const m = window.rolesMatrix;
+  const definition = role && m ? m.definitions.find(r => r.role === role) : null;
+  document.getElementById('role-modal-title').textContent = definition ? `Edit ${definition.display_name}` : 'Add role';
+  document.getElementById('role-display-name').value = definition?.display_name || '';
+  document.getElementById('role-description').value = definition?.description || '';
+  document.getElementById('role-modal-permissions').innerHTML = m ? permissionMarkup(role || '', 'modal') : '';
+  openModal('role-modal');
+}
+
+async function saveRoleModal() {
+  const name = document.getElementById('role-display-name').value.trim();
+  const description = document.getElementById('role-description').value.trim();
+  if (!name) { notify('Enter a role name.', '⚠️'); return; }
+  const permissions = [...document.querySelectorAll('#role-modal-permissions input:checked:not(:disabled)')].map(i => i.value);
+  const editing = window.editingRole;
+  const url = editing ? `${API}/roles/${editing}/profile` : `${API}/roles`;
+  const res = await fetch(url, { method: editing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: name, description, permissions }) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) { notify(out.error || 'Could not save role.', '❌'); return; }
+  closeModal('role-modal');
+  notify(editing ? 'Role updated.' : 'Role created.', '✅');
+  loadRolesMatrix();
+}
+
+async function toggleRoleStatus(role, active) {
+  const action = active ? 'activate' : 'deactivate';
+  if (!confirm(`Are you sure you want to ${action} this role? ${active ? '' : 'Users assigned to it will no longer be able to log in.'}`)) return;
+  const res = await fetch(`${API}/roles/${role}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: Boolean(active) }) });
+  const out = await res.json().catch(() => ({}));
+  notify(res.ok ? out.message : (out.error || 'Could not change role status.'), res.ok ? '✅' : '❌');
+  if (res.ok) loadRolesMatrix();
 }
 
 /* ---------- Dropdown Library ---------- */
@@ -1240,6 +1336,10 @@ async function loadStaffUsers() {
     const response = await fetch('/staff');
     const users = await response.json();
     if (!response.ok) throw new Error(users.error || 'Unable to load users.');
+    const roleResponse = await fetch('/roles');
+    const roleData = roleResponse.ok ? await roleResponse.json() : { definitions: [] };
+    const roleSelect = document.getElementById('staff-role');
+    if (roleSelect && roleData.definitions) roleSelect.innerHTML = roleData.definitions.filter(r => !Number(r.is_system) || ['staff', 'manager'].includes(r.role)).filter(r => Number(r.is_active)).map(r => `<option value="${r.role}">${auditEscape(r.display_name)}</option>`).join('');
     tbody.innerHTML = users.map((user) => `
       <tr>
         <td>${user.name}</td>
@@ -1247,7 +1347,7 @@ async function loadStaffUsers() {
         <td>${user.role}</td>
         <td>${user.is_active ? 'Active' : 'Disabled'}</td>
         <td>
-          ${['staff', 'manager'].includes(user.role) ? `
+          ${user.role !== 'admin' ? `
             <button class="btn btn-outline btn-sm" onclick="editStaffUser(${user.id}, '${String(user.name).replace(/'/g, "\\'")}')">Edit</button>
             <button class="btn btn-outline btn-sm" onclick="toggleStaffUser(${user.id}, ${user.is_active ? 'false' : 'true'})">${user.is_active ? 'Disable' : 'Enable'}</button>
             <button class="btn btn-danger btn-sm" onclick="deleteStaffUser(${user.id}, '${String(user.name).replace(/'/g, "\\'")}')">Delete</button>
@@ -1284,7 +1384,8 @@ async function editStaffUser(id, currentName) {
   const name = prompt('Staff name:', currentName);
   if (!name || name.trim() === currentName) return;
   const password = prompt('New password (leave blank to keep the current password):', '');
-  const response = await fetch(`/staff/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), password }) });
+  const role = prompt('Role key (staff, manager, or a custom active role):', '');
+  const response = await fetch(`/staff/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), password, role: role.trim() || undefined }) });
   const result = await response.json();
   if (!response.ok) return notify(result.error || 'Unable to update staff account.', '❌');
   notify('Staff account updated.', '✅');

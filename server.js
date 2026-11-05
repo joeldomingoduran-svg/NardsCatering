@@ -26,6 +26,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Portal HTML and scripts change frequently during development; do not let an
+// older cached page hide the current UI after a server restart.
+app.use((req, res, next) => {
+  if (/\.(html|css|js)$/i.test(req.path) || /^\/(login|admin|manager|staff-portal|customer|customer-login)\/?$/i.test(req.path)) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname), { dotfiles: 'deny' }));
 // Pages like /login, /admin use relative asset links (e.g. "Login.css"), which resolve to the site root.
 ['Login', 'Admin', 'Manager', 'Staff', 'Customer'].forEach((dir) => {

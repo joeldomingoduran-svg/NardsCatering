@@ -22,11 +22,14 @@ exports.login = async (req, res) => {
     if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
 
     const [rows] = await pool.query(
-      'SELECT id, name, username, password, role, profileImage, is_active, created_at FROM StaffUsers WHERE username = ? LIMIT 1',
+      `SELECT u.id, u.name, u.username, u.password, u.role, u.profileImage, u.is_active, u.created_at,
+              COALESCE(r.is_active, 1) AS role_active
+         FROM StaffUsers u LEFT JOIN role_definitions r ON r.role = u.role
+        WHERE u.username = ? LIMIT 1`,
       [username]
     );
     const user = rows[0];
-    if (!user || !user.is_active || user.password !== password) {
+    if (!user || !user.is_active || !Number(user.role_active) || user.password !== password) {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
     await pool.query(
@@ -109,7 +112,8 @@ exports.createUser = async (req, res) => {
   try {
     const { name, username, password, role = 'staff' } = req.body;
     if (!name || !username || !password) return res.status(400).json({ error: 'Name, username, and password are required.' });
-    if (!['staff', 'manager'].includes(role)) return res.status(400).json({ error: 'Only staff or manager accounts can be created here.' });
+    const [roleRows] = await pool.query('SELECT role FROM role_definitions WHERE role = ? AND is_active = 1 LIMIT 1', [role]);
+    if (!roleRows.length || role === 'admin') return res.status(400).json({ error: 'Choose an active non-administrator role.' });
     if (!isRealName(name)) return res.status(400).json({ error: 'Enter the staff member\'s real full name.' });
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
 
@@ -131,7 +135,7 @@ exports.createUser = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
-    const { name, password } = req.body;
+    const { name, password, role } = req.body;
     if (!name || String(name).trim().length < 2) return res.status(400).json({ error: 'A valid name is required.' });
     if (!isRealName(name)) return res.status(400).json({ error: 'Enter the staff member\'s real full name.' });
     const values = [String(name).trim()];
@@ -141,7 +145,13 @@ exports.updateUser = async (req, res) => {
       query += ', password = ?';
       values.push(password);
     }
-    query += ' WHERE id = ? AND role IN (\'staff\', \'manager\')';
+    if (role) {
+      const [roleRows] = await pool.query('SELECT role FROM role_definitions WHERE role = ? AND is_active = 1 LIMIT 1', [role]);
+      if (!roleRows.length || role === 'admin') return res.status(400).json({ error: 'Choose an active non-administrator role.' });
+      query += ', role = ?';
+      values.push(role);
+    }
+    query += ' WHERE id = ? AND role <> \'admin\'';
     values.push(req.params.id);
 
     const [result] = await pool.query(query, values);

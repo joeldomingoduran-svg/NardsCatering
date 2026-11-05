@@ -296,6 +296,8 @@ $$;
 ALTER TABLE "Packages" ADD COLUMN IF NOT EXISTS max_guests integer NOT NULL DEFAULT 0; -- 0 = no limit
 ALTER TABLE "Bookings" ADD COLUMN IF NOT EXISTS additional_request varchar(500);
 ALTER TABLE "Bookings" ADD COLUMN IF NOT EXISTS additional_cost numeric(10, 2) NOT NULL DEFAULT 0;
+-- Custom operational roles (such as Cook or Driver) require a string role column.
+ALTER TABLE "StaffUsers" ALTER COLUMN "role" TYPE varchar(20) USING "role"::text;
 
 CREATE TABLE IF NOT EXISTS role_permissions (
   role varchar(20) NOT NULL, permission varchar(60) NOT NULL, allowed smallint NOT NULL DEFAULT 0,
@@ -312,4 +314,9 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE TABLE IF NOT EXISTS notification_state (
   user_id integer PRIMARY KEY, last_read_id integer NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS role_definitions (
+  role varchar(20) PRIMARY KEY, display_name varchar(60) NOT NULL, description varchar(255),
+  is_active smallint NOT NULL DEFAULT 1, is_system smallint NOT NULL DEFAULT 0,
+  created_at timestamp NOT NULL DEFAULT NOW(), updated_at timestamp NOT NULL DEFAULT NOW()
 );
