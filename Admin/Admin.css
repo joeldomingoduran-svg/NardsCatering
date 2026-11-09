@@ -84,27 +84,7 @@ body {
 @media (prefers-reduced-motion: reduce) { .nav-item.active { animation: none; } }
 .topnav-actions { display: flex; gap: 10px; align-items: center; }
 /* Top-bar back button: always visible, white, animated. Scoped to .topnav so the generic .btn-back below can't wash it out. */
-.topnav .btn-back {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; flex-shrink: 0; margin-right: 10px; padding: 0;
-  background: rgba(255,255,255,0.10); border: 1.5px solid #fff; color: #fff;
-  border-radius: 50%; cursor: pointer;
-  transition: transform .2s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
-  animation: backIn .5s ease both, backPulse 2.8s ease-in-out 1.2s infinite;
-}
-.topnav .btn-back[hidden] { display: none; }
-.topnav .btn-back svg { stroke: currentColor; stroke-width: 2.6; transition: transform .25s ease; }
-.topnav .btn-back:hover { background: #fff; color: var(--dark); transform: scale(1.1); box-shadow: 0 0 0 5px rgba(255,255,255,0.22); animation: backIn .5s ease both; }
-.topnav .btn-back:hover svg { animation: backNudge .6s ease-in-out infinite; }
-.topnav .btn-back:active { transform: scale(0.92); }
-.topnav .btn-back:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
-.topnav.menu-hidden .btn-back { background: var(--brown); border-color: var(--brown); color: #fff; }
-.topnav.menu-hidden .btn-back:hover { background: #fff; color: var(--dark); border-color: var(--dark); }
-@keyframes backIn { from { opacity: 0; transform: translateX(-16px) scale(.8); } to { opacity: 1; transform: none; } }
-@keyframes backPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.5); }
-  60%      { box-shadow: 0 0 0 9px rgba(255,255,255,0); }
-}
+
 @keyframes backNudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-4px); } }
 @media (prefers-reduced-motion: reduce) { .topnav .btn-back, .topnav .btn-back:hover svg { animation: none; } }
 
