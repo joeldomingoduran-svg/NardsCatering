@@ -1,6 +1,10 @@
 const crypto = require('crypto');
 
-const TOKEN_SECRET = process.env.AUTH_TOKEN_SECRET || 'nards-catering-change-this-secret';
+const TOKEN_SECRET = process.env.AUTH_TOKEN_SECRET;
+if (!TOKEN_SECRET) {
+  throw new Error('AUTH_TOKEN_SECRET environment variable is required but not set. Set it in your .env file.');
+}
+
 const TOKEN_TTL_SECONDS = 8 * 60 * 60;
 
 function encodeToken(payload) {

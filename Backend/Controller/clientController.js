@@ -4,6 +4,7 @@ const { sendCodeEmail } = require('../Model/mailer');
 const { writeAudit } = require('../Model/audit');
 const { isRealName, isElevenDigitPhone } = require('../Model/validators');
 const { createAuthToken } = require('../Middleware/authMiddleware');
+const { hashPassword, verifyPassword } = require('../Model/passwordUtils');
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -57,7 +58,10 @@ async function issueOtp(clientId, email, name) {
 }
 
 const isGmail = (value) => /^[^\s@]+@gmail\.com$/i.test((value || '').trim());
-const isStrongPassword = (value) => typeof value === 'string' && value.length >= 8 && /[^A-Za-z0-9]/.test(value);
+const isStrongPassword = (value) => {
+  if (typeof value !== 'string') return false;
+  return value.length >= 10 && /[A-Z]/.test(value) && /[a-z]/.test(value) && /[0-9]/.test(value) && /[^A-Za-z0-9]/.test(value);
+};
 const isValidContact = (value) => isElevenDigitPhone(value);
 
 exports.getAllClients = async (req, res) => {
@@ -100,14 +104,15 @@ exports.signupClient = async (req, res) => {
     const safeContact = contact.trim();
     let clientId;
     const isRetry = existing.length > 0;
+    const hashedPassword = await hashPassword(password);
     if (isRetry) {
       // An earlier sign-up was never verified; refresh its details and send a new code.
       clientId = existing[0].id;
-      await pool.query("UPDATE Clients SET name = ?, contact = ?, password = ? WHERE id = ?", [name.trim(), safeContact, password, clientId]);
+      await pool.query("UPDATE Clients SET name = ?, contact = ?, password = ? WHERE id = ?", [name.trim(), safeContact, hashedPassword, clientId]);
     } else {
       const [result] = await pool.query(
         "INSERT INTO Clients (name, contact, email, password, isVerified) VALUES (?, ?, ?, ?, 0)",
-        [name.trim(), safeContact, normalizedEmail, password]
+        [name.trim(), safeContact, normalizedEmail, hashedPassword]
       );
       clientId = result.insertId;
     }
@@ -147,9 +152,15 @@ exports.loginClient = async (req, res) => {
       [normalizedEmail]
     );
 
-    if (!rows.length || rows[0].password !== password) {
+    if (!rows.length) {
       return res.status(401).json({ error: 'Invalid Gmail or password.' });
     }
+    
+    const passwordMatch = await verifyPassword(password, rows[0].password);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid Gmail or password.' });
+    }
+    
     if (!rows[0].isVerified) {
       return res.status(403).json({ error: 'Please verify your Gmail with the code we sent.', requiresOtp: true, email: normalizedEmail });
     }
@@ -185,11 +196,16 @@ exports.changeOwnPassword = async (req, res) => {
   try {
     const currentPassword = String(req.body.currentPassword || '');
     const newPassword = String(req.body.newPassword || '');
-    if (!isStrongPassword(newPassword)) return res.status(400).json({ error: 'New password must be at least 8 characters and include a special character.' });
+    if (!isStrongPassword(newPassword)) return res.status(400).json({ error: 'New password must be at least 10 characters long and include uppercase, lowercase, numbers, and special characters.' });
     const [rows] = await pool.query('SELECT password FROM Clients WHERE id = ? AND isVerified = 1 LIMIT 1', [req.user.id]);
-    if (!rows.length || rows[0].password !== currentPassword) return res.status(400).json({ error: 'Current password is incorrect.' });
+    if (!rows.length) return res.status(404).json({ error: 'Account not found.' });
+    
+    const passwordMatch = await verifyPassword(currentPassword, rows[0].password);
+    if (!passwordMatch) return res.status(400).json({ error: 'Current password is incorrect.' });
+    
+    const hashedPassword = await hashPassword(newPassword);
     if (currentPassword === newPassword) return res.status(400).json({ error: 'New password must be different from the current password.' });
-    await pool.query('UPDATE Clients SET password = ? WHERE id = ?', [newPassword, req.user.id]);
+    await pool.query('UPDATE Clients SET password = ? WHERE id = ?', [hashedPassword, req.user.id]);
     res.json({ message: 'Password updated.' });
   } catch (error) { res.status(500).json({ error: error.message }); }
 };
@@ -285,7 +301,7 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ error: 'Enter the 6-digit code.' });
     }
     if (!isStrongPassword(newPassword)) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long and include a special character.' });
+      return res.status(400).json({ error: 'Password must be at least 10 characters long and include uppercase, lowercase, numbers, and special characters.' });
     }
     const [rows] = await pool.query(
       "SELECT id, password, resetHash, resetExpires, resetAttempts FROM Clients WHERE LOWER(email) = ? LIMIT 1", [email]
@@ -303,13 +319,17 @@ exports.resetPassword = async (req, res) => {
       if (left <= 0 && await codesLeft(c.id, 'reset') === 0) return res.status(429).json({ error: LIMIT_MESSAGE, limitReached: true });
       return res.status(400).json({ error: left > 0 ? `Invalid code. ${left} attempt${left === 1 ? '' : 's'} left.` : 'Too many attempts. Please request a new code.' });
     }
-    if (newPassword === c.password) {
+    
+    const passwordMatch = await verifyPassword(newPassword, c.password);
+    if (passwordMatch) {
       return res.status(400).json({ error: 'Your new password must be different from your old password.' });
     }
+    
+    const hashedPassword = await hashPassword(newPassword);
     // A successful reset proves control of the inbox, so the account is also verified.
     await pool.query(
       "UPDATE Clients SET password = ?, isVerified = 1, resetHash = NULL, resetExpires = NULL, resetAttempts = 0 WHERE id = ?",
-      [newPassword, c.id]
+      [hashedPassword, c.id]
     );
     res.json({ message: 'Password updated. You can now log in.' });
   } catch (err) {
@@ -330,7 +350,7 @@ exports.createClient = async (req, res) => {
       return res.status(400).json({ error: 'Use a valid Gmail address.' });
     }
     if (!isStrongPassword(password)) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long and include a special character.' });
+      return res.status(400).json({ error: 'Password must be at least 10 characters long and include uppercase, lowercase, numbers, and special characters.' });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -339,9 +359,10 @@ exports.createClient = async (req, res) => {
       return res.status(409).json({ error: 'Email already registered.' });
     }
 
+    const hashedPassword = await hashPassword(password);
     const [result] = await pool.query(
       "INSERT INTO Clients (name, contact, email, password, isVerified) VALUES (?, ?, ?, ?, 1)",
-      [name.trim(), contact || '+63 000 000 0000', normalizedEmail, password]
+      [name.trim(), contact || '+63 000 000 0000', normalizedEmail, hashedPassword]
     );
     res.status(201).json({ message: 'Client created', clientId: result.insertId });
   } catch (err) {
@@ -364,22 +385,27 @@ exports.updateClient = async (req, res) => {
     const { name, contact, email, password } = req.body;
     if (!isRealName(name)) return res.status(400).json({ error: 'Enter the client\'s real full name.' });
     if (contact && !isValidContact(contact)) return res.status(400).json({ error: 'Contact number must be exactly 11 digits.' });
+    
     const updateValues = [name, contact, email];
+    let query = "UPDATE Clients SET name=?, contact=?, email=?";
+    
     if (password) {
-      updateValues.push(password);
+      if (!isStrongPassword(password)) return res.status(400).json({ error: 'Password must be at least 10 characters long and include uppercase, lowercase, numbers, and special characters.' });
+      const hashedPassword = await hashPassword(password);
+      updateValues.push(hashedPassword);
+      query += ", password=?";
     }
-    const query = password
-      ? "UPDATE Clients SET name=?, contact=?, email=?, password=? WHERE id=?"
-      : "UPDATE Clients SET name=?, contact=?, email=? WHERE id=?";
-    const params = password ? [...updateValues, req.params.id] : [...updateValues, req.params.id];
-    const [result] = await pool.query(query, params);
+    
+    query += " WHERE id=?";
+    updateValues.push(req.params.id);
+    
+    const [result] = await pool.query(query, updateValues);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Client not found' });
     res.json({ message: 'Client updated' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
-
 exports.deleteClient = async (req, res) => {
   try {
     const [result] = await pool.query("DELETE FROM Clients WHERE id=?", [req.params.id]);

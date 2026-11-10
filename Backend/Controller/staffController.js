@@ -2,6 +2,7 @@ const pool = require('../Model/db');
 const { createAuthToken } = require('../Middleware/authMiddleware');
 const { writeAudit } = require('../Model/audit');
 const { isRealName } = require('../Model/validators');
+const { hashPassword, verifyPassword } = require('../Model/passwordUtils');
 
 function publicUser(user) {
   return {
@@ -29,9 +30,15 @@ exports.login = async (req, res) => {
       [username]
     );
     const user = rows[0];
-    if (!user || !user.is_active || !Number(user.role_active) || user.password !== password) {
+    if (!user || !user.is_active || !Number(user.role_active)) {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
+    
+    const passwordMatch = await verifyPassword(password, user.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid username or password.' });
+    }
+    
     await pool.query(
       'INSERT INTO LoginHistory (user_id, username, role) VALUES (?, ?, ?)',
       [user.id, user.username, user.role]
@@ -84,13 +91,21 @@ exports.changeOwnPassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Current and new password are required.' });
-    if (String(newPassword).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    if (String(newPassword).length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters long and include uppercase, lowercase, numbers, and special characters.' });
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Password must include uppercase, lowercase, numbers, and special characters.' });
+    }
 
     const [rows] = await pool.query('SELECT password FROM StaffUsers WHERE id = ? AND is_active = 1', [req.user.id]);
-    if (!rows.length || rows[0].password !== currentPassword) {
+    if (!rows.length) return res.status(404).json({ error: 'Account not found.' });
+    
+    const passwordMatch = await verifyPassword(currentPassword, rows[0].password);
+    if (!passwordMatch) {
       return res.status(400).json({ error: 'Current password is incorrect.' });
     }
-    await pool.query('UPDATE StaffUsers SET password = ? WHERE id = ?', [newPassword, req.user.id]);
+    
+    const hashedPassword = await hashPassword(newPassword);
+    await pool.query('UPDATE StaffUsers SET password = ? WHERE id = ?', [hashedPassword, req.user.id]);
     res.json({ message: 'Password updated.' });
   } catch (error) {
     res.status(500).json({ error: 'Could not update the password.' });
@@ -115,11 +130,15 @@ exports.createUser = async (req, res) => {
     const [roleRows] = await pool.query('SELECT role FROM role_definitions WHERE role = ? AND is_active = 1 LIMIT 1', [role]);
     if (!roleRows.length || role === 'admin') return res.status(400).json({ error: 'Choose an active non-administrator role.' });
     if (!isRealName(name)) return res.status(400).json({ error: 'Enter the staff member\'s real full name.' });
-    if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    if (String(password).length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters long and include uppercase, lowercase, numbers, and special characters.' });
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Password must include uppercase, lowercase, numbers, and special characters.' });
+    }
 
+    const hashedPassword = await hashPassword(password);
     const [result] = await pool.query(
       'INSERT INTO StaffUsers (name, username, password, role, is_active) VALUES (?, ?, ?, ?, 1)',
-      [String(name).trim(), String(username).trim(), password, role]
+      [String(name).trim(), String(username).trim(), hashedPassword, role]
     );
     const [rows] = await pool.query(
       'SELECT id, name, username, role, is_active, created_at FROM StaffUsers WHERE id = ?',
@@ -141,9 +160,13 @@ exports.updateUser = async (req, res) => {
     const values = [String(name).trim()];
     let query = 'UPDATE StaffUsers SET name = ?';
     if (password) {
-      if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+      if (String(password).length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters long and include uppercase, lowercase, numbers, and special characters.' });
+      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+        return res.status(400).json({ error: 'Password must include uppercase, lowercase, numbers, and special characters.' });
+      }
+      const hashedPassword = await hashPassword(password);
       query += ', password = ?';
-      values.push(password);
+      values.push(hashedPassword);
     }
     if (role) {
       const [roleRows] = await pool.query('SELECT role FROM role_definitions WHERE role = ? AND is_active = 1 LIMIT 1', [role]);
