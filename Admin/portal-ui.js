@@ -196,23 +196,35 @@
     if (!columns.length || !table.tBodies.length) return;
     table.dataset.tools = '1';
 
-    var filterRow = document.createElement('tr');
-    filterRow.className = 'filter-row';
-    columns.forEach(function (col) {
-      var th = document.createElement('th');
-      if (!col.skip) {
-        var input = document.createElement('input');
-        input.type = 'search';
-        input.className = 'col-filter';
-        input.dataset.col = col.index;
-        input.placeholder = 'Filter';
-        input.setAttribute('aria-label', 'Filter ' + col.title);
-        input.addEventListener('input', function () { applyFilters(table); });
-        th.appendChild(input);
-      }
-      filterRow.appendChild(th);
-    });
-    table.tHead.appendChild(filterRow);
+    // Check if this table's view has a global search bar; if so, skip individual column filters
+    var view = table.closest('.view');
+    var hasGlobalSearch = view && (
+      view.querySelector('#booking-search') ||
+      view.querySelector('#inv-search') ||
+      view.querySelector('#dish-search') ||
+      view.querySelector('#client-search') ||
+      view.querySelector('#asset-search')
+    );
+
+    if (!hasGlobalSearch) {
+      var filterRow = document.createElement('tr');
+      filterRow.className = 'filter-row';
+      columns.forEach(function (col) {
+        var th = document.createElement('th');
+        if (!col.skip) {
+          var input = document.createElement('input');
+          input.type = 'search';
+          input.className = 'col-filter';
+          input.dataset.col = col.index;
+          input.placeholder = 'Filter';
+          input.setAttribute('aria-label', 'Filter ' + col.title);
+          input.addEventListener('input', function () { applyFilters(table); });
+          th.appendChild(input);
+        }
+        filterRow.appendChild(th);
+      });
+      table.tHead.appendChild(filterRow);
+    }
 
     var exportCols = columns.filter(function (c) { return !c.skip; });
     var tools = document.createElement('div');
