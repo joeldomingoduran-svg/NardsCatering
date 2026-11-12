@@ -1,5 +1,5 @@
 // Shared by the Admin, Manager and Staff portals: sidebar, profile popover, live alerts,
-// table filters and CSV/Excel exports. Loaded at the end of each portal page.
+// and CSV/Excel exports. Loaded at the end of each portal page.
 (function () {
   'use strict';
 
@@ -151,26 +151,6 @@
     });
   }
 
-  function applyFilters(table) {
-    var inputs = table.querySelectorAll('.col-filter');
-    var active = [];
-    inputs.forEach(function (input) {
-      var value = input.value.trim().toLowerCase();
-      if (value) active.push({ index: Number(input.dataset.col), value: value });
-    });
-    Array.prototype.forEach.call(table.tBodies, function (tbody) {
-      Array.prototype.forEach.call(tbody.rows, function (row) {
-        // Message rows ("No records") span the table and are never filtered.
-        if (row.cells.length === 1 && row.cells[0].colSpan > 1) { row.hidden = false; return; }
-        var show = active.every(function (f) {
-          var cell = row.cells[f.index];
-          return cell && cellText(cell).toLowerCase().indexOf(f.value) !== -1;
-        });
-        row.hidden = !show;
-      });
-    });
-  }
-
   function visibleRows(table, columns) {
     var rows = [columns.map(function (c) { return c.title; })];
     Array.prototype.forEach.call(table.tBodies, function (tbody) {
@@ -196,50 +176,14 @@
     if (!columns.length || !table.tBodies.length) return;
     table.dataset.tools = '1';
 
-    // Check if this table's view has a global search bar; if so, skip individual column filters
-    var view = table.closest('.view');
-    var hasGlobalSearch = view && (
-      view.querySelector('#booking-search') ||
-      view.querySelector('#inv-search') ||
-      view.querySelector('#dish-search') ||
-      view.querySelector('#client-search') ||
-      view.querySelector('#asset-search')
-    );
-
-    if (!hasGlobalSearch) {
-      var filterRow = document.createElement('tr');
-      filterRow.className = 'filter-row';
-      columns.forEach(function (col) {
-        var th = document.createElement('th');
-        if (!col.skip) {
-          var input = document.createElement('input');
-          input.type = 'search';
-          input.className = 'col-filter';
-          input.dataset.col = col.index;
-          input.placeholder = 'Filter';
-          input.setAttribute('aria-label', 'Filter ' + col.title);
-          input.addEventListener('input', function () { applyFilters(table); });
-          th.appendChild(input);
-        }
-        filterRow.appendChild(th);
-      });
-      table.tHead.appendChild(filterRow);
-    }
-
     var exportCols = columns.filter(function (c) { return !c.skip; });
     var tools = document.createElement('div');
     tools.className = 'table-tools';
-    tools.innerHTML = '<button type="button" class="btn btn-outline btn-sm" data-act="clear">Clear filters</button>' +
-      '<button type="button" class="btn btn-outline btn-sm" data-act="csv">Export CSV</button>' +
+    tools.innerHTML = '<button type="button" class="btn btn-outline btn-sm" data-act="csv">Export CSV</button>' +
       '<button type="button" class="btn btn-outline btn-sm" data-act="xlsx">Export Excel</button>';
     tools.addEventListener('click', function (event) {
       var act = event.target.getAttribute('data-act');
       if (!act) return;
-      if (act === 'clear') {
-        table.querySelectorAll('.col-filter').forEach(function (i) { i.value = ''; });
-        applyFilters(table);
-        return;
-      }
       var rows = visibleRows(table, exportCols), title = tableTitle(table);
       if (rows.length < 2) { toast('There are no rows to export.', 'info'); return; }
       if (act === 'csv') exportCsv(title, rows);
@@ -247,10 +191,6 @@
     });
     var wrap = table.closest('.table-wrap') || table;
     wrap.parentNode.insertBefore(tools, wrap);
-
-    // Rows are re-rendered by the pages; keep the filters applied.
-    var observer = new MutationObserver(function () { applyFilters(table); });
-    Array.prototype.forEach.call(table.tBodies, function (tbody) { observer.observe(tbody, { childList: true }); });
   }
 
   var enhanceQueued = false;
@@ -318,7 +258,7 @@
     tabs.remove();
     if (brandBtn) brandBtn.remove();
     var back = topnav.querySelector('.btn-back');
-    if (back && user.role === 'staff') back.remove();
+    if (back) back.remove();
 
     var backdrop = document.createElement('div');
     backdrop.className = 'sidebar-backdrop';
@@ -418,27 +358,31 @@
   var alertState = { lastId: null };
 
   function buildAlerts() {
-    var actions = document.querySelector('.topnav-actions');
-    if (!actions || document.getElementById('alerts-menu') || !user.role) return;
-    var wrap = document.createElement('div');
-    wrap.className = 'alerts-menu';
-    wrap.id = 'alerts-menu';
-    wrap.innerHTML = '<button type="button" class="btn-notif-bell alerts-btn" title="Alerts and activity" aria-label="Alerts and activity" aria-expanded="false">\u26A1<span class="alerts-badge" hidden>0</span></button>' +
-      '<div class="alerts-panel" hidden><div class="alerts-head"><strong>Alerts</strong><button type="button" class="btn btn-outline btn-sm" data-act="read">Mark all read</button></div><div class="alerts-list"><div class="notif-empty">No alerts yet.</div></div></div>';
-    actions.insertBefore(wrap, actions.firstChild);
-    var btn = wrap.querySelector('.alerts-btn'), panel = wrap.querySelector('.alerts-panel');
-    btn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      panel.hidden = !panel.hidden;
-      btn.setAttribute('aria-expanded', String(!panel.hidden));
+    var modal = document.getElementById('event-notification-modal');
+    var bell = document.getElementById('notif-bell-btn');
+    if (!modal || !bell || document.getElementById('alerts-list') || !user.role) return;
+    bell.title = 'Notifications and alerts';
+    bell.setAttribute('aria-label', 'Notifications and alerts');
+    var badge = document.createElement('span');
+    badge.className = 'alerts-badge';
+    badge.hidden = true;
+    bell.appendChild(badge);
+    var section = document.createElement('div');
+    section.innerHTML = '<div class="alerts-head"><strong>Activity alerts</strong><button type="button" class="btn btn-outline btn-sm" data-act="read">Mark all read</button></div><div class="alerts-list" id="alerts-list"><div class="notif-empty">Loading alerts...</div></div>';
+    modal.querySelector('.modal-actions').before(section);
+    section.querySelector('[data-act="read"]').addEventListener('click', function () {
+      fetch('/notifications/read', { method: 'POST' }).then(function (res) {
+        if (!res.ok) throw new Error('Could not mark alerts as read.');
+        return poll();
+      }).catch(function (error) { toast(error.message, 'error'); });
     });
-    document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); } });
-    wrap.querySelector('[data-act="read"]').addEventListener('click', function () {
-      fetch('/notifications/read', { method: 'POST' }).then(poll);
-    });
-    wrap.querySelector('.alerts-list').addEventListener('click', function (e) {
+    section.querySelector('.alerts-list').addEventListener('click', function (e) {
       var item = e.target.closest('[data-view]');
-      if (item && item.dataset.view && window.navigate) { panel.hidden = true; try { window.navigate(item.dataset.view); } catch (err) {} }
+      if (item && item.dataset.view && window.navigate) {
+        if (!document.getElementById('view-' + item.dataset.view)) return;
+        window.closeModal('event-notification-modal');
+        window.navigate(item.dataset.view);
+      }
     });
     poll();
     setInterval(poll, 8000);
@@ -456,13 +400,13 @@
 
   function poll() {
     if (document.hidden) return;
-    fetch('/notifications').then(function (r) { return r.ok ? r.json() : null; }).then(function (res) {
-      var wrap = document.getElementById('alerts-menu');
-      if (!res || !wrap) return;
-      var badge = wrap.querySelector('.alerts-badge');
+    return fetch('/notifications').then(function (r) { return r.ok ? r.json() : null; }).then(function (res) {
+      var badge = document.querySelector('#notif-bell-btn .alerts-badge');
+      var list = document.getElementById('alerts-list');
+      if (!badge || !list) return;
+      if (!res) throw new Error('Could not load activity alerts.');
       badge.hidden = !res.unread;
       badge.textContent = res.unread > 9 ? '9+' : res.unread;
-      var list = wrap.querySelector('.alerts-list');
       list.innerHTML = res.notifications.length ? res.notifications.map(function (n) {
         var unread = Number(n.id) > Number(res.lastRead);
         return '<div class="alert-item' + (unread ? ' unread' : '') + '" data-view="' + esc(n.link_view || '') + '"><strong>' + esc(n.title) + '</strong><span>' + esc(n.message) + '</span><small>' + timeAgo(n.created_at) + '</small></div>';
@@ -475,10 +419,16 @@
           var active = document.querySelector('.view.active');
           if (active && active.id === 'view-bookings' && window.renderBookings) window.renderBookings();
           if (active && active.id === 'view-dashboard' && window.renderDashboard) window.renderDashboard();
-        }).catch(function () {});
+        }).catch(function (error) {
+          console.error('Could not refresh bookings after notification:', error);
+        });
       }
       alertState.lastId = Math.max(alertState.lastId || 0, newest);
-    }).catch(function () {});
+    }).catch(function (error) {
+      var list = document.getElementById('alerts-list');
+      if (list) list.textContent = 'Could not load activity alerts.';
+      console.error('Notification polling failed:', error);
+    });
   }
 
   /* ------------------------------------------------------ Dropdown library */

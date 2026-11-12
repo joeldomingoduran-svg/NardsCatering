@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const { hashPassword } = require('./passwordUtils');
 
 const rawUrl = process.env.DATABASE_URL;
 // Serverless instances are short-lived, so use Supabase's transaction pooler (6543) instead of session mode (5432).
@@ -161,7 +162,6 @@ async function ensureExtraSchema() {
   await require('./permissions').seedPermissions();
   await require('../Controller/dropdownsController').seedDropdowns();
 }
-// Hardcoded admin account, created on startup if it does not exist yet.
 async function ensureAdminAccount() {
   await verifyConnection();
   // Avoid ALTER TABLE (takes a heavy lock) unless the column is actually missing.
@@ -174,9 +174,16 @@ async function ensureAdminAccount() {
   await ensureExtraSchema();
   const [rows] = await pool.query('SELECT id FROM StaffUsers WHERE username = ? LIMIT 1', ['Admin']);
   if (!rows.length) {
+    const password = process.env.ADMIN_INITIAL_PASSWORD;
+    if (!password || password.length < 10 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) ||
+        !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+      console.warn('Administrator bootstrap skipped: set ADMIN_INITIAL_PASSWORD to a password with at least 10 characters, uppercase, lowercase, a number, and a special character.');
+      return;
+    }
+    const hashedPassword = await hashPassword(password);
     await pool.query(
       "INSERT INTO StaffUsers (name, username, password, role, is_active) VALUES (?, ?, ?, 'admin', 1)",
-      ['System Administrator', 'Admin', 'Nards2024']
+      ['System Administrator', 'Admin', hashedPassword]
     );
     console.log('Created default administrator account.');
   }

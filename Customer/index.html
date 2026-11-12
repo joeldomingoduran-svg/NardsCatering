@@ -1087,7 +1087,7 @@ function paymentSectionHtml(booking) {
   }
   if (status !== 'pending') return '';
   if (booking.paymentProof) {
-    return `<div class="customer-booking-pay" style="margin-top:10px"><span class="pay-badge paid">PAID</span> <strong>Receipt received for review.</strong> Our staff will confirm your booking shortly.</div>`;
+    return `<div class="customer-booking-pay" style="margin-top:10px"><span class="pay-badge paid">RECEIPT SUBMITTED</span> <strong>Receipt received for review.</strong> Our staff will confirm your booking shortly.</div>`;
   }
   return `<div class="customer-booking-pay" style="margin-top:10px;padding:10px;border:1px solid #e0a800;border-radius:8px;background:#fff8e1">
     <span class="pay-badge unpaid">UNPAID</span> <strong>Payment needed: ${amount}</strong> &mdash; time left: <strong>${formatTimeLeft(Number(booking.paymentSecondsLeft) || 0)}</strong><br>

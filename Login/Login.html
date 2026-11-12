@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nards Catering — Admin Login</title>
+<title>Nard's Catering &amp; Setup — Team Login</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="Login.css">
 </head>
@@ -12,8 +12,8 @@
 <div class="login-card">
 
   <div class="brand">
-    <div class="brand-logo">Nards<span>.</span></div>
-    <div class="brand-sub">Catering Services</div>
+    <div class="brand-logo">Nard's<span>.</span></div>
+    <div class="brand-sub">Catering &amp; Setup</div>
     <div class="brand-divider"></div>
   </div>
 
@@ -108,9 +108,11 @@
     } catch (error) {
       loginBtn.disabled = false;
       loginBtn.innerHTML = 'Sign In';
-      Swal.fire({ icon: 'error', title: 'Login failed', text: error.message || 'Login failed. Please try again.', position: 'center', confirmButtonText: 'OK', confirmButtonColor: '#3A2D1A' });
-      errorText.textContent = error.message;
+      errorText.textContent = error.message || 'Login failed. Please try again.';
       errorMsg.classList.add('show');
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({ icon: 'error', title: 'Login failed', text: errorText.textContent, position: 'center', confirmButtonText: 'OK', confirmButtonColor: '#3A2D1A' });
+      }
       usernameEl.classList.add('error');
       passwordEl.classList.add('error');
       passwordEl.value = '';

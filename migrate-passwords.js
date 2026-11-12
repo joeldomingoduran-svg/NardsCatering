@@ -16,7 +16,7 @@ require('dotenv').config();
 const pool = require('./Backend/Model/db');
 const { hashPassword } = require('./Backend/Model/passwordUtils');
 
-const STAFF_TABLE = 'Staff';
+const STAFF_TABLE = 'StaffUsers';
 const CLIENT_TABLE = 'Clients';
 
 async function migrateTablePasswords(tableName, userIdColumn) {

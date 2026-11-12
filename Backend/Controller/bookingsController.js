@@ -120,7 +120,7 @@ exports.getAllBookings = async (req, res) => {
 
 exports.createBooking = async (req, res) => {
   try {
-    const { clientName, address, eventType, package: eventPackage, eventDate, eventTime, phone, email, guests, notes, paymentOption, gcashRef } = req.body;
+    const { clientName, address, eventType, package: eventPackage, eventDate, eventTime, phone, email, guests, notes, paymentOption, gcashRef, additionalRequest, additionalCost } = req.body;
     if (!clientName || !address || !eventType || !eventPackage || !eventDate || !phone) {
       return res.status(400).json({ error: "All fields are required" });
     }
@@ -129,6 +129,15 @@ exports.createBooking = async (req, res) => {
     if (email && !isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
     if (eventTime && !isWithinBusinessHours(eventTime)) {
       return res.status(400).json({ error: 'Event time must be within business hours (8:00 AM to 6:00 PM).' });
+    }
+    if (req.internalBooking && (!Number.isInteger(Number(guests)) || Number(guests) < 1)) {
+      return res.status(400).json({ error: 'Enter a valid number of guests.' });
+    }
+    if (req.internalBooking && (!Number.isFinite(Number(additionalCost || 0)) || Number(additionalCost || 0) < 0)) {
+      return res.status(400).json({ error: 'Enter a valid additional cost.' });
+    }
+    if (req.internalBooking && String(additionalRequest || '').length > 500) {
+      return res.status(400).json({ error: 'Additional request must be at most 500 characters.' });
     }
     const guestError = await guestLimitError(eventPackage, guests || 0);
     if (guestError) return res.status(400).json({ error: guestError });
@@ -171,9 +180,9 @@ exports.createBooking = async (req, res) => {
     const awaitingPayment = Boolean(optionValue) && !proofPath;
     const deadlineSql = awaitingPayment ? 'DATE_ADD(NOW(), INTERVAL 24 HOUR)' : 'NULL';
     const [result] = await pool.query(
-      `INSERT INTO Bookings (clientName, address, eventType, package, eventDate, eventTime, phone, email, guests, status, notes, paymentOption, amountDue, gcashRef, paymentProof, paymentDeadline, termsAcceptedAt, termsVersion)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${deadlineSql}, ?, ?)`,
-      [clientName, address, eventType, eventPackage, eventDate, validTime(eventTime), phone, email || null, guests || 0, "pending", notes || null, optionValue, amountDue, refValue, proofPath, optionValue ? new Date() : null, optionValue ? TERMS_VERSION : null]
+      `INSERT INTO Bookings (clientName, address, eventType, package, eventDate, eventTime, phone, email, guests, status, notes, paymentOption, amountDue, gcashRef, paymentProof, paymentDeadline, termsAcceptedAt, termsVersion, additional_request, additional_cost)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${deadlineSql}, ?, ?, ?, ?)`,
+      [clientName, address, eventType, eventPackage, eventDate, validTime(eventTime), phone, email || null, guests || 0, "pending", notes || null, optionValue, amountDue, refValue, proofPath, optionValue ? new Date() : null, optionValue ? TERMS_VERSION : null, req.internalBooking ? String(additionalRequest || '') || null : null, req.internalBooking ? Number(additionalCost || 0) : 0]
     );
     if (optionValue) {
       await writeAudit({ username: email || clientName, role: 'customer' }, 'Submitted booking', 'bookings', result.insertId, `${eventType} on ${eventDate}, GCash ${optionValue} payment${awaitingPayment ? ' (awaiting payment, 24h)' : ''}`);
@@ -427,6 +436,9 @@ exports.updateBooking = async (req, res) => {
     if (eventTime && !isWithinBusinessHours(eventTime)) {
       return res.status(400).json({ error: 'Event time must be within business hours (8:00 AM to 6:00 PM).' });
     }
+    if (String(additionalRequest || '').length > 500) {
+      return res.status(400).json({ error: 'Additional request must be at most 500 characters.' });
+    }
     const extraCost = Math.max(0, Number(additionalCost) || 0);
     const [current] = await pool.query('SELECT address FROM Bookings WHERE id = ?', [req.params.id]);
     if (current.length && current[0].address !== address) {
@@ -435,7 +447,7 @@ exports.updateBooking = async (req, res) => {
     }
     const [result] = await pool.query(
       `UPDATE Bookings SET clientName=?, address=?, eventType=?, package=?,       eventDate=?, eventTime=?, phone=?, email=?, guests=?, notes=?, additional_request=?, additional_cost=? WHERE id=?`,
-            [clientName, address, eventType, eventPackage, eventDate, validTime(eventTime), phone, email || null, guests || 0, notes || null, String(additionalRequest || '').slice(0, 500) || null, extraCost, req.params.id]
+            [clientName, address, eventType, eventPackage, eventDate, validTime(eventTime), phone, email || null, guests || 0, notes || null, String(additionalRequest || '') || null, extraCost, req.params.id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: "Booking not found" });
     res.json({ message: "Booking updated" });

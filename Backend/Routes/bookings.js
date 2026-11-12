@@ -14,6 +14,7 @@ router.post('/create-payment-intent', bookingsController.createPaymentIntent);
 router.post('/confirm-payment',       bookingsController.confirmPayment);
 router.post('/validate-address', bookingsController.validateAddress);
 router.get('/', bookingsController.getAllBookings);
+router.post('/internal', ...canManage, (req, res, next) => { req.internalBooking = true; next(); }, bookingsController.createBooking);
 router.post('/', upload.receipt('paymentProof'), bookingsController.createBooking);
 router.post('/:id/payment', upload.receipt('paymentProof'), bookingsController.submitPaymentProof);
 router.post('/:id/request', bookingsController.requestChange);

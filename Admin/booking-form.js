@@ -7,6 +7,39 @@
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (v) { return window.NardsUI ? window.NardsUI.esc(v) : String(v); };
 
+  window.createSharedBooking = async function (booking) {
+    var response;
+    try {
+      response = await fetch('/bookings/internal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: booking.client, address: booking.venue, eventType: booking.event,
+          package: booking.package, eventDate: booking.date, eventTime: booking.time,
+          phone: booking.phone, email: booking.email, guests: booking.guests,
+          notes: booking.notes, additionalRequest: booking.addReq, additionalCost: booking.addCost
+        })
+      });
+    } catch (error) {
+      console.error('Booking submission failed:', error);
+      throw new Error('Could not verify whether the booking was saved. Refresh the list before trying again.');
+    }
+    var result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not save booking.');
+    if (!Number.isInteger(Number(result.bookingId)) || Number(result.bookingId) < 1) {
+      throw new Error('Booking was submitted, but the server did not return its ID. Refresh the list before trying again.');
+    }
+    return 'DB-' + result.bookingId;
+  };
+
+  window.compareBookingNewest = function (a, b) {
+    var aDb = /^DB-(\d+)$/.exec(String(a.id || ''));
+    var bDb = /^DB-(\d+)$/.exec(String(b.id || ''));
+    if (aDb && bDb) return Number(bDb[1]) - Number(aDb[1]);
+    if (aDb || bDb) return aDb ? -1 : 1;
+    return (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0);
+  };
+
   function todayStr() {
     var d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -196,7 +229,12 @@
 
   var originalSave = window.saveBooking;
   if (typeof originalSave === 'function') {
+    var saving = false;
     window.saveBooking = function () {
+      if (saving) {
+        if (window.notify) window.notify('A booking is already being saved. Please wait.', '\u26A0\uFE0F');
+        return;
+      }
       // Run every check so each problem is flagged, then stop on the first failure.
       var results = [checkEmail(true), checkDate(true), checkTime(true), checkGuests(true, false)];
       if (!selectedPackage() && $('bk-package')) {
@@ -207,7 +245,8 @@
         if (window.notify) window.notify('Please fix the highlighted fields.', '\u26A0\uFE0F');
         return;
       }
-      return originalSave.apply(this, arguments);
+      saving = true;
+      return Promise.resolve().then(() => originalSave.apply(this, arguments)).finally(function () { saving = false; });
     };
   }
 
@@ -216,7 +255,7 @@
   window.paymentCell = function (b) {
     var badge = b.paid
       ? '<span class="badge badge-success">\u2713 Paid</span>'
-      : '<span class="badge badge-danger">Unpaid</span>';
+      : b.paymentProof ? '<span class="badge badge-gold">Receipt submitted</span>' : '<span class="badge badge-danger">Unpaid</span>';
     if (!b.paymentProof) return badge;
     var url = esc(b.paymentProof).replace(/'/g, '&#39;');
     var label = b.paid ? '\uD83E\uDDFE View receipt' : '\uD83D\uDD0E Review receipt';

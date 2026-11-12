@@ -42,7 +42,7 @@ Welcome! This document helps you navigate all the documentation created during t
 **Purpose:** Help users operate the system  
 **Audience:** End users, system operators  
 **Contains:**
-- Admin login (MaynardAdmin / Nards2024!)
+- Team login and initial administrator setup
 - How to search and filter data
 - Password requirements
 - User management procedures
@@ -257,7 +257,7 @@ NardsCatering/
 ## 🧪 TESTING STATUS
 
 ### All Features Tested ✅
-- ✅ Admin login (MaynardAdmin / Nards2024!)
+- ✅ Admin login
 - ✅ Password validation (10+ chars, uppercase, lowercase, number, special)
 - ✅ Database operations (create, read, update, delete)
 - ✅ Search functionality (all views)

@@ -6,11 +6,12 @@
 
 ## 🎯 LOGIN & ACCESS
 
-### Admin Login
-- **URL:** `http://localhost:3000/Admin.html`
-- **Username:** `MaynardAdmin`
-- **Password:** `Nards2024!`
-- **Role:** Administrator (full system access)
+### Team Login
+- Start the Node server and open `http://localhost:3000/login`.
+- Sign in with your assigned Admin, Manager, or Staff credentials.
+- A new installation can create the initial `Admin` account by setting `ADMIN_INITIAL_PASSWORD` in the server environment before startup. Use at least 10 characters with uppercase and lowercase letters, a number, and a special character. The password is stored as a bcrypt hash.
+- Existing accounts are not modified by this setting. If a legacy account has a plaintext password, a maintainer must back up the database, stop the server, and explicitly approve running `node migrate-passwords.js`; the script migrates both staff and client passwords.
+- An incorrect-credentials message can also mean the account or its role is inactive. Ask an administrator to check; do not share passwords.
 
 ### What You Can Do
 - ✅ Manage all staff and admin users
@@ -49,6 +50,9 @@ All views support exporting:
 ### Navigation
 - Use left sidebar to switch between views
 - Dashboard shows key metrics and recent bookings
+- Use the notification bell to see upcoming events and activity alerts; mark activity alerts as read in the same window.
+- New team-created bookings are saved to the shared server and appear newest first. Older browser-only bookings are not automatically transferred.
+- A submitted payment receipt is shown as awaiting review, not as verified payment.
 - Audit Trail logs all user actions (who did what, when)
 
 ---

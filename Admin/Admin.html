@@ -43,15 +43,8 @@
 
     
     <div class="view active" id="view-dashboard">
-      <section class="admin-dashboard-intro">
-        <p class="admin-dashboard-eyebrow">Administration workspace</p>
-        <h2>Manage your admin sections</h2>
-        <p>Choose a section to review client records, business performance, account activity, or system settings.</p>
-      </section>
-
-
       <div class="card" style="margin-bottom:20px">
-        <div class="card-title">💰 Booking Sales Analytics</div>
+        <div class="card-title">Booking Sales Analytics</div>
         <div class="sales-filters">
           <div class="form-group"><label for="sales-period">View by</label>
             <select id="sales-period" onchange="renderSalesAnalytics()">
@@ -64,8 +57,8 @@
           <div class="form-group"><label for="sales-year">Year</label><select id="sales-year" onchange="renderSalesAnalytics()"></select></div>
           <span class="sales-range-label" id="sales-range"></span>
           <div class="sales-actions">
-            <button type="button" class="btn btn-outline btn-sm" onclick="exportSalesData('csv')">⬇ Export CSV</button>
-            <button type="button" class="btn btn-outline btn-sm" onclick="exportSalesData('xlsx')">⬇ Export Excel</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="exportSalesData('csv')">Export CSV</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="exportSalesData('xlsx')">Export Excel</button>
           </div>
         </div>
         <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
@@ -75,17 +68,17 @@
           <div class="stat-card stat-accent"><div class="stat-label" id="sales-best-label">Best Month</div><div class="stat-value" id="sales-best">-</div></div>
         </div>
         <div class="card" style="margin-bottom:16px">
-          <div class="card-title" id="sales-title-rev">📈 Sales per Month</div>
+          <div class="card-title" id="sales-title-rev">Sales per Month</div>
           <div class="sales-chart" id="sales-month-chart"></div>
         </div>
         <div class="card" style="margin-bottom:16px">
-          <div class="card-title" id="sales-title-count">🗓️ Bookings per Month</div>
+          <div class="card-title" id="sales-title-count">Bookings per Month</div>
           <div class="sales-chart" id="sales-count-chart"></div>
         </div>
         <div class="dash-grid" style="margin-top:0">
-          <div class="card"><div class="card-title">📊 Booking Status</div><div id="sales-by-status"></div></div>
+          <div class="card"><div class="card-title">Booking Status</div><div id="sales-by-status"></div></div>
           <div class="card">
-            <div class="card-title">🎉 Sales by Event Type</div>
+            <div class="card-title">Sales by Event Type</div>
             <div class="table-wrap"><table>
               <thead><tr><th>Event Type</th><th>Bookings</th><th>Sales</th></tr></thead>
               <tbody id="sales-by-type"></tbody>
@@ -103,12 +96,6 @@
       </div>
       <div class="search-bar">
         <input type="text" id="booking-search" placeholder="Search by client name or event..." oninput="renderBookings()">
-        <select id="booking-filter" onchange="renderBookings()">
-          <option value="">All Status</option>
-          <option value="Pending">Pending</option>
-          <option value="Confirmed">Confirmed</option>
-          <option value="Cancelled">Cancelled</option>
-        </select>
       </div>
       <div class="card" id="inventory-active-section">
         <div class="table-wrap">
@@ -134,12 +121,6 @@
       <div id="inv-alerts"></div>
       <div class="search-bar">
         <input type="text" id="inv-search" placeholder="Search ingredients..." oninput="renderInventory()">
-        <select id="inv-filter" onchange="renderInventory()">
-          <option value="">All Status</option>
-          <option value="good">Good Stock</option>
-          <option value="low">Low Stock</option>
-          <option value="critical">Critical</option>
-        </select>
       </div>
       <div class="card">
         <div class="table-wrap">
@@ -267,8 +248,6 @@
       <div class="search-bar">
         <input type="text" id="audit-user" placeholder="User" oninput="loadAuditLog()">
         <input type="text" id="audit-action" placeholder="Action (e.g. confirmed)" oninput="loadAuditLog()">
-        <input type="date" id="audit-from" onchange="loadAuditLog()" title="From">
-        <input type="date" id="audit-to" onchange="loadAuditLog()" title="To">
       </div>
       <div class="card">
         <div class="table-wrap">
@@ -282,16 +261,7 @@
 
     <div class="view" id="view-logins">
       <div class="search-bar">
-        <select id="login-role" onchange="loadLoginActivity()">
-          <option value="">All users</option>
-          <option value="staff">Staff</option>
-          <option value="manager">Managers</option>
-          <option value="customer">Customers</option>
-          <option value="admin">Admins</option>
-        </select>
         <input type="text" id="login-user" placeholder="Search user" oninput="loadLoginActivity()">
-        <input type="date" id="login-from" onchange="loadLoginActivity()" title="From">
-        <input type="date" id="login-to" onchange="loadLoginActivity()" title="To">
       </div>
       <div class="card">
         <div class="table-wrap">
@@ -335,7 +305,7 @@
 
     <div class="view" id="view-employees">
       <div class="roles-page-head"><div><span class="eyebrow">Operations</span><h2>Employees</h2><p>Maintain the team roster and assign the right people to each event.</p></div><button class="btn btn-primary" onclick="openEmployeeModal()">+ Add employee</button></div>
-      <div class="card employee-filters"><input id="employee-search" placeholder="Search name or address" oninput="filterEmployees()"><select id="employee-role-filter" onchange="filterEmployees()"><option value="">All job roles</option></select></div>
+      <div class="card employee-filters"><input id="employee-search" placeholder="Search name or address" oninput="filterEmployees()"></div>
       <div class="card roles-table-card"><div class="table-wrap"><table class="roles-table"><thead><tr><th>Name</th><th>Age</th><th>Address</th><th>Job role</th><th>Status</th><th>Actions</th></tr></thead><tbody id="employees-tbody"></tbody></table></div></div>
     </div>    <div class="view" id="view-profile">
       <div class="staff-profile-grid">
@@ -442,7 +412,7 @@
     
     <div class="view" id="view-reports">
       <div class="section-header" style="justify-content:flex-end" id="reports-print-actions">
-        <button class="btn btn-outline" onclick="exportReportExcel()">📊 Export to Excel</button>
+        <button class="btn btn-outline" onclick="exportReportExcel()">Export to Excel</button>
       </div>
       <div class="report-print-sheet" id="reports-print-sheet">
         <header class="report-print-header">
@@ -473,8 +443,8 @@
         <div class="stat-card stat-accent"><div class="stat-label">Avg. Per Event</div><div class="stat-value" id="rep-avg">₱0</div></div>
       </div>
       <div class="dash-grid" style="margin-top:0">
-        <div class="card"><div class="card-title">📈 Bookings by Event Type</div><div id="rep-by-type"></div></div>
-        <div class="card"><div class="card-title">📦 Stock Summary</div><div id="rep-stock"></div></div>
+        <div class="card"><div class="card-title">Bookings by Event Type</div><div id="rep-by-type"></div></div>
+        <div class="card"><div class="card-title">Stock Summary</div><div id="rep-stock"></div></div>
       </div>
     </div>
 
@@ -485,14 +455,13 @@
 <div class="modal-overlay" id="event-notification-modal">
   <div class="modal event-notif-modal" style="width:580px;max-width:95vw">
     <div class="modal-title">
-      <span>🗓️ Event Notifications</span>
+    <span>Notifications</span>
       <button class="modal-close" onclick="closeModal('event-notification-modal')">✕</button>
     </div>
 
     
     <div id="notif-today-section">
       <div class="notif-section-header notif-today-hdr">
-        <span class="notif-section-icon">📅</span>
         <span>Today's Events</span>
         <span class="notif-badge" id="notif-today-count">0</span>
       </div>
@@ -504,7 +473,6 @@
     
     <div id="notif-upcoming-section" style="margin-top:20px">
       <div class="notif-section-header notif-upcoming-hdr">
-        <span class="notif-section-icon">🔔</span>
         <span>Upcoming Events (Next 30 Days)</span>
         <span class="notif-badge notif-badge-upcoming" id="notif-upcoming-count">0</span>
       </div>
@@ -542,7 +510,7 @@
       <div class="form-group"><label>Package</label><select id="bk-package"><option value="">Select package...</option></select></div>
       <div class="form-group"><label>Venue</label><input id="bk-venue" type="text" placeholder="Event venue address"></div>
       <div class="form-group"><label>Package Price (₱)</label><input id="bk-pkgprice" type="number" readonly placeholder="Auto-filled from package"></div>
-      <div class="form-group"><label>Additional Request</label><input id="bk-addreq" type="text" placeholder="e.g. Extra dessert station"></div>
+      <div class="form-group"><label>Additional Request</label><input id="bk-addreq" type="text" maxlength="500" placeholder="e.g. Extra dessert station"></div>
       <div class="form-group"><label>Additional Cost (₱)</label><input id="bk-addcost" type="number" min="0" placeholder="0"></div>
       <div class="form-group"><label>Total Amount (₱) *</label><input id="bk-amount" type="number" min="0" readonly placeholder="Auto-computed"></div>
       <div class="form-group"><label>Down Payment (₱) <small>(20%)</small></label><input id="bk-dp" type="number" min="0" readonly placeholder="Auto-computed"></div>
@@ -573,7 +541,7 @@
     <div class="confirm-box" id="confirm-box-content"></div>
     <div class="modal-actions" style="margin-top:20px">
       <button class="btn btn-outline" onclick="closeModal('confirm-modal')">Close</button>
-      <button class="btn btn-primary" onclick="window.print()">🖨️ Print / Save PDF</button>
+      <button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
     </div>
   </div>
 </div>
@@ -619,6 +587,7 @@
       <div class="form-group full"><label>Package Name *</label><input id="mn-name" type="text" placeholder="e.g. Gold Package"></div>
       <div class="form-group"><label>Price for Package (₱) *</label><input id="mn-price" type="number" min="0" placeholder="25000"></div>
       <div class="form-group"><label>Min. Guests</label><input id="mn-min" type="number" min="0" placeholder="50"></div>
+      <div class="form-group"><label>Max. Guests (0 for no limit)</label><input id="mn-max" type="number" min="0" placeholder="0"></div>
     </div>
 
     
@@ -634,7 +603,7 @@
     
     <div style="margin-top:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <label style="font-weight:600;font-size:13px;color:var(--dark)">🍽️ Dishes / Menu Items</label>
+        <label style="font-weight:600;font-size:13px;color:var(--dark)">Dishes / Menu Items</label>
         <button class="btn btn-outline btn-sm" type="button" onclick="addDishRow()">+ Add Dish</button>
       </div>
       <div id="mn-dishes-container" style="max-height:160px;overflow-y:auto"></div>
@@ -644,7 +613,7 @@
     
     <div class="freebies-section" style="margin-top:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <label style="font-weight:700;font-size:13px;color:var(--gold-dark)">⭐ Freebies / Inclusions</label>
+        <label style="font-weight:700;font-size:13px;color:var(--gold-dark)">Freebies / Inclusions</label>
         <button class="btn btn-sm" type="button" onclick="addFreebieRow()" style="background:var(--gold);color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">+ Add Freebie</button>
       </div>
       <div id="mn-freebies-container"></div>
@@ -828,10 +797,10 @@ async function loadEventNotifications() {
   if (banner) {
     if (_notifTodayData.length > 0) {
       const names = _notifTodayData.map(r => r.clientName).join(', ');
-      banner.innerHTML = `<span>📅</span> <strong>You have ${_notifTodayData.length} confirmed event${_notifTodayData.length>1?'s':''} scheduled today!</strong> &nbsp;— ${names} &nbsp;<button onclick="openEventNotifications()" style="margin-left:12px;padding:4px 12px;background:var(--gold);color:var(--dark);border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">View Details</button>`;
+      banner.innerHTML = `<strong>You have ${_notifTodayData.length} confirmed event${_notifTodayData.length>1?'s':''} scheduled today!</strong> &nbsp;— ${names} &nbsp;<button onclick="openEventNotifications()" style="margin-left:12px;padding:4px 12px;background:var(--gold);color:var(--dark);border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">View Details</button>`;
       banner.style.display = 'flex';
     } else if (_notifUpcomingData.length > 0) {
-      banner.innerHTML = `<span>🔔</span> <strong>${_notifUpcomingData.length} upcoming confirmed event${_notifUpcomingData.length>1?'s':''}</strong> in the next 30 days. &nbsp;<button onclick="openEventNotifications()" style="margin-left:12px;padding:4px 12px;background:var(--gold);color:var(--dark);border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">View</button>`;
+      banner.innerHTML = `<strong>${_notifUpcomingData.length} upcoming confirmed event${_notifUpcomingData.length>1?'s':''}</strong> in the next 30 days. &nbsp;<button onclick="openEventNotifications()" style="margin-left:12px;padding:4px 12px;background:var(--gold);color:var(--dark);border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">View</button>`;
       banner.style.display = 'flex';
     } else {
       banner.style.display = 'none';
@@ -1026,14 +995,17 @@ let inventoryArchiveView = false;
 async function syncFromAPI() {
   try {
     const res = await fetch(`${API}/bookings`);
-    if (!res.ok) return;
+    if (!res.ok) throw new Error('Could not load bookings from the server.');
     const rows = await res.json();
     let changed = false;
     rows.forEach(row => {
       const apiId   = 'DB-' + row.id;
       const pkgName = row.package || '';
       const pkgMatch = packagesList.find(p => p.name === pkgName);
-      const price   = pkgMatch ? parseFloat(pkgMatch.price) : (parseInt(pkgName) || 0);
+      const priceLabel = pkgName.match(/₱\s*([\d,]+(?:\.\d+)?)/);
+      const price = pkgMatch
+        ? (Number(String(pkgMatch.price).replace(/,/g, '')) || 0)
+        : priceLabel ? Number(priceLabel[1].replace(/,/g, '')) : (parseInt(pkgName, 10) || 0);
       const status = row.status
         ? row.status.charAt(0).toUpperCase() + row.status.slice(1)
         : 'Pending';
@@ -1042,6 +1014,12 @@ async function syncFromAPI() {
       if (data.deletedBookingIds.includes(apiId)) return;
       const existing = data.bookings.find(b => b.id === apiId);
       if (existing) {
+        const details = { client: row.clientName || '', phone: row.phone || '', email: row.email || '',
+          event: row.eventType || '', date, guests: Number(row.guests) || 0,
+          package: pkgName, venue: row.address || '' };
+        if (Object.keys(details).some(key => existing[key] !== details[key])) {
+          Object.assign(existing, details); changed = true;
+        }
         if (existing.status !== status) { existing.status = status; changed = true; }
         if (existing.cancellationReason !== (row.cancellationReason || '')) {
           existing.cancellationReason = row.cancellationReason || '';
@@ -1052,14 +1030,15 @@ async function syncFromAPI() {
         const freshNotes = row.notes || '';
         if (existing.notes !== freshNotes) { existing.notes = freshNotes; changed = true; }
         const pay = paymentFieldsFromRow(row);
-        if (JSON.stringify(pay) !== JSON.stringify({ paymentOption: existing.paymentOption, amountDue: existing.amountDue, gcashRef: existing.gcashRef, paymentProof: existing.paymentProof })) {
+        if (Object.keys(pay).some(key => existing[key] !== pay[key])) {
           Object.assign(existing, pay); changed = true;
         }
-        if (!existing.guests && (row.guests || pkgMatch?.min_guests)) {
-          existing.guests = row.guests || pkgMatch?.min_guests || 0; changed = true;
-        }
+        const total = price + pay.addCost;
+        if (Number(existing.amount) !== total) { existing.amount = total; changed = true; }
+        if (Number(existing.dp) !== Math.round(total * 0.2)) { existing.dp = Math.round(total * 0.2); changed = true; }
       } else {
-        const minPax = pkgMatch ? (pkgMatch.min_guests || 0) : 0;
+        const pay = paymentFieldsFromRow(row);
+        const total = price + pay.addCost;
         data.bookings.push({
           id:      apiId,
           client:  row.clientName  || '',
@@ -1068,32 +1047,29 @@ async function syncFromAPI() {
           event:   row.eventType   || '',
           date,
           time:    (row.eventTime || '').slice(0, 5),
-          guests:  row.guests || minPax,
-          package: pkgName || (price ? '\u20b1' + price.toLocaleString('en-PH') + ' Package' : ''),
+          guests:  Number(row.guests) || 0,
+          package: pkgName,
           venue:   row.address    || '',
-          amount:  price,
-          dp:      Math.round(price * 0.2),
+          amount:  total,
+          dp:      Math.round(total * 0.2),
           status,
           cancellationReason: row.cancellationReason || '',
           notes:   row.notes || '',
-          ...paymentFieldsFromRow(row)
+          ...pay
         });
         changed = true;
       }
     });
     if (changed) saveData();
   } catch(e) {
-    
+    console.error('Booking sync failed:', e);
+    notify('Could not refresh bookings. The list may be out of date.', '⚠️');
   }
 }
 
 
 
 
-const navHistory = [];
-function goBack() {
-  navigate(navHistory.pop() || 'dashboard', true);
-}
 function setOwnProfilePhoto(url, name) {
   const photo = document.getElementById('staff-profile-photo');
   const initials = document.getElementById('staff-profile-initials');
@@ -1288,11 +1264,7 @@ function deleteDropdownOption(id) {
   if (confirm('Delete this option? Existing records keep their saved value.')) dropdownRequest(`/${id}`, 'DELETE');
 }
 
-function navigate(view, isBack) {
-
-  const activeView = document.querySelector('.view.active');
-  const currentView = activeView ? activeView.id.replace('view-', '') : '';
-  if (!isBack && currentView && currentView !== view) navHistory.push(currentView);
+function navigate(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
@@ -1321,7 +1293,7 @@ function navigate(view, isBack) {
 
 async function loadAuditLog() {
   const params = new URLSearchParams();
-  [['user', 'audit-user'], ['action', 'audit-action'], ['from', 'audit-from'], ['to', 'audit-to']].forEach(([key, id]) => {
+  [['user', 'audit-user'], ['action', 'audit-action']].forEach(([key, id]) => {
     const value = document.getElementById(id).value.trim();
     if (value) params.set(key, value);
   });
@@ -1344,7 +1316,7 @@ async function loadAuditLog() {
 
 async function loadLoginActivity() {
   const params = new URLSearchParams();
-  [['role', 'login-role'], ['user', 'login-user'], ['from', 'login-from'], ['to', 'login-to']].forEach(([key, id]) => {
+  [['user', 'login-user']].forEach(([key, id]) => {
     const value = document.getElementById(id).value.trim();
     if (value) params.set(key, value);
   });
@@ -1369,7 +1341,7 @@ function paymentFieldsFromRow(row) {
     paymentProof: row.paymentProof || '',
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
-    paid: Boolean(row.paymentProof) || String(row.paymentStatus || '').toLowerCase() === 'paid'
+    paid: String(row.paymentStatus || '').toLowerCase() === 'paid'
   };
 }
 
@@ -1487,7 +1459,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 async function openBookingModal(idx) {
   editIdx.booking = idx !== undefined ? idx : -1;
   document.getElementById('booking-modal-title').textContent = idx !== undefined ? 'Edit Booking' : 'New Booking';
-  ['bk-client','bk-phone','bk-email','bk-event','bk-date','bk-time','bk-guests','bk-package','bk-venue','bk-amount','bk-dp','bk-status','bk-notes']
+  ['bk-client','bk-phone','bk-email','bk-event','bk-date','bk-time','bk-guests','bk-package','bk-venue','bk-amount','bk-dp','bk-status','bk-notes','bk-addreq','bk-addcost']
     .forEach(f => { const el = document.getElementById(f); if (el) el.value = ''; });
 
   
@@ -1548,22 +1520,26 @@ async function openMenuModal(packageId) {
   document.getElementById('mn-assets-container').innerHTML = '';
   document.getElementById('mn-dishes-container').innerHTML = '';
   document.getElementById('mn-freebies-container').innerHTML = '';
-  await fetchAssets();
-  await fetchDishes();
-  if (packageId) {
-    try {
+  try {
+    const [assetsRes, dishesRes] = await Promise.all([fetch(`${API}/assets`), fetch(`${API}/dishes`)]);
+    if (!assetsRes.ok || !dishesRes.ok) throw new Error('Could not load assets and dishes for the package.');
+    assetsList = await assetsRes.json();
+    dishesList = await dishesRes.json();
+    if (packageId) {
       const res = await fetch(`${API}/packages/${packageId}`);
-      if (res.ok) {
-        const pkg = await res.json();
-        document.getElementById('mn-name').value  = pkg.name;
-        document.getElementById('mn-price').value = pkg.price;
-        document.getElementById('mn-min').value   = pkg.min_guests;
-        document.getElementById('mn-max').value   = pkg.max_guests || 0;
-        (pkg.assets   || []).forEach(a => addAssetRow(a.asset_id, a.qty_required));
-        (pkg.dishes   || []).forEach(d => addDishRow(d.dish_id));
-        (pkg.freebies || []).forEach(f => addFreebieRow(f.name));
-      }
-    } catch(e) {}
+      if (!res.ok) throw new Error('Could not load the package for editing.');
+      const pkg = await res.json();
+      document.getElementById('mn-name').value  = pkg.name;
+      document.getElementById('mn-price').value = pkg.price;
+      document.getElementById('mn-min').value   = pkg.min_guests;
+      document.getElementById('mn-max').value   = pkg.max_guests || 0;
+      (pkg.assets   || []).forEach(a => addAssetRow(a.asset_id, a.qty_required));
+      (pkg.dishes   || []).forEach(d => addDishRow(d.dish_id));
+      (pkg.freebies || []).forEach(f => addFreebieRow(f.name));
+    }
+  } catch (error) {
+    notify(error.message || 'Could not open the package form.', '❌');
+    return;
   }
   updateAssetEmptyMsg();
   updateDishEmptyMsg();
@@ -1592,7 +1568,9 @@ async function saveBooking() {
   if (!window.isRealName(client)) { notify('Enter the client\'s real full name.', '⚠️'); return; }
   if (!/^\d{11}$/.test(document.getElementById('bk-phone').value.trim())) { notify('Contact number must be exactly 11 digits.', '⚠️'); return; }
 
+  const previousBooking = editIdx.booking >= 0 ? data.bookings[editIdx.booking] : null;
   const booking = {
+    ...(previousBooking || {}),
     id:      editIdx.booking >= 0 ? data.bookings[editIdx.booking].id : uid('BK'),
     client,
     phone:   document.getElementById('bk-phone').value.trim(),
@@ -1610,7 +1588,6 @@ async function saveBooking() {
     notes:   document.getElementById('bk-notes').value.trim()
   };
 
-  const previousBooking = editIdx.booking >= 0 ? data.bookings[editIdx.booking] : null;
   const previousStatus = String(previousBooking?.status || '').toLowerCase();
   const nextStatus = booking.status.toLowerCase();
   const statusChanged = previousBooking ? previousStatus !== nextStatus : nextStatus !== 'pending';
@@ -1619,11 +1596,16 @@ async function saveBooking() {
   booking.cancellationReason = cancellationReason;
 
   
-  if (editIdx.booking >= 0 && booking.id && booking.id.startsWith('DB-')) {
-    const dbId = booking.id.replace('DB-', '');
+  let savedOnServer = false;
+  if (!previousBooking || booking.id?.startsWith('DB-')) {
     try {
-      
-      await fetch(`${API}/bookings/${dbId}`, {
+      if (!previousBooking) {
+        booking.id = await window.createSharedBooking(booking);
+        savedOnServer = true;
+      }
+      const dbId = booking.id.replace('DB-', '');
+      if (previousBooking) {
+        const updateRes = await fetch(`${API}/bookings/${dbId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1632,6 +1614,7 @@ async function saveBooking() {
           eventType:  booking.event,
           package:    booking.package,
           eventDate:  booking.date,
+          eventTime:  booking.time,
           phone:      booking.phone,
           email:      booking.email,
           guests:     booking.guests,
@@ -1639,7 +1622,14 @@ async function saveBooking() {
           additionalCost: booking.addCost,
           notes:      booking.notes
         })
-      });
+        });
+        if (!updateRes.ok) {
+          const error = await updateRes.json().catch(() => ({}));
+          notify(error.error || 'Failed to update booking.', '❌');
+          return;
+        }
+        savedOnServer = true;
+      }
       
       if (statusChanged) {
         const statusRes = await fetch(`${API}/bookings/${dbId}/status`, {
@@ -1653,13 +1643,19 @@ async function saveBooking() {
           if (Array.isArray(err.details) && err.details.length) {
             details = '\n' + err.details.map(d => `${d.ingredient}: need ${d.required}, available ${d.available}`).join('\n');
           }
-          notify((err.error || 'Failed to update booking status') + details, '⚠️');
+          await syncFromAPI();
+          renderBookings();
+          closeModal('booking-modal');
+          notify('Booking details were saved, but the status was not updated. ' + (err.error || '') + details, '⚠️');
           return;
         }
       }
       await syncInventoryFromAPI();
     } catch(e) {
-      notify('Saved locally — server not connected', '⚠️');
+      notify(savedOnServer
+        ? 'Booking details were saved, but the final status could not be verified. Refresh bookings before retrying.'
+        : (e.message || 'Could not save booking to the server. Refresh bookings before retrying.'), '⚠️');
+      return;
     }
   }
 
@@ -1670,7 +1666,9 @@ async function saveBooking() {
       data.clients.push({ id: uid('CL'), name: client, phone: booking.phone, email: booking.email, address: '' });
     }
   } else {
-    data.bookings.push(booking);
+    const syncedIndex = data.bookings.findIndex(item => item.id === booking.id);
+    if (syncedIndex >= 0) data.bookings[syncedIndex] = booking;
+    else data.bookings.push(booking);
     if (!data.clients.find(c => c.name.toLowerCase() === client.toLowerCase())) {
       data.clients.push({ id: uid('CL'), name: client, phone: booking.phone, email: booking.email, address: '' });
     }
@@ -1901,12 +1899,9 @@ function fmtMoney(n) { return '₱' + Number(n).toLocaleString('en-PH'); }
 
 function renderInventory() {
   const search = (document.getElementById('inv-search')?.value || '').toLowerCase();
-  const filter = document.getElementById('inv-filter')?.value || '';
   const items  = data.inventory.filter(i => {
     if (Boolean(i.archived) !== inventoryArchiveView) return false;
-    const s = stockStatus(i);
-    return (!search || i.name.toLowerCase().includes(search) || i.category.toLowerCase().includes(search))
-        && (!filter || s.key === filter);
+    return !search || i.name.toLowerCase().includes(search) || i.category.toLowerCase().includes(search);
   });
 
   document.getElementById('inventory-tbody').innerHTML = items.length
@@ -1964,13 +1959,10 @@ function setInventoryArchiveView(showArchive) {
 
 function renderBookings() {
   const search = (document.getElementById('booking-search')?.value || '').toLowerCase();
-  const filter = document.getElementById('booking-filter')?.value || '';
-  const byNewest = (a, b) => (Number(String(b.id).replace(/\D/g, '')) || 0) - (Number(String(a.id).replace(/\D/g, '')) || 0);
   const items  = data.bookings.filter(b =>
     b.status !== 'Completed'
     && (!search || b.client.toLowerCase().includes(search) || b.event.toLowerCase().includes(search))
-    && (!filter || b.status === filter)
-  ).sort(byNewest);
+  ).sort(window.compareBookingNewest);
 
   document.getElementById('bookings-tbody').innerHTML = items.length
     ? items.map(b => {
@@ -2236,27 +2228,33 @@ function showConfirmation(booking) {
     <div class="confirm-header">Booking Confirmation</div>
     <div class="confirm-id">REF: ${booking.id} &nbsp;|&nbsp; ${booking.status.toUpperCase()}</div>
     <div class="confirm-grid">
-      <div class="confirm-field"><label>Client Name</label><p>${booking.client}</p></div>
-      <div class="confirm-field"><label>Contact</label><p>${booking.phone||'—'}</p></div>
-      <div class="confirm-field"><label>Event Type</label><p>${booking.event}</p></div>
-      <div class="confirm-field"><label>Date & Time</label><p>${fmtDate(booking.date)} ${booking.time?'at '+booking.time:''}</p></div>
-      <div class="confirm-field"><label>Venue</label><p>${booking.venue||'TBD'}</p></div>
-      <div class="confirm-field"><label>No. of Guests</label><p>${booking.guests} pax</p></div>
-      <div class="confirm-field"><label>Package</label><p>${booking.package||'TBD'}</p></div>
+      <div class="confirm-field"><label>Client Name</label><p>${auditEscape(booking.client || '—')}</p></div>
+      <div class="confirm-field"><label>Contact</label><p>${auditEscape(booking.phone || '—')}</p></div>
+      <div class="confirm-field"><label>Email</label><p>${auditEscape(booking.email || '—')}</p></div>
+      <div class="confirm-field"><label>Event Type</label><p>${auditEscape(booking.event || '—')}</p></div>
+      <div class="confirm-field"><label>Date & Time</label><p>${auditEscape(fmtDate(booking.date))} ${booking.time ? 'at ' + auditEscape(booking.time) : ''}</p></div>
+      <div class="confirm-field"><label>Venue</label><p>${auditEscape(booking.venue || 'TBD')}</p></div>
+      <div class="confirm-field"><label>No. of Guests</label><p>${auditEscape(booking.guests || '—')} pax</p></div>
+      <div class="confirm-field"><label>Package</label><p>${auditEscape(booking.package || 'TBD')}</p></div>
       <div class="confirm-field"><label>Down Payment (20%)</label><p>${fmtMoney(dp)}</p></div>
-      ${booking.notes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Special Notes</label><p>${booking.notes}</p></div>` : ''}
+      ${booking.paymentOption ? `<div class="confirm-field"><label>Payment</label><p>GCash ${booking.paymentOption === 'down' ? 'down payment' : 'full payment'}: ${fmtMoney(booking.amountDue)}</p></div>` : ''}
+      ${booking.gcashRef ? `<div class="confirm-field"><label>GCash Reference</label><p>${auditEscape(booking.gcashRef)}</p></div>` : ''}
+      ${booking.paymentOption || booking.paymentProof ? `<div class="confirm-field"><label>Payment Status</label><p>${booking.paid ? 'Paid' : booking.paymentProof ? 'Receipt submitted for review' : 'Unpaid'}</p></div>` : ''}
+      ${booking.paymentProof ? `<div class="confirm-field"><label>Receipt</label><p>${auditEscape(booking.paymentProof)}</p></div>` : ''}
+      ${booking.addReq ? `<div class="confirm-field" style="grid-column:1/-1"><label>Additional Request</label><p>${auditEscape(booking.addReq)}</p></div>` : ''}
+      ${booking.addCost ? `<div class="confirm-field"><label>Additional Cost</label><p>${fmtMoney(booking.addCost)}</p></div>` : ''}
+      ${booking.notes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Special Notes</label><p>${auditEscape(booking.notes)}</p></div>` : ''}
     </div>
     <div class="confirm-total">
       <div>
         <div style="font-size:11px;color:rgba(201,150,58,0.5);letter-spacing:1px;text-transform:uppercase">Total Amount</div>
         <div class="amount">${fmtMoney(booking.amount)}</div>
-        <div style="font-size:11px;color:rgba(201,150,58,0.5);margin-top:8px;letter-spacing:1px;text-transform:uppercase">Down Payment Paid</div>
+        <div style="font-size:11px;color:rgba(201,150,58,0.5);margin-top:8px;letter-spacing:1px;text-transform:uppercase">Estimated Down Payment</div>
         <div style="font-size:14px;color:rgba(201,150,58,0.7);margin-top:2px">&minus; ${fmtMoney(dp)}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${isConfirmed?'var(--gold)':'rgba(201,150,58,0.5)'}">${isConfirmed?'Remaining Balance':'Balance Due'}</div>
+        <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${isConfirmed?'var(--gold)':'rgba(201,150,58,0.5)'}">Estimated Balance After Down Payment</div>
         <div style="font-size:${isConfirmed?'28px':'20px'};font-weight:700;color:${isConfirmed?'var(--gold)':'rgba(201,150,58,0.6)'};margin-top:2px">${fmtMoney(balance)}</div>
-        ${isConfirmed?`<div style="font-size:11px;color:var(--muted);margin-top:4px">Due on event day</div>`:''}
       </div>
     </div>`;
   openModal('confirm-modal');

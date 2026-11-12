@@ -17,15 +17,12 @@
 
   function render() {
     const query = ($('employee-search')?.value || '').trim().toLowerCase();
-    const role = $('employee-role-filter')?.value || '';
-    const rows = employees.filter((e) => (!query || `${e.name} ${e.address}`.toLowerCase().includes(query)) && (!role || e.job_role === role));
-    const roles = [...new Set(employees.map((e) => e.job_role))].sort();
-    if ($('employee-role-filter')) $('employee-role-filter').innerHTML = '<option value="">All job roles</option>' + roles.map((r) => `<option ${r === role ? 'selected' : ''} value="${esc(r)}">${esc(r)}</option>`).join('');
+    const rows = employees.filter((e) => !query || `${e.name} ${e.address}`.toLowerCase().includes(query));
     $('employees-tbody').innerHTML = rows.length ? rows.map((e) => `<tr>
       <td><strong>${esc(e.name)}</strong></td><td>${e.age}</td><td>${esc(e.address)}</td><td>${esc(e.job_role)}</td>
       <td><span class="status-pill ${Number(e.is_active) ? 'active' : 'inactive'}">${Number(e.is_active) ? 'Active' : 'Inactive'}</span></td>
       <td><div class="role-actions"><button class="icon-action" onclick="openEmployeeModal(${e.id})">Edit</button><button class="icon-action ${Number(e.is_active) ? 'danger' : 'success'}" onclick="toggleEmployee(${e.id},${Number(e.is_active) ? 0 : 1})">${Number(e.is_active) ? 'Deactivate' : 'Activate'}</button></div></td>
-    </tr>`).join('') : '<tr><td colspan="6">No employees match the current filters.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="6">No employees found.</td></tr>';
   }
 
   window.openEmployeeModal = function (id) {
