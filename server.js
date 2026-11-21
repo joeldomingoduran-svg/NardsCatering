@@ -113,6 +113,10 @@ app.get('/', (req, res) => {
   res.redirect('/login');
 });
 
+app.get('/favicon.ico', (req, res) => {
+  res.sendFile(path.join(__dirname, 'Customer', 'nards-favicon.png'));
+});
+
 
 app.get('/login', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

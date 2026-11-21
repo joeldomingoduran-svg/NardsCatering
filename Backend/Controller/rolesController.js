@@ -28,6 +28,19 @@ exports.getMatrix = async (req, res) => {
   }
 };
 
+const LOCKED_PERMISSIONS = new Set(['roles.manage', 'users.manage', 'dropdowns.manage', 'sales.view']);
+
+async function savePermissionSet(role, granted) {
+  const valid = new Set(PERMISSIONS.map((p) => p.key));
+  for (const p of PERMISSIONS) {
+    const allowed = granted.includes(p.key) && valid.has(p.key) && !LOCKED_PERMISSIONS.has(p.key) ? 1 : 0;
+    await pool.query(
+      'INSERT INTO role_permissions (role, permission, allowed) VALUES (?, ?, ?) ON CONFLICT (role, permission) DO UPDATE SET allowed = EXCLUDED.allowed RETURNING role',
+      [role, p.key, allowed]
+    );
+  }
+}
+
 exports.updateRole = async (req, res) => {
   try {
     const role = req.params.role;
@@ -36,16 +49,7 @@ exports.updateRole = async (req, res) => {
     if (!definitions.length) return res.status(404).json({ error: 'Role not found.' });
     const granted = Array.isArray(req.body.permissions) ? req.body.permissions : null;
     if (!granted) return res.status(400).json({ error: 'permissions must be a list.' });
-    const valid = new Set(PERMISSIONS.map((p) => p.key));
-    // Only admins may hold sales analytics or administration permissions that manage access itself.
-    const locked = new Set(['roles.manage', 'users.manage', 'dropdowns.manage', 'sales.view']);
-    for (const p of PERMISSIONS) {
-      const allowed = granted.includes(p.key) && valid.has(p.key) && !locked.has(p.key) ? 1 : 0;
-      await pool.query(
-        'INSERT INTO role_permissions (role, permission, allowed) VALUES (?, ?, ?) ON CONFLICT (role, permission) DO UPDATE SET allowed = EXCLUDED.allowed RETURNING role',
-        [role, p.key, allowed]
-      );
-    }
+    await savePermissionSet(role, granted);
     clearCache();
     await notify('roles', 'Permissions updated', `Permissions for the ${role} role were changed by ${req.user.username}.`, ['admin']);
     res.json({ message: 'Permissions saved.' });
@@ -67,8 +71,7 @@ exports.createRole = async (req, res) => {
     if (SYSTEM_ROLES.includes(role)) return res.status(409).json({ error: 'That system role already exists.' });
     const granted = Array.isArray(req.body.permissions) ? req.body.permissions : [];
     const valid = new Set(PERMISSIONS.map((p) => p.key));
-    const locked = new Set(['roles.manage', 'users.manage', 'dropdowns.manage', 'sales.view']);
-    const permissions = granted.filter((p) => valid.has(p) && !locked.has(p));
+    const permissions = granted.filter((p) => valid.has(p) && !LOCKED_PERMISSIONS.has(p));
     await pool.query(
       'INSERT INTO role_definitions (role, display_name, description, is_active, is_system) VALUES (?, ?, ?, 1, 0) RETURNING role',
       [role, displayName, description || null]
@@ -86,14 +89,20 @@ exports.createRole = async (req, res) => {
 exports.editRole = async (req, res) => {
   try {
     const role = req.params.role;
-    const [rows] = await pool.query('SELECT role, is_system FROM role_definitions WHERE role = ? LIMIT 1', [role]);
+    if (role === 'admin') return res.status(400).json({ error: 'The administrator role is protected.' });
+    const [rows] = await pool.query('SELECT role, display_name, is_system FROM role_definitions WHERE role = ? LIMIT 1', [role]);
     if (!rows.length) return res.status(404).json({ error: 'Role not found.' });
-    if (Number(rows[0].is_system)) return res.status(400).json({ error: 'System roles cannot be renamed.' });
+    const isSystem = Boolean(Number(rows[0].is_system));
     const displayName = String(req.body.displayName || '').trim().replace(/\s+/g, ' ');
     const description = String(req.body.description || '').trim().slice(0, 255);
-    if (!displayName) return res.status(400).json({ error: 'Role name is required.' });
-    await pool.query('UPDATE role_definitions SET display_name = ?, description = ?, updated_at = NOW() WHERE role = ?', [displayName, description || null, role]);
+    if (!isSystem && !displayName) return res.status(400).json({ error: 'Role name is required.' });
+    const nextName = isSystem ? rows[0].display_name : displayName;
+    await pool.query('UPDATE role_definitions SET display_name = ?, description = ?, updated_at = NOW() WHERE role = ?', [nextName, description || null, role]);
+    if (Array.isArray(req.body.permissions)) {
+      await savePermissionSet(role, req.body.permissions);
+    }
     clearCache();
+    await notify('roles', 'Role updated', `Settings and permissions for ${role} were updated by ${req.user.username}.`, ['admin']);
     res.json({ message: 'Role updated.' });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nards Catering — Admin Dashboard</title>
+<link rel="icon" type="image/png" href="/Customer/nards-favicon.png">
+<link rel="apple-touch-icon" href="/Customer/nards-favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="Admin.css">
 <link rel="stylesheet" href="/node_modules/sweetalert2/dist/sweetalert2.min.css">
@@ -1127,7 +1129,7 @@ async function loadRolesMatrix() {
         <td><span class="role-access-count">${r.role === 'admin' ? 'All modules' : `${(m.roles[r.role] || []).length} permissions`}</span></td>
         <td><span class="status-pill ${Number(r.is_active) ? 'active' : 'inactive'}">${Number(r.is_active) ? 'Active' : 'Inactive'}</span></td>
         <td><div class="role-actions">
-          <button class="icon-action" title="Edit role" onclick="openRoleModal('${r.role}')">Edit</button>
+          ${r.role === 'admin' ? '' : `<button class="icon-action" title="Edit role" onclick="openRoleModal('${r.role}')">Edit</button>`}
           ${r.is_system ? '<span class="protected-role">Protected</span>' : `<button class="icon-action ${Number(r.is_active) ? 'danger' : 'success'}" onclick="toggleRoleStatus('${r.role}', ${Number(r.is_active) ? 0 : 1})">${Number(r.is_active) ? 'Deactivate' : 'Activate'}</button>`}
           <button class="icon-action" onclick="selectRolePermissions('${r.role}')">Permissions</button>
         </div></td>
@@ -1162,7 +1164,7 @@ function selectRolePermissions(role) {
 }
 
 async function saveRolePermissions(role) {
-  const permissions = [...document.querySelectorAll(`#roles-grid [data-role="${role}"] input:checked`)].map(i => i.value);
+  const permissions = [...document.querySelectorAll(`#roles-grid [data-role="${role}"] input:checked:not(:disabled)`)].map(i => i.value);
   const res = await fetch(`${API}/roles/${role}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ permissions }) });
   const out = await res.json().catch(() => ({}));
   notify(res.ok ? `Permissions for ${role} saved.` : (out.error || 'Could not save permissions.'), res.ok ? '✅' : '❌');
@@ -1173,8 +1175,10 @@ function openRoleModal(role) {
   window.editingRole = role || null;
   const m = window.rolesMatrix;
   const definition = role && m ? m.definitions.find(r => r.role === role) : null;
+  const nameInput = document.getElementById('role-display-name');
   document.getElementById('role-modal-title').textContent = definition ? `Edit ${definition.display_name}` : 'Add role';
-  document.getElementById('role-display-name').value = definition?.display_name || '';
+  nameInput.value = definition?.display_name || '';
+  nameInput.disabled = Boolean(definition && Number(definition.is_system));
   document.getElementById('role-description').value = definition?.description || '';
   document.getElementById('role-modal-permissions').innerHTML = m ? permissionMarkup(role || '', 'modal') : '';
   openModal('role-modal');
