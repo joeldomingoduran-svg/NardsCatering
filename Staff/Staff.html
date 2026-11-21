@@ -23,7 +23,6 @@
   <button type="button" class="brand" id="brand-toggle" title="Show or hide the menu" aria-expanded="true"><span class="brand-name">Nards<span>.</span></span><small>Staff</small></button>
   <nav class="tabs">
     <button class="nav-item active" onclick="navigate('bookings')">Bookings</button>
-    <button class="nav-item" onclick="navigate('profile')">My Profile</button>
   </nav>
   <div class="topnav-actions">
     <button class="btn-notif-bell" id="notif-bell-btn" onclick="openEventNotifications()" title="Event notifications">
@@ -123,7 +122,7 @@
       <div class="section-header" style="justify-content:flex-end">
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-outline" id="booking-archive-btn" onclick="setBookingArchiveView(!bookingArchiveView)">Archive</button>
-          <button class="btn btn-primary" onclick="openBookingModal()">+ New Booking</button>
+          <button class="btn btn-primary" data-perm="bookings.manage" onclick="openBookingModal()">+ New Booking</button>
         </div>
       </div>
       <div class="search-bar">
@@ -1777,9 +1776,13 @@ function renderBookings() {
   archiveBtn.className = `btn ${bookingArchiveView ? 'btn-primary' : 'btn-outline'}`;
   archiveBtn.textContent = bookingArchiveView ? 'Active Bookings' : 'Archive';
 
+  const canManageBookings = !window.NardsUI || window.NardsUI.can('bookings.manage');
   document.getElementById('bookings-tbody').innerHTML = items.length
     ? items.map(b => {
         const realIdx = data.bookings.indexOf(b);
+        const payHtml = window.paymentCell
+          ? window.paymentCell(b)
+          : (b.paid ? '<span class="badge" style="background:#27ae60;color:#fff">Paid</span>' : b.paymentProof ? '<span class="badge badge-gold">Receipt submitted</span>' : '<span class="badge" style="background:#c0392b;color:#fff">Unpaid</span>');
         return `<tr>
           <td><span class="badge badge-gold">${b.id}</span></td>
           <td><strong>${auditEscape(b.client)}</strong><br><span style="font-size:12px;color:var(--text-muted)">${auditEscape(b.phone)}</span></td>
@@ -1788,12 +1791,12 @@ function renderBookings() {
           <td>${b.guests || '-'}</td>
           <td>${auditEscape(b.package || '-')}</td>
           <td>${statusBadge(b.status)}${b.requestType && !b.requestHandled ? `<br><span class="badge badge-gold" style="margin-top:4px">${b.requestType === 'cancel' ? 'Cancel request' : 'Resched request'}</span>` : ''}</td>
-          <td>${b.paid ? '<span class="badge" style="background:#27ae60;color:#fff">Paid</span>' : b.paymentProof ? '<span class="badge badge-gold">Receipt submitted</span>' : '<span class="badge" style="background:#c0392b;color:#fff">Unpaid</span>'}</td>
+          <td>${payHtml}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" onclick="showConfirmation(data.bookings[${realIdx}])">View</button>
-          ${bookingArchiveView
+          ${canManageBookings ? (bookingArchiveView
             ? `<button class="btn btn-success btn-sm" onclick="restoreBooking(${realIdx})">Restore</button>`
-            : `<button class="btn btn-danger btn-sm" onclick="archiveBooking(${realIdx})">Archive</button>`}
+            : `<button class="btn btn-danger btn-sm" onclick="archiveBooking(${realIdx})">Archive</button>`) : ''}
         </div></td>
         </tr>`;
       }).join('')
@@ -2256,7 +2259,7 @@ function showConfirmation(booking) {
       ${booking.gcashRef ? `<div class="confirm-field"><label>GCash Reference</label><p>${auditEscape(booking.gcashRef)}</p></div>` : ''}
       ${booking.addReq ? `<div class="confirm-field" style="grid-column:1/-1"><label>Additional Request</label><p>${auditEscape(booking.addReq)}</p></div>` : ''}
       ${booking.addCost ? `<div class="confirm-field"><label>Additional Cost</label><p>${fmtMoney(booking.addCost)}</p></div>` : ''}
-      ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}
+      ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') || (window.NardsUI && !window.NardsUI.can('bookings.manage')) ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}
       ${booking.paymentOption || booking.paymentProof ? `<div class="confirm-field"><label>Payment Status</label><p>${booking.paid ? 'Paid' : booking.paymentProof ? 'Receipt submitted for review' : 'Unpaid'}</p></div>` : ''}
       ${booking.paymentProof ? `<div class="confirm-field"><label>Receipt</label><p><button class="btn btn-primary btn-sm" onclick="openReceiptModal('${auditEscape(booking.paymentProof)}')">View receipt</button></p></div>` : ''}
       ${booking.cancellationReason ? `<div class="confirm-field" style="grid-column:1/-1"><label>Cancellation Reason</label><p>${auditEscape(booking.cancellationReason)}</p></div>` : ''}
@@ -2285,19 +2288,22 @@ function showConfirmation(booking) {
     actions.appendChild(button);
   };
   const idx = data.bookings.findIndex(item => item.id === booking.id);
-  if (booking.archived) {
-    addAction('Delete', 'btn btn-danger', () => deleteBooking(idx));
-  } else {
-    if (idx >= 0) addAction('Edit Booking', 'btn btn-outline', () => {
-      closeModal('confirm-modal');
-      openBookingModal(idx);
-    });
-    if (status === 'pending') {
-      addAction('Confirm Booking', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'confirmed'));
-      addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
-    } else if (status === 'confirmed') {
-      addAction('Mark Completed', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'completed'));
-      addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
+  const canManage = !window.NardsUI || window.NardsUI.can('bookings.manage');
+  if (canManage) {
+    if (booking.archived) {
+      addAction('Delete', 'btn btn-danger', () => deleteBooking(idx));
+    } else {
+      if (idx >= 0) addAction('Edit Booking', 'btn btn-outline', () => {
+        closeModal('confirm-modal');
+        openBookingModal(idx);
+      });
+      if (status === 'pending') {
+        addAction('Confirm Booking', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'confirmed'));
+        addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
+      } else if (status === 'confirmed') {
+        addAction('Mark Completed', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'completed'));
+        addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
+      }
     }
   }
   openModal('confirm-modal');
@@ -3233,6 +3239,7 @@ fetchPackages().then(() => syncInventoryFromAPI()).then(() => syncFromAPI()).the
   loadEventNotifications();
   navigate('bookings');
 });
+document.addEventListener('nards:permissions', () => renderBookings());
 </script>
 <script src="/Admin/password-toggle.js"></script>
 <script src="/Admin/booking-form.js"></script>

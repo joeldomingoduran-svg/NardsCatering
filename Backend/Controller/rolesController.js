@@ -37,8 +37,8 @@ exports.updateRole = async (req, res) => {
     const granted = Array.isArray(req.body.permissions) ? req.body.permissions : null;
     if (!granted) return res.status(400).json({ error: 'permissions must be a list.' });
     const valid = new Set(PERMISSIONS.map((p) => p.key));
-    // Only admins may hold the administration permissions that manage access itself.
-    const locked = new Set(['roles.manage', 'users.manage', 'dropdowns.manage']);
+    // Only admins may hold sales analytics or administration permissions that manage access itself.
+    const locked = new Set(['roles.manage', 'users.manage', 'dropdowns.manage', 'sales.view']);
     for (const p of PERMISSIONS) {
       const allowed = granted.includes(p.key) && valid.has(p.key) && !locked.has(p.key) ? 1 : 0;
       await pool.query(
@@ -67,7 +67,7 @@ exports.createRole = async (req, res) => {
     if (SYSTEM_ROLES.includes(role)) return res.status(409).json({ error: 'That system role already exists.' });
     const granted = Array.isArray(req.body.permissions) ? req.body.permissions : [];
     const valid = new Set(PERMISSIONS.map((p) => p.key));
-    const locked = new Set(['roles.manage', 'users.manage', 'dropdowns.manage']);
+    const locked = new Set(['roles.manage', 'users.manage', 'dropdowns.manage', 'sales.view']);
     const permissions = granted.filter((p) => valid.has(p) && !locked.has(p));
     await pool.query(
       'INSERT INTO role_definitions (role, display_name, description, is_active, is_system) VALUES (?, ?, ?, 1, 0) RETURNING role',

@@ -263,6 +263,15 @@
 #reqModal textarea,#reqModal input[type=date]{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin-top:6px;font:inherit;box-sizing:border-box}
 #reqModal .req-err{color:#c0392b;font-size:.9rem;min-height:1.2em;margin-top:6px}
 #reqModal .req-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+#payModal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:10000;padding:16px}
+#payModal.show{display:flex}
+#payModal .pay-card{background:#fff;border-radius:14px;padding:22px;width:100%;max-width:480px;max-height:90vh;overflow:auto;color:#222}
+#payModal input[type=text],#payModal select{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin-top:6px;font:inherit;box-sizing:border-box}
+#payModal .pay-qr-wrap{margin:10px 0;padding:12px;border:1px solid #e3d3a5;border-radius:10px;background:#fffaf0;text-align:center}
+#payModal .pay-qr-wrap img{max-width:190px;max-height:190px;border-radius:8px;margin:0 auto;display:block}
+#payModal .pay-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.pay-open-btn{margin-top:8px;background:#a67c00;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:600;cursor:pointer;font-family:inherit}
+.pay-open-btn:hover{background:#8b6700}
 .locked-field{background:#efece6;color:#555;cursor:not-allowed;pointer-events:none;user-select:none}
 body.booking-first #inquiry .section-inner{padding-top:130px}
 #termsModal{position:fixed;inset:0;border:0;padding:0;background:transparent;max-width:none;max-height:none;width:100%;height:100%;z-index:10000}
@@ -682,7 +691,7 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
           <div class="contact-icon">&#128241;</div>
           <div>
             <div class="contact-detail-label">Phone</div>
-            <div class="contact-detail-value">+63 XXX XXX XXXX</div>
+            <div class="contact-detail-value">+63 9477604320</div>
           </div>
         </div>
         <div class="contact-item reveal reveal-delay-3">
@@ -1079,25 +1088,22 @@ function requestSectionHtml(booking) {
 }
 
 function paymentSectionHtml(booking) {
-  if (!booking.paymentOption) return '';
   const status = (booking.status || 'pending').toLowerCase();
-  const amount = '\u20b1' + Number(booking.amountDue || 0).toLocaleString('en-PH');
+  const amount = booking.amountDue != null ? '\u20b1' + Number(booking.amountDue).toLocaleString('en-PH') : '';
   if (status === 'cancelled' && !booking.paymentProof) {
     return '<div class="customer-booking-pay" style="margin-top:10px;color:#c0392b"><strong>Payment not received within 24 hours. This booking was cancelled.</strong></div>';
   }
   if (status !== 'pending') return '';
-  if (booking.paymentProof) {
-    return `<div class="customer-booking-pay" style="margin-top:10px"><span class="pay-badge paid">RECEIPT SUBMITTED</span> <strong>Receipt received for review.</strong> Our staff will confirm your booking shortly.</div>`;
+  if (booking.paymentProof || isBookingPaid(booking)) {
+    const refText = booking.gcashRef ? ` &middot; Ref: <strong>${escHtml(booking.gcashRef)}</strong>` : '';
+    return `<div class="customer-booking-pay" style="margin-top:10px"><span class="pay-badge paid">RECEIPT SUBMITTED</span> <strong>Receipt received for review.${refText}</strong> Our staff will verify your payment and confirm your booking shortly.</div>`;
   }
-  return `<div class="customer-booking-pay" style="margin-top:10px;padding:10px;border:1px solid #e0a800;border-radius:8px;background:#fff8e1">
-    <span class="pay-badge unpaid">UNPAID</span> <strong>Payment needed: ${amount}</strong> &mdash; time left: <strong>${formatTimeLeft(Number(booking.paymentSecondsLeft) || 0)}</strong><br>
-    <small>Pay through the GCash QR in the booking form, then upload your receipt here. Unpaid bookings are cancelled after 24 hours.</small>
-    <div class="receipt-upload" data-id="${booking.id}">
-      <label class="receipt-drop"><span class="ru-icon">&#128206;</span><span class="ru-title">Upload receipt</span><small>JPG, PNG or WebP &middot; max 5MB</small>
-        <input type="file" class="pay-file" accept="image/png,image/jpeg,image/webp"></label>
-      <div class="receipt-preview"><span class="ru-name"></span><button type="button" class="pay-send" style="background:#27ae60">Send receipt</button></div>
-      <div class="pay-msg" style="color:#c0392b;font-size:.85rem;margin-top:4px"></div>
-    </div>
+  const dueLine = amount ? `<strong>Payment needed: ${amount}</strong>` : '<strong>Payment not sent yet</strong>';
+  const timerLine = Number(booking.paymentSecondsLeft) > 0 ? ` &mdash; time left: <strong>${formatTimeLeft(Number(booking.paymentSecondsLeft))}</strong>` : '';
+  return `<div class="customer-booking-pay" style="margin-top:10px;padding:12px;border:1px solid #e0a800;border-radius:8px;background:#fff8e1;color:#3a2d1a">
+    <span class="pay-badge unpaid">UNPAID</span> ${dueLine}${timerLine}<br>
+    <small>Pay through GCash and upload your receipt so our Manager &amp; Staff can verify your payment.</small><br>
+    <button type="button" class="pay-open-btn" data-pay-id="${booking.id}">Send Payment Here</button>
   </div>`;
 }
 
@@ -1390,6 +1396,7 @@ async function renderCustomerBookings() {
       const sessionName = (session.name || '').trim().toLowerCase();
       return bookingEmail === sessionEmail || bookingName === sessionName;
     });
+    window._customerBookings = userBookings;
 
     if (!userBookings.length) {
       container.innerHTML = '<div class="customer-booking-empty">You have no bookings yet. Once you send a request, it will appear here.</div>';
@@ -1455,41 +1462,140 @@ function clearReceiptPreview() {
   }
 
   const list = document.getElementById('customerBookingsList');
-  list.addEventListener('change', (e) => {
-    if (!e.target.classList.contains('pay-file')) return;
-    const box = e.target.closest('.receipt-upload');
-    const file = e.target.files[0];
-    box.querySelector('.ru-name').textContent = file ? file.name : '';
-    box.querySelector('.receipt-preview').classList.toggle('show', Boolean(file));
-  });
-  list.addEventListener('click', async (e) => {
-    const sendBtn = e.target.closest('.pay-send');
-    if (sendBtn) {
-      const box = sendBtn.closest('.receipt-upload');
-      const file = box.querySelector('.pay-file').files[0];
-      const msg = box.querySelector('.pay-msg');
-      const session = getCustomerSession();
-      if (!file || !session) return;
-      const fd = new FormData();
-      fd.append('email', session.email);
-      fd.append('paymentProof', file);
-      sendBtn.disabled = true;
-      try {
-        const res = await fetch('/bookings/' + box.dataset.id + '/payment', { method: 'POST', body: fd });
-        const out = await res.json();
-        if (!res.ok) throw new Error(out.error || 'Upload failed.');
-        box.querySelector('.pay-file').value = '';
-        renderCustomerBookings();
-      } catch (err) {
-        msg.textContent = err.message;
-        sendBtn.disabled = false;
-      }
-      return;
-    }
+  list.addEventListener('click', (e) => {
+    const payBtn = e.target.closest('.pay-open-btn');
+    if (payBtn) { openPayModal(payBtn.dataset.payId); return; }
     const reqBtn = e.target.closest('[data-req]');
     if (reqBtn) openRequestModal(reqBtn.dataset.req, reqBtn.dataset.id);
   });
 })();
+
+let payBookingState = null;
+async function openPayModal(bookingId) {
+  const booking = (window._customerBookings || custCalAllBookings || []).find((b) => String(b.id) === String(bookingId));
+  payBookingState = booking || { id: bookingId };
+  let m = document.getElementById('payModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'payModal';
+    m.innerHTML = `<div class="pay-card">
+      <h3 style="margin:0 0 6px;color:#3a2d1a">Send Payment</h3>
+      <p id="payModalInfo" style="margin:0 0 10px;font-size:.92rem;color:#5a4a33"></p>
+      <div id="payModalOptionWrap" style="display:none;margin-bottom:10px">
+        <label style="font-size:.9rem;font-weight:600;color:#3a2d1a">Payment option
+          <select id="payModalOption"><option value="down">Down payment (20%)</option><option value="full">Full payment</option></select>
+        </label>
+      </div>
+      <div class="pay-qr-wrap">
+        <div style="font-size:.85rem;font-weight:600;color:#5a4300;margin-bottom:6px">Scan GCash QR Code</div>
+        <img id="payModalQrImg" alt="GCash QR code" style="display:none">
+        <p id="payModalQrEmpty" style="display:none;margin:0;font-size:.85rem;color:#7a6a3a">GCash QR is not available yet.</p>
+      </div>
+      <label style="display:block;font-size:.9rem;font-weight:600;color:#3a2d1a">GCash Reference Number (optional)
+        <input type="text" id="payModalRef" maxlength="20" placeholder="e.g. 1234567890123">
+      </label>
+      <div class="receipt-upload" style="margin-top:12px">
+        <label class="receipt-drop" id="payModalDrop">
+          <span class="ru-icon">&#128206;</span>
+          <span class="ru-title">Click to attach payment receipt *</span>
+          <small>JPG or PNG &middot; max 5MB</small>
+          <input type="file" id="payModalFile" accept="image/png,image/jpeg">
+        </label>
+        <div class="receipt-preview" id="payModalPreview"><img id="payModalThumb" alt="Receipt preview"><span class="ru-name" id="payModalFileName"></span><button type="button" id="payModalRemove">Remove</button></div>
+      </div>
+      <div id="payModalErr" style="color:#c0392b;font-size:.88rem;min-height:1.2em;margin-top:8px"></div>
+      <div class="pay-btns">
+        <button type="button" id="payModalClose" style="padding:8px 16px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer">Cancel</button>
+        <button type="button" id="payModalSubmit" style="background:#a67c00;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-weight:600;cursor:pointer">Submit Payment</button>
+      </div>
+    </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('show'); });
+    document.getElementById('payModalClose').addEventListener('click', () => m.classList.remove('show'));
+    document.getElementById('payModalFile').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      const err = document.getElementById('payModalErr');
+      err.textContent = '';
+      if (!file) {
+        document.getElementById('payModalPreview').classList.remove('show');
+        document.getElementById('payModalDrop').classList.remove('has-file');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        err.textContent = 'Receipt must be 5MB or smaller.';
+        e.target.value = '';
+        return;
+      }
+      document.getElementById('payModalThumb').src = URL.createObjectURL(file);
+      document.getElementById('payModalFileName').textContent = file.name;
+      document.getElementById('payModalPreview').classList.add('show');
+      document.getElementById('payModalDrop').classList.add('has-file');
+    });
+    document.getElementById('payModalRemove').addEventListener('click', () => {
+      document.getElementById('payModalFile').value = '';
+      document.getElementById('payModalPreview').classList.remove('show');
+      document.getElementById('payModalDrop').classList.remove('has-file');
+    });
+    document.getElementById('payModalSubmit').addEventListener('click', submitPayModal);
+  }
+
+  const label = booking ? `${booking.eventType || 'Booking'} (${booking.package || 'Package'})` : `Booking #${bookingId}`;
+  const due = booking && booking.amountDue != null ? ` \u2014 Amount due: \u20b1${Number(booking.amountDue).toLocaleString('en-PH')}` : '';
+  document.getElementById('payModalInfo').textContent = label + due;
+  document.getElementById('payModalOptionWrap').style.display = booking && booking.paymentOption ? 'none' : 'block';
+  document.getElementById('payModalRef').value = '';
+  document.getElementById('payModalFile').value = '';
+  document.getElementById('payModalPreview').classList.remove('show');
+  document.getElementById('payModalDrop').classList.remove('has-file');
+  document.getElementById('payModalErr').textContent = '';
+
+  const qrImg = document.getElementById('payModalQrImg');
+  const qrEmpty = document.getElementById('payModalQrEmpty');
+  qrImg.style.display = 'none';
+  qrEmpty.style.display = 'none';
+  try {
+    const res = await fetch('/settings/gcash-qr');
+    const data = await res.json();
+    if (data && data.url) { qrImg.src = data.url; qrImg.style.display = 'block'; }
+    else qrEmpty.style.display = 'block';
+  } catch (e) { qrEmpty.style.display = 'block'; }
+
+  m.classList.add('show');
+}
+
+async function submitPayModal() {
+  const err = document.getElementById('payModalErr');
+  const btn = document.getElementById('payModalSubmit');
+  const file = document.getElementById('payModalFile').files[0];
+  const ref = document.getElementById('payModalRef').value.trim();
+  const session = getCustomerSession();
+  err.textContent = '';
+  if (!session || !payBookingState) { err.textContent = 'Please log in first.'; return; }
+  if (ref && !/^[A-Za-z0-9]{8,20}$/.test(ref)) { err.textContent = 'Enter a valid GCash reference number (8-20 letters/numbers).'; return; }
+  if (!file) { err.textContent = 'Please attach your payment receipt image.'; return; }
+
+  const fd = new FormData();
+  fd.append('email', session.email);
+  if (!payBookingState.paymentOption) fd.append('paymentOption', document.getElementById('payModalOption').value);
+  if (ref) fd.append('gcashRef', ref);
+  fd.append('paymentProof', file);
+
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  try {
+    const res = await fetch('/bookings/' + payBookingState.id + '/payment', { method: 'POST', body: fd });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'Could not submit payment.');
+    document.getElementById('payModal').classList.remove('show');
+    showPopup('success', 'Payment sent', out.message || 'Your payment receipt was sent to our Staff and Manager for verification.');
+    renderCustomerBookings();
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit Payment';
+  }
+}
 
 let reqState = { type: '', id: '' };
 function openRequestModal(type, id) {
@@ -1521,7 +1627,7 @@ function openRequestModal(type, id) {
 }
 
 const CONTACT_EMAIL = 'nardscatering@gmail.com';
-const CONTACT_PHONE = '+63 XXX XXX XXXX';
+const CONTACT_PHONE = '+63 9477604320';
 
 function validNote(text) {
   const t = text.trim();

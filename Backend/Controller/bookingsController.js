@@ -204,7 +204,7 @@ exports.submitPaymentProof = async (req, res) => {
     if (!booking || !email || String(booking.email || '').trim().toLowerCase() !== email) {
       return res.status(404).json({ error: 'Booking not found.' });
     }
-    if (booking.status !== 'pending' || !booking.paymentOption) {
+    if (booking.status !== 'pending') {
       return res.status(400).json({ error: booking.status === 'cancelled' ? 'This booking was cancelled because payment was not received within 24 hours.' : 'This booking is not awaiting payment.' });
     }
     if (booking.paymentProof) return res.status(400).json({ error: 'Payment proof was already submitted and is under review.' });
@@ -212,7 +212,18 @@ exports.submitPaymentProof = async (req, res) => {
     if (ref && !/^[A-Za-z0-9]{8,20}$/.test(ref)) return res.status(400).json({ error: 'Enter a valid GCash reference number.' });
     if (!req.file) return res.status(400).json({ error: 'Please attach your payment receipt.' });
 
-    await pool.query('UPDATE Bookings SET gcashRef = ?, paymentProof = ?, paymentDeadline = NULL WHERE id = ?', [ref || null, req.file.url, booking.id]);
+    let paymentOption = booking.paymentOption;
+    let amountDue = booking.amountDue;
+    if (!paymentOption) {
+      const chosen = String(req.body.paymentOption || 'down').trim();
+      if (!['full', 'down'].includes(chosen)) return res.status(400).json({ error: 'Choose Full payment or Down payment.' });
+      paymentOption = chosen;
+      const [pkgRows] = await pool.query('SELECT price FROM Packages WHERE name = ? LIMIT 1', [booking.package]);
+      const price = pkgRows.length ? Number(pkgRows[0].price) : 0;
+      amountDue = paymentOption === 'down' ? Math.round(price * 20) / 100 : price;
+    }
+
+    await pool.query('UPDATE Bookings SET paymentOption = ?, amountDue = ?, gcashRef = ?, paymentProof = ?, paymentDeadline = NULL WHERE id = ?', [paymentOption, amountDue, ref || null, req.file.url, booking.id]);
     await writeAudit({ username: booking.email, role: 'customer' }, 'Submitted payment receipt', 'bookings', booking.id, ref ? `GCash ref ${ref}` : 'Receipt attached');
     await notify('payment', 'Payment receipt submitted', `Booking #${booking.id} (${booking.clientName}) sent a payment receipt for review.`, ['admin', 'manager', 'staff'], 'bookings');
     res.json({ message: 'Payment proof submitted. Our staff will verify it shortly.' });

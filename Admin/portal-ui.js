@@ -229,8 +229,46 @@
   };
 
   /* ---------------------------------------------------------------- Sidebar */
-  var ICONS = { dashboard: '\uD83C\uDFE0', bookings: '\uD83D\uDCCB', calendar: '\uD83D\uDCC5', clients: '\uD83D\uDC65', inventory: '\uD83D\uDCE6', menu: '\uD83C\uDF7D\uFE0F', assets: '\uD83E\uDE91', dishes: '\uD83E\uDD58', reports: '\uD83D\uDCCA', sales: '\uD83D\uDCB0', audit: '\uD83E\uDDFE', logins: '\uD83D\uDD11', staff: '\u2699\uFE0F', profile: '\uD83D\uDC64', roles: '\uD83D\uDEE1\uFE0F', dropdowns: '\uD83D\uDCDA' };
-  var VIEW_PERMISSION = { bookings: 'bookings.view', calendar: 'calendar.view', clients: 'clients.view', inventory: 'inventory.manage', menu: 'packages.manage', assets: 'assets.manage', dishes: 'dishes.manage', reports: 'reports.view', sales: 'sales.view', audit: 'audit.view', logins: 'audit.view', staff: 'users.manage', roles: 'roles.manage', dropdowns: 'dropdowns.manage' };
+  var ICONS = { dashboard: '\uD83C\uDFE0', bookings: '\uD83D\uDCCB', calendar: '\uD83D\uDCC5', clients: '\uD83D\uDC65', inventory: '\uD83D\uDCE6', menu: '\uD83C\uDF7D\uFE0F', assets: '\uD83E\uDE91', dishes: '\uD83E\uDD58', employees: '\uD83D\uDC54', reports: '\uD83D\uDCCA', sales: '\uD83D\uDCB0', audit: '\uD83E\uDDFE', logins: '\uD83D\uDD11', staff: '\u2699\uFE0F', profile: '\uD83D\uDC64', roles: '\uD83D\uDEE1\uFE0F', dropdowns: '\uD83D\uDCDA' };
+  var VIEW_PERMISSION = { bookings: 'bookings.view', calendar: 'calendar.view', clients: 'clients.view', inventory: 'inventory.manage', menu: 'packages.manage', assets: 'assets.manage', dishes: 'dishes.manage', employees: 'employees.manage', reports: 'reports.view', sales: 'sales.view', audit: 'audit.view', logins: 'audit.view', staff: 'users.manage', roles: 'roles.manage', dropdowns: 'dropdowns.manage' };
+
+  function canPerm(perm) {
+    if (!perm || !user.role || user.role === 'admin') return true;
+    return window.NARDS_PERMISSIONS ? window.NARDS_PERMISSIONS.has(perm) : true;
+  }
+
+  function hasViewAccess(view) {
+    if (!user.role || user.role === 'admin' || view === 'profile' || view === 'no-access') return true;
+    var perm = VIEW_PERMISSION[view];
+    return perm ? canPerm(perm) : true;
+  }
+
+  function firstAllowedView() {
+    var items = document.querySelectorAll('.sidebar-nav .nav-item');
+    for (var i = 0; i < items.length; i++) {
+      var v = items[i].dataset.view;
+      if (v && hasViewAccess(v)) return v;
+    }
+    return '';
+  }
+
+  function showNoAccessView() {
+    var content = document.querySelector('.content');
+    if (!content) return;
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+    document.querySelectorAll('.nav-item').forEach(function (n) { n.classList.remove('active'); });
+    var box = document.getElementById('view-no-access');
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'view';
+      box.id = 'view-no-access';
+      box.innerHTML = '<div class="card" style="text-align:center;padding:40px 24px"><h3 style="margin-top:0">No Module Access</h3><p style="color:var(--text-muted);margin:0">Your administrator has restricted access to these modules.</p></div>';
+      content.appendChild(box);
+    }
+    box.classList.add('active');
+    var titleEl = document.getElementById('pageTitle');
+    if (titleEl) titleEl.textContent = 'Restricted';
+  }
 
   function viewOf(button) {
     var m = /navigate\('([\w-]+)'/.exec(button.getAttribute('onclick') || '');
@@ -289,16 +327,44 @@
     nav.addEventListener('click', function () { document.body.classList.remove('sidebar-open'); });
   }
 
+  function wrapNavigate() {
+    if (typeof window.navigate !== 'function' || window.navigate._permWrapped) return;
+    var origNav = window.navigate;
+    var guarded = function (view) {
+      if (window.NARDS_PERMISSIONS && !hasViewAccess(view)) {
+        var fallback = firstAllowedView();
+        if (!fallback) return showNoAccessView();
+        view = fallback;
+      }
+      var noAccess = document.getElementById('view-no-access');
+      if (noAccess) noAccess.classList.remove('active');
+      return origNav.call(this, view);
+    };
+    guarded._permWrapped = true;
+    window.navigate = guarded;
+  }
+
   function applyPermissions() {
+    wrapNavigate();
     if (!user.role || user.role === 'admin') return;
-    fetch('/roles/me').then(function (r) { return r.ok ? r.json() : null; }).then(function (res) {
+    fetch('/roles/me', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (res) {
       if (!res) return;
       var allowed = new Set(res.permissions);
+      window.NARDS_PERMISSIONS = allowed;
       document.querySelectorAll('.sidebar-nav .nav-item').forEach(function (btn) {
         var perm = VIEW_PERMISSION[btn.dataset.view];
-        if (perm && !allowed.has(perm)) btn.style.display = 'none';
+        btn.style.display = (perm && !allowed.has(perm)) ? 'none' : '';
       });
-      window.NARDS_PERMISSIONS = allowed;
+      document.querySelectorAll('[data-perm]').forEach(function (el) {
+        el.style.display = allowed.has(el.dataset.perm) ? '' : 'none';
+      });
+      var active = document.querySelector('.view.active');
+      var activeView = active && active.id ? active.id.replace(/^view-/, '') : '';
+      if (activeView && !hasViewAccess(activeView)) {
+        var fallback = firstAllowedView();
+        if (fallback && typeof window.navigate === 'function') window.navigate(fallback);
+        else showNoAccessView();
+      }
       document.dispatchEvent(new CustomEvent('nards:permissions', { detail: allowed }));
     }).catch(function () {});
   }
@@ -462,7 +528,7 @@
     return date + ', ' + time;
   }
 
-  window.NardsUI = { esc: esc, toast: toast, fillLibrarySelects: fillLibrarySelects, fmtDateTime: fmtDateTime };
+  window.NardsUI = { esc: esc, toast: toast, fillLibrarySelects: fillLibrarySelects, fmtDateTime: fmtDateTime, can: canPerm, hasViewAccess: hasViewAccess };
 
   buildSidebar();
   buildProfileMenu();

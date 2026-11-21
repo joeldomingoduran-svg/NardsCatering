@@ -9,6 +9,7 @@ const PERMISSIONS = [
   { key: 'packages.manage', label: 'Manage packages', group: 'Operations' },
   { key: 'assets.manage', label: 'Manage catering assets', group: 'Operations' },
   { key: 'dishes.manage', label: 'Manage dishes', group: 'Operations' },
+  { key: 'employees.manage', label: 'Manage catering employees', group: 'Operations' },
   { key: 'reports.view', label: 'View and export reports', group: 'Analytics' },
   { key: 'sales.view', label: 'View sales analytics', group: 'Analytics' },
   { key: 'audit.view', label: 'View audit trail and login activity', group: 'Administration' },
@@ -20,7 +21,7 @@ const PERMISSIONS = [
 const ALL = PERMISSIONS.map((p) => p.key);
 const DEFAULTS = {
   admin: ALL,
-  manager: ['bookings.view', 'bookings.manage', 'calendar.view', 'clients.view', 'inventory.manage', 'packages.manage', 'assets.manage', 'dishes.manage', 'reports.view', 'sales.view', 'audit.view'],
+  manager: ['bookings.view', 'bookings.manage', 'calendar.view', 'clients.view', 'inventory.manage', 'packages.manage', 'assets.manage', 'dishes.manage', 'employees.manage', 'reports.view', 'audit.view'],
   staff: ['bookings.view', 'bookings.manage', 'calendar.view']
 };
 const SYSTEM_ROLES = ['admin', 'manager', 'staff'];

@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const controller = require('../Controller/employeesController');
-const { requireInternalUser, requireManager } = require('../Middleware/authMiddleware');
+const { requireInternalUser } = require('../Middleware/authMiddleware');
+const { requirePermission } = require('../Model/permissions');
 
-router.use(requireInternalUser, requireManager);
+router.use(requireInternalUser, requirePermission('employees.manage'));
 router.get('/', controller.list);
 router.post('/', controller.create);
 router.get('/booking/:id/team', controller.getTeam);

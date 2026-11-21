@@ -28,8 +28,6 @@
     <button class="nav-item" onclick="navigate('menu')">Menu Packages</button>
     <button class="nav-item" onclick="navigate('assets')">Assets</button>
     <button class="nav-item" onclick="navigate('dishes')">Dishes</button>
-    <button class="nav-item" onclick="navigate('sales')">Sales Analytics</button>
-    <button class="nav-item" onclick="navigate('profile')">My Profile</button>
     <button class="nav-item" onclick="navigate('employees')">Employees</button>
   </nav>
   <div class="topnav-actions">
@@ -131,7 +129,7 @@
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-primary" id="booking-active-btn" onclick="setBookingArchiveView(false)">Active Bookings</button>
           <button class="btn btn-outline" id="booking-archive-btn" onclick="setBookingArchiveView(true)">Archive</button>
-          <button class="btn btn-primary" onclick="openBookingModal()">+ New Booking</button>
+          <button class="btn btn-primary" data-perm="bookings.manage" onclick="openBookingModal()">+ New Booking</button>
         </div>
       </div>
       <div class="search-bar">
@@ -312,52 +310,6 @@
           <div class="form-group"><label for="confirm-password">Confirm new password</label><input id="confirm-password" type="password" autocomplete="new-password"></div>
           <p id="profile-message" style="font-size:13px;margin:8px 0"></p>
           <button class="btn btn-primary" onclick="changeOwnPassword()">Update password</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="view" id="view-sales">
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-title">Booking Sales Analytics</div>
-        <div class="sales-filters">
-          <div class="form-group"><label for="sales-period">View by</label>
-            <select id="sales-period" onchange="renderSalesAnalytics()">
-              <option value="weekly">Weekly (days of a week)</option>
-              <option value="monthly" selected>Monthly (months of a year)</option>
-              <option value="yearly">Yearly (all years)</option>
-            </select>
-          </div>
-          <div class="form-group"><label for="sales-week">Week containing</label><input type="date" id="sales-week" onchange="renderSalesAnalytics()" style="display:none"></div>
-          <div class="form-group"><label for="sales-year">Year</label><select id="sales-year" onchange="renderSalesAnalytics()"></select></div>
-          <span class="sales-range-label" id="sales-range"></span>
-          <div class="sales-actions">
-            <button type="button" class="btn btn-outline btn-sm" onclick="exportSalesData('csv')">Export CSV</button>
-            <button type="button" class="btn btn-outline btn-sm" onclick="exportSalesData('xlsx')">Export Excel</button>
-          </div>
-        </div>
-        <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
-          <div class="stat-card stat-accent"><div class="stat-label">Sales (Confirmed + Completed)</div><div class="stat-value" id="sales-total">₱0</div></div>
-          <div class="stat-card stat-accent"><div class="stat-label">Total Bookings</div><div class="stat-value" id="sales-bookings">0</div></div>
-          <div class="stat-card stat-accent"><div class="stat-label">Avg. Sale per Booking</div><div class="stat-value" id="sales-avg">₱0</div></div>
-          <div class="stat-card stat-accent"><div class="stat-label" id="sales-best-label">Best Month</div><div class="stat-value" id="sales-best">-</div></div>
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-title" id="sales-title-rev">Sales per Month</div>
-          <div class="sales-chart" id="sales-month-chart"></div>
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-title" id="sales-title-count">Bookings per Month</div>
-          <div class="sales-chart" id="sales-count-chart"></div>
-        </div>
-        <div class="dash-grid" style="margin-top:0">
-          <div class="card"><div class="card-title">Booking Status</div><div id="sales-by-status"></div></div>
-          <div class="card">
-            <div class="card-title">Sales by Event Type</div>
-            <div class="table-wrap"><table>
-              <thead><tr><th>Event Type</th><th>Bookings</th><th>Sales</th></tr></thead>
-              <tbody id="sales-by-type"></tbody>
-            </table></div>
-          </div>
         </div>
       </div>
     </div>
@@ -780,7 +732,6 @@
 
 <script src="/Customer/name-validator.js"></script>
 <script src="/node_modules/sweetalert2/dist/sweetalert2.all.min.js"></script>
-<script src="/Admin/sales-analytics.js"></script>
 <script>
 
 
@@ -1102,7 +1053,7 @@ function navigate(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
-  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', sales:'Sales Analytics', audit:'Audit Trail', profile:'My Profile', staff:'Users & Settings', employees:'Employees' };
+  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', audit:'Audit Trail', profile:'My Profile', staff:'Users & Settings', employees:'Employees' };
   document.getElementById('pageTitle').textContent = titles[view] || view;
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + view + "'")) n.classList.add('active');
@@ -1116,7 +1067,6 @@ function navigate(view) {
   if (view === 'dishes')    renderDishes();
   if (view === 'clients')   renderClients();
   if (view === 'reports')   renderReports();
-  if (view === 'sales')     syncFromAPI().then(() => renderSalesAnalytics());
   if (view === 'audit')     loadAuditLog();
   if (view === 'profile')   loadOwnProfile();
   if (view === 'employees') loadEmployees();
@@ -1849,9 +1799,13 @@ function renderBookings() {
   document.getElementById('booking-active-btn').className = `btn ${bookingArchiveView ? 'btn-outline' : 'btn-primary'}`;
   document.getElementById('booking-archive-btn').className = `btn ${bookingArchiveView ? 'btn-primary' : 'btn-outline'}`;
 
+  const canManageBookings = !window.NardsUI || window.NardsUI.can('bookings.manage');
   document.getElementById('bookings-tbody').innerHTML = items.length
     ? items.map(b => {
         const realIdx = data.bookings.indexOf(b);
+        const payHtml = window.paymentCell
+          ? window.paymentCell(b)
+          : (b.paid ? '<span class="badge" style="background:#27ae60;color:#fff">Paid</span>' : b.paymentProof ? '<span class="badge badge-gold">Receipt submitted</span>' : '<span class="badge" style="background:#c0392b;color:#fff">Unpaid</span>');
         return `<tr>
           <td><span class="badge badge-gold">${b.id}</span></td>
           <td><strong>${auditEscape(b.client)}</strong><br><span style="font-size:12px;color:var(--text-muted)">${auditEscape(b.phone)}</span></td>
@@ -1860,13 +1814,13 @@ function renderBookings() {
           <td>${b.guests || '-'}</td>
           <td>${auditEscape(b.package || '-')}</td>
           <td>${statusBadge(b.status)}${b.requestType && !b.requestHandled ? `<br><span class="badge badge-gold" style="margin-top:4px">${b.requestType === 'cancel' ? 'Cancel request' : 'Resched request'}</span>` : ''}</td>
-          <td>${b.paid ? '<span class="badge" style="background:#27ae60;color:#fff">Paid</span>' : b.paymentProof ? '<span class="badge badge-gold">Receipt submitted</span>' : '<span class="badge" style="background:#c0392b;color:#fff">Unpaid</span>'}</td>
+          <td>${payHtml}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" onclick="showConfirmation(data.bookings[${realIdx}])">View</button>
-          <button class="btn btn-outline btn-sm" onclick="openBookingModal(${realIdx})">Edit</button>
+          ${canManageBookings ? `<button class="btn btn-outline btn-sm" onclick="openBookingModal(${realIdx})">Edit</button>
           ${bookingArchiveView
             ? `<button class="btn btn-success btn-sm" onclick="restoreBooking(${realIdx})">Restore</button>`
-            : `<button class="btn btn-danger btn-sm" onclick="archiveBooking(${realIdx})">Archive</button>`}
+            : `<button class="btn btn-danger btn-sm" onclick="archiveBooking(${realIdx})">Archive</button>`}` : ''}
         </div></td>
         </tr>`;
       }).join('')
@@ -2329,7 +2283,7 @@ function showConfirmation(booking) {
       ${booking.gcashRef ? `<div class="confirm-field"><label>GCash Reference</label><p>${auditEscape(booking.gcashRef)}</p></div>` : ''}
       ${booking.addReq ? `<div class="confirm-field" style="grid-column:1/-1"><label>Additional Request</label><p>${auditEscape(booking.addReq)}</p></div>` : ''}
       ${booking.addCost ? `<div class="confirm-field"><label>Additional Cost</label><p>${fmtMoney(booking.addCost)}</p></div>` : ''}
-      ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}
+      ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') || (window.NardsUI && !window.NardsUI.can('bookings.manage')) ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}
       ${booking.paymentOption || booking.paymentProof ? `<div class="confirm-field"><label>Payment Status</label><p>${booking.paid ? 'Paid' : booking.paymentProof ? 'Receipt submitted for review' : 'Unpaid'}</p></div>` : ''}
       ${booking.paymentProof ? `<div class="confirm-field"><label>Receipt</label><p><button class="btn btn-primary btn-sm" onclick="openReceiptModal('${auditEscape(booking.paymentProof)}')">View receipt</button></p></div>` : ''}
       ${booking.cancellationReason ? `<div class="confirm-field" style="grid-column:1/-1"><label>Cancellation Reason</label><p>${auditEscape(booking.cancellationReason)}</p></div>` : ''}
@@ -2358,19 +2312,22 @@ function showConfirmation(booking) {
     actions.appendChild(button);
   };
   const idx = data.bookings.findIndex(item => item.id === booking.id);
-  if (booking.archived) {
-    addAction('Delete', 'btn btn-danger', () => deleteBooking(idx));
-  } else {
-    if (idx >= 0) addAction('Edit Booking', 'btn btn-outline', () => {
-      closeModal('confirm-modal');
-      openBookingModal(idx);
-    });
-    if (status === 'pending') {
-      addAction('Confirm Booking', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'confirmed'));
-      addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
-    } else if (status === 'confirmed') {
-      addAction('Mark Completed', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'completed'));
-      addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
+  const canManage = !window.NardsUI || window.NardsUI.can('bookings.manage');
+  if (canManage) {
+    if (booking.archived) {
+      addAction('Delete', 'btn btn-danger', () => deleteBooking(idx));
+    } else {
+      if (idx >= 0) addAction('Edit Booking', 'btn btn-outline', () => {
+        closeModal('confirm-modal');
+        openBookingModal(idx);
+      });
+      if (status === 'pending') {
+        addAction('Confirm Booking', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'confirmed'));
+        addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
+      } else if (status === 'confirmed') {
+        addAction('Mark Completed', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'completed'));
+        addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
+      }
     }
   }
   openModal('confirm-modal');
@@ -3306,6 +3263,7 @@ fetchPackages().then(() => syncInventoryFromAPI()).then(() => syncFromAPI()).the
   loadEventNotifications();
   navigate('bookings');
 });
+document.addEventListener('nards:permissions', () => renderBookings());
 </script>
 <script src="/Admin/password-toggle.js"></script>
 <div class="modal-overlay" id="employee-modal"><div class="modal role-modal-card"><div class="modal-title"><span id="employee-modal-title">Add employee</span><button class="modal-close" onclick="closeModal('employee-modal')">✕</button></div><div class="form-group"><label>Name *</label><input id="employee-name" maxlength="120"></div><div class="form-row"><div class="form-group"><label>Age *</label><input id="employee-age" type="number" min="15" max="100"></div><div class="form-group"><label>Job role *</label><input id="employee-job-role" maxlength="60" placeholder="Cook, Driver, Server"></div></div><div class="form-group"><label>Address *</label><textarea id="employee-address" maxlength="255"></textarea></div><div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('employee-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEmployee()">Save employee</button></div></div></div>

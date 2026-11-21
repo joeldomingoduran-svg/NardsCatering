@@ -5,7 +5,7 @@ const MONTHS = 'january february march april may june july august september octo
 const STATUS_TEXT = { pending: 'Pending', confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled' };
 
 const CONTACT_EMAIL = 'nardscatering@gmail.com';
-const CONTACT_PHONE = process.env.CONTACT_PHONE || '+63 XXX XXX XXXX';
+const CONTACT_PHONE = process.env.CONTACT_PHONE || '+63 9477604320';
 
 const SUGGESTIONS = ['Packages and prices', 'How do I book?', 'Payment methods', 'Check my booking', 'Is a date available?'];
 const CONTACT_REPLY = 'Thank you for reaching out. I am unable to confidently answer that question here. Please visit our Contact section for our contact details, or email our team directly at nardscatering@gmail.com. We will be happy to assist you.';

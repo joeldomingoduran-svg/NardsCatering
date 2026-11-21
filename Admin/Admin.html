@@ -21,7 +21,6 @@
         <button class="nav-item" onclick="navigate('audit')">Audit Trail</button>
     <button class="nav-item" onclick="navigate('logins')">Login Activity</button>
     <button class="nav-item" onclick="navigate('staff')">Users &amp; Settings</button>
-    <button class="nav-item" onclick="navigate('profile')">My Admin Profile</button>
     <button class="nav-item" onclick="navigate('employees')">Employees</button>
     <button class="nav-item" onclick="navigate('roles')">Roles &amp; Permissions</button>
     <button class="nav-item" onclick="navigate('dropdowns')">Dropdown Library</button>
@@ -1149,9 +1148,9 @@ async function loadRolesMatrix() {
 function permissionMarkup(role, target) {
   const m = window.rolesMatrix;
   const groups = [...new Set(m.permissions.map(p => p.group))];
-  const locked = ['roles.manage', 'users.manage', 'dropdowns.manage'];
+  const locked = ['roles.manage', 'users.manage', 'dropdowns.manage', 'sales.view'];
   return groups.map(g => `<div class="permission-group"><h4>${auditEscape(g)}</h4><div class="permission-options">` +
-    m.permissions.filter(p => p.group === g).map(p => `<label class="permission-option"><input type="checkbox" value="${p.key}" ${role === 'admin' || (m.roles[role] || []).includes(p.key) ? 'checked' : ''} ${role === 'admin' || locked.includes(p.key) ? 'disabled' : ''}><span><strong>${auditEscape(p.label)}</strong>${locked.includes(p.key) ? '<small>Administrator only</small>' : ''}</span></label>`).join('') +
+    m.permissions.filter(p => p.group === g).map(p => `<label class="permission-option"><input type="checkbox" value="${p.key}" ${role === 'admin' || (!locked.includes(p.key) && (m.roles[role] || []).includes(p.key)) ? 'checked' : ''} ${role === 'admin' || locked.includes(p.key) ? 'disabled' : ''}><span><strong>${auditEscape(p.label)}</strong>${locked.includes(p.key) ? '<small>Administrator only</small>' : ''}</span></label>`).join('') +
     '</div></div>').join('');
 }
 

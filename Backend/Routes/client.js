@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const clientsController = require('../Controller/clientController');
 const { requireInternalUser, requireAdmin, requireCustomer } = require('../Middleware/authMiddleware');
+const { requirePermission } = require('../Model/permissions');
 
 router.post('/signup', clientsController.signupClient);
 router.post('/login', clientsController.loginClient);
@@ -12,9 +13,9 @@ router.post('/reset-password', clientsController.resetPassword);
 router.get('/me/profile', requireCustomer, clientsController.getOwnProfile);
 router.put('/me/profile', requireCustomer, clientsController.updateOwnProfile);
 router.post('/me/change-password', requireCustomer, clientsController.changeOwnPassword);
-router.get('/', requireInternalUser, clientsController.getAllClients);
+router.get('/', requireInternalUser, requirePermission('clients.view'), clientsController.getAllClients);
 router.post('/', requireInternalUser, requireAdmin, clientsController.createClient);
-router.get('/:id', requireInternalUser, clientsController.getClientById);
+router.get('/:id', requireInternalUser, requirePermission('clients.view'), clientsController.getClientById);
 router.put('/:id', requireInternalUser, requireAdmin, clientsController.updateClient);
 router.delete('/:id', requireInternalUser, requireAdmin, clientsController.deleteClient);
 
