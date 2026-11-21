@@ -172,6 +172,7 @@
 
   function enhanceTable(table) {
     if (table.dataset.tools || table.classList.contains('report-print-table') || table.closest('.report-print-sheet') || table.hasAttribute('data-no-tools')) return;
+    if (table.parentElement && (table.parentElement.closest('table') || table.parentElement.classList.contains('table-box'))) return;
     var columns = dataColumns(table);
     if (!columns.length || !table.tBodies.length) return;
     table.dataset.tools = '1';
@@ -189,8 +190,11 @@
       if (act === 'csv') exportCsv(title, rows);
       else exportXlsx(title, [{ name: title, rows: rows }]);
     });
-    var wrap = table.closest('.table-wrap') || table;
-    wrap.parentNode.insertBefore(tools, wrap);
+    var box = document.createElement('div');
+    box.className = 'table-box';
+    table.parentNode.insertBefore(box, table);
+    box.appendChild(tools);
+    box.appendChild(table);
   }
 
   var enhanceQueued = false;
@@ -445,7 +449,20 @@
     });
   }
 
-  window.NardsUI = { esc: esc, toast: toast, fillLibrarySelects: fillLibrarySelects };
+  function fmtDateTime(value) {
+    if (!value) return '-';
+    var raw = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw)) {
+      raw = raw.replace(' ', 'T') + 'Z';
+    }
+    var d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    var date = d.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' });
+    var time = d.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+    return date + ', ' + time;
+  }
+
+  window.NardsUI = { esc: esc, toast: toast, fillLibrarySelects: fillLibrarySelects, fmtDateTime: fmtDateTime };
 
   buildSidebar();
   buildProfileMenu();

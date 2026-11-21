@@ -9,7 +9,13 @@ const app = express();
 const { writeAudit } = require('./Backend/Model/audit');
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ error: 'Invalid JSON in request body.' });
+  }
+  next(err);
+});
 
 // The project root is served statically, so keep secrets and server code out of it.
 app.use((req, res, next) => {

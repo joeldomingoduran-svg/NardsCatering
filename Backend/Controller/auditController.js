@@ -11,7 +11,7 @@ exports.getAuditLog = async (req, res) => {
     if (action) { where.push('action ILIKE ?'); params.push(`%${String(action).slice(0, 50)}%`); }
 
     const [rows] = await pool.query(
-      `SELECT id, username, role, action, entity, entityId, details, createdAt
+      `SELECT id, username, role, action, entity, entityId, details, (createdAt AT TIME ZONE 'UTC') AS createdAt
        FROM AuditLog ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY id DESC LIMIT 300`,
       params
@@ -37,7 +37,7 @@ exports.getLoginActivity = async (req, res) => {
       `SELECT username, role, createdAt FROM (
          SELECT username, role::text AS role, logged_in_at AS createdAt FROM LoginHistory
          UNION ALL
-         SELECT username, role, createdAt FROM AuditLog WHERE action = 'Logged in' AND role = 'customer'
+         SELECT username, role, (createdAt AT TIME ZONE 'UTC') AS createdAt FROM AuditLog WHERE action = 'Logged in' AND role = 'customer'
        ) logins
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY createdAt DESC LIMIT 300`,

@@ -97,7 +97,7 @@
       <div class="search-bar">
         <input type="text" id="booking-search" placeholder="Search by client name or event..." oninput="renderBookings()">
       </div>
-      <div class="card" id="inventory-active-section">
+      <div class="card" id="bookings-active-section">
         <div class="table-wrap">
           <table>
             <thead>
@@ -122,23 +122,13 @@
       <div class="search-bar">
         <input type="text" id="inv-search" placeholder="Search ingredients..." oninput="renderInventory()">
       </div>
-      <div class="card">
+      <div class="card" id="inventory-active-section">
         <div class="table-wrap">
           <table>
             <thead>
               <tr><th>Ingredient</th><th>Category</th><th>Current Stock</th><th>Unit</th><th>Min Required</th><th>Stock Level</th><th>Status</th><th>Last Updated</th><th>Actions</th></tr>
             </thead>
             <tbody id="inventory-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="card" id="inventory-archive-section" style="display:none;margin-top:16px">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Ingredient</th><th>Category</th><th>Stock</th><th>Unit</th><th>Min Required</th><th>Archived</th><th>Actions</th></tr>
-            </thead>
-            <tbody id="inventory-archive-tbody"></tbody>
           </table>
         </div>
       </div>
@@ -304,10 +294,23 @@
     </div>
 
     <div class="view" id="view-employees">
-      <div class="roles-page-head"><div><span class="eyebrow">Operations</span><h2>Employees</h2><p>Maintain the team roster and assign the right people to each event.</p></div><button class="btn btn-primary" onclick="openEmployeeModal()">+ Add employee</button></div>
-      <div class="card employee-filters"><input id="employee-search" placeholder="Search name or address" oninput="filterEmployees()"></div>
-      <div class="card roles-table-card"><div class="table-wrap"><table class="roles-table"><thead><tr><th>Name</th><th>Age</th><th>Address</th><th>Job role</th><th>Status</th><th>Actions</th></tr></thead><tbody id="employees-tbody"></tbody></table></div></div>
-    </div>    <div class="view" id="view-profile">
+      <div class="section-header" style="justify-content:flex-end">
+        <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add employee</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="employee-search" placeholder="Search name or address..." oninput="filterEmployees()">
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Age</th><th>Address</th><th>Job role</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="employees-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" id="view-profile">
       <div class="staff-profile-grid">
         <div class="card">
           <div class="card-title">Administrator profile</div>
@@ -331,12 +334,7 @@
     </div>
 
     <div class="view" id="view-roles">
-      <div class="roles-page-head">
-        <div>
-          <span class="eyebrow">Access control</span>
-          <h2>Roles &amp; Permissions</h2>
-          <p>Define operational access for administrators, managers, staff and future specialist roles.</p>
-        </div>
+      <div class="section-header" style="justify-content:flex-end">
         <button class="btn btn-primary" type="button" onclick="openRoleModal()">+ Add role</button>
       </div>
       <div class="roles-summary" id="roles-summary"></div>
@@ -1303,7 +1301,7 @@ async function loadAuditLog() {
     if (!res.ok) throw new Error();
     const rows = await res.json();
     tbody.innerHTML = rows.length ? rows.map((r) => `<tr>
-      <td>${auditEscape(r.createdAt)}</td>
+      <td>${auditEscape(window.NardsUI ? NardsUI.fmtDateTime(r.createdAt) : r.createdAt)}</td>
       <td>${auditEscape(r.username)}</td>
       <td>${auditEscape(r.role)}</td>
       <td>${auditEscape(r.action)}</td>
@@ -1326,7 +1324,7 @@ async function loadLoginActivity() {
     if (!res.ok) throw new Error();
     const rows = await res.json();
     tbody.innerHTML = rows.length
-      ? rows.map((r) => `<tr><td>${auditEscape(r.createdAt)}</td><td>${auditEscape(r.username)}</td><td>${auditEscape(r.role === 'customer' ? 'Customer' : r.role === 'staff' ? 'Staff' : r.role === 'manager' ? 'Manager' : 'Admin')}</td></tr>`).join('')
+      ? rows.map((r) => `<tr><td>${auditEscape(window.NardsUI ? NardsUI.fmtDateTime(r.createdAt) : r.createdAt)}</td><td>${auditEscape(r.username)}</td><td>${auditEscape(r.role === 'customer' ? 'Customer' : r.role === 'staff' ? 'Staff' : r.role === 'manager' ? 'Manager' : 'Admin')}</td></tr>`).join('')
       : '<tr><td colspan="3">No logins recorded.</td></tr>';
   } catch (e) {
     tbody.innerHTML = '<tr><td colspan="3">Could not load login activity.</td></tr>';
@@ -1908,6 +1906,19 @@ function renderInventory() {
     ? items.map(i => {
         const realIdx = data.inventory.indexOf(i);
         const s = stockStatus(i);
+        if (inventoryArchiveView) {
+          return `<tr>
+            <td><strong>${i.name}</strong></td><td>${i.category}</td>
+            <td><strong>${i.stock}</strong></td><td>${i.unit}</td><td>${i.min}</td>
+            <td style="min-width:120px">
+              <div style="font-size:12px;color:var(--text-muted)">${Math.round(s.pct)}%</div>
+              <div class="progress-bar"><div class="progress-fill ${s.fillCls}" style="width:${s.pct}%"></div></div>
+            </td>
+            <td><span class="badge badge-warning">Archived</span></td>
+            <td style="font-size:12px;color:var(--text-muted)">${i.archivedAt || i.updated || '-'}</td>
+            <td><button class="btn btn-success btn-sm" onclick="restoreIngredient(${realIdx})">Restore</button></td>
+          </tr>`;
+        }
         return `<tr>
           <td><strong>${i.name}</strong></td><td>${i.category}</td>
           <td><strong>${i.stock}</strong></td><td>${i.unit}</td><td>${i.min}</td>
@@ -1924,22 +1935,8 @@ function renderInventory() {
           </div></td>
         </tr>`;
       }).join('')
-    : `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🧂</div><p>No ingredients found.</p></div></td></tr>`;
+    : `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">${inventoryArchiveView ? '📦' : '🧂'}</div><p>${inventoryArchiveView ? 'No archived ingredients.' : 'No ingredients found.'}</p></div></td></tr>`;
 
-  const archiveItems = data.inventory.filter(i => Boolean(i.archived));
-  document.getElementById('inventory-archive-tbody').innerHTML = archiveItems.length
-    ? archiveItems.map(i => {
-        const realIdx = data.inventory.indexOf(i);
-        return `<tr>
-          <td><strong>${i.name}</strong></td><td>${i.category}</td><td>${i.stock}</td><td>${i.unit}</td><td>${i.min}</td>
-          <td style="font-size:12px;color:var(--text-muted)">${i.archivedAt || 'Archived'}</td>
-          <td><button class="btn btn-success btn-sm" onclick="restoreIngredient(${realIdx})">Restore</button></td>
-        </tr>`;
-      }).join('')
-    : `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📦</div><p>No archived ingredients.</p></div></td></tr>`;
-
-  document.getElementById('inventory-archive-section').style.display = inventoryArchiveView ? 'block' : 'none';
-  document.getElementById('inventory-active-section').style.display = inventoryArchiveView ? 'none' : 'block';
   document.getElementById('inventory-active-btn').className = `btn ${inventoryArchiveView ? 'btn-outline' : 'btn-primary'}`;
   document.getElementById('inventory-archive-btn').className = `btn ${inventoryArchiveView ? 'btn-primary' : 'btn-outline'}`;
 
@@ -2097,7 +2094,7 @@ function renderClients() {
         <tr id="${hid}" style="display:none">
           <td colspan="6" style="padding:0;background:var(--cream)">
             <div style="padding:8px 16px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Previous Booking Records</div>
-            ${allBks.length ? `<table style="width:100%;border-collapse:collapse">
+            ${allBks.length ? `<table style="width:100%;border-collapse:collapse" data-no-tools>
               <thead><tr style="background:rgba(0,0,0,0.03)">
                 <th style="padding:6px 12px;font-size:11px;text-align:left;color:var(--muted);font-weight:600">Ref</th>
                 <th style="padding:6px 12px;font-size:11px;text-align:left;color:var(--muted);font-weight:600">Date</th>
