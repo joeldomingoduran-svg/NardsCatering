@@ -26,11 +26,14 @@
   <nav class="tabs">
     <button class="nav-item active" onclick="navigate('bookings')">Bookings</button>
     <button class="nav-item" onclick="navigate('calendar')">Calendar</button>
+    <button class="nav-item" onclick="navigate('clients')">Clients</button>
     <button class="nav-item" onclick="navigate('inventory')">Inventory</button>
     <button class="nav-item" onclick="navigate('menu')">Menu Packages</button>
     <button class="nav-item" onclick="navigate('assets')">Assets</button>
     <button class="nav-item" onclick="navigate('dishes')">Dishes</button>
     <button class="nav-item" onclick="navigate('employees')">Employees</button>
+    <button class="nav-item" onclick="navigate('reports')">Reports</button>
+    <button class="nav-item" onclick="navigate('audit')">Audit Trail</button>
   </nav>
   <div class="topnav-actions">
     <button class="btn-notif-bell" id="notif-bell-btn" onclick="openEventNotifications()" title="Event notifications">
@@ -1015,6 +1018,10 @@ async function syncFromAPI() {
         const total = price + pay.addCost;
         if (Number(existing.amount) !== total) { existing.amount = total; changed = true; }
         if (Number(existing.dp) !== Math.round(total * 0.2)) { existing.dp = Math.round(total * 0.2); changed = true; }
+        const freshTeam = Array.isArray(row.assignedEmployees) ? row.assignedEmployees : [];
+        if (JSON.stringify(existing.assignedEmployees || []) !== JSON.stringify(freshTeam)) {
+          existing.assignedEmployees = freshTeam; changed = true;
+        }
       } else {
         const pay = paymentFieldsFromRow(row);
         const total = price + pay.addCost;
@@ -1035,6 +1042,7 @@ async function syncFromAPI() {
           cancellationReason: row.cancellationReason || '',
           archived: Boolean(Number(row.is_archived)),
           notes:   row.notes || '',
+          assignedEmployees: Array.isArray(row.assignedEmployees) ? row.assignedEmployees : [],
           ...pay
         });
         changed = true;
@@ -1786,10 +1794,24 @@ async function resolveRequest(id, decision) {
     b.requestDecision = decision;
     b.requestResponse = response;
     if (decision === 'approved' && b.requestType === 'reschedule') { b.date = b.requestNewDate; b.time = b.requestNewTime; }
+    if (decision === 'approved' && b.requestType === 'cancel') {
+      await syncInventoryFromAPI();
+      await fetchAssets();
+    }
     saveData(); renderBookings(); showConfirmation(b);
   } catch (e) {
     notify('Could not reach the server.', '❌');
   }
+}
+function openAssignedEmployeesModal(idx) {
+  const b = data.bookings[idx];
+  if (!b || !window.openBookingTeamModal) return;
+  const canEdit = (!window.NardsUI || window.NardsUI.can('bookings.manage')) && !b.archived && b.status !== 'Cancelled';
+  window.openBookingTeamModal(b, {
+    mode: 'view',
+    canEdit,
+    onSaved: () => { saveData(); renderBookings(); if (document.getElementById('confirm-modal').classList.contains('open')) showConfirmation(b); }
+  });
 }
 function renderBookings() {
   const search = (document.getElementById('booking-search')?.value || '').toLowerCase();
@@ -1808,9 +1830,11 @@ function renderBookings() {
         const payHtml = window.paymentCell
           ? window.paymentCell(b)
           : (b.paid ? '<span class="badge" style="background:#27ae60;color:#fff">Paid</span>' : b.paymentProof ? '<span class="badge badge-gold">Receipt submitted</span>' : '<span class="badge" style="background:#c0392b;color:#fff">Unpaid</span>');
+        const teamChip = window.bookingAssignedBadgeHtml ? window.bookingAssignedBadgeHtml(b) : '';
+        const hasTeamOrConfirmed = (Array.isArray(b.assignedEmployees) && b.assignedEmployees.length > 0) || ['Confirmed', 'Completed'].includes(b.status);
         return `<tr>
           <td><span class="badge badge-gold">${b.id}</span></td>
-          <td><strong>${auditEscape(b.client)}</strong><br><span style="font-size:12px;color:var(--text-muted)">${auditEscape(b.phone)}</span></td>
+          <td><strong>${auditEscape(b.client)}</strong><br><span style="font-size:12px;color:var(--text-muted)">${auditEscape(b.phone)}</span>${teamChip}</td>
           <td>${auditEscape(b.event)}</td>
           <td>${fmtDate(b.date)}<br><span style="font-size:12px;color:var(--text-muted)">${b.time ? fmtTime(b.time) : 'Time not set'}</span></td>
           <td>${b.guests || '-'}</td>
@@ -1819,6 +1843,7 @@ function renderBookings() {
           <td>${payHtml}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" onclick="showConfirmation(data.bookings[${realIdx}])">View</button>
+          ${hasTeamOrConfirmed && String(b.id).startsWith('DB-') ? `<button class="btn btn-outline btn-sm" onclick="openAssignedEmployeesModal(${realIdx})">View Assigned Employees</button>` : ''}
           ${canManageBookings ? `<button class="btn btn-outline btn-sm" onclick="openBookingModal(${realIdx})">Edit</button>
           ${bookingArchiveView
             ? `<button class="btn btn-success btn-sm" onclick="restoreBooking(${realIdx})">Restore</button>`
@@ -2288,6 +2313,7 @@ function showConfirmation(booking) {
       ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') || (window.NardsUI && !window.NardsUI.can('bookings.manage')) ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}
       ${booking.paymentOption || booking.paymentProof ? `<div class="confirm-field"><label>Payment Status</label><p>${booking.paid ? 'Paid' : booking.paymentProof ? 'Receipt submitted for review' : 'Unpaid'}</p></div>` : ''}
       ${booking.paymentProof ? `<div class="confirm-field"><label>Receipt</label><p><button class="btn btn-primary btn-sm" onclick="openReceiptModal('${auditEscape(booking.paymentProof)}')">View receipt</button></p></div>` : ''}
+      ${Array.isArray(booking.assignedEmployees) && booking.assignedEmployees.length ? `<div class="confirm-field" style="grid-column:1/-1"><label>Assigned Employees (${booking.assignedEmployees.length})</label><p>${booking.assignedEmployees.map(e => `${auditEscape(e.name)} (${auditEscape(e.job_role || 'Crew')})`).join(', ')}</p></div>` : ''}
       ${booking.cancellationReason ? `<div class="confirm-field" style="grid-column:1/-1"><label>Cancellation Reason</label><p>${auditEscape(booking.cancellationReason)}</p></div>` : ''}
       ${booking.notes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Special Notes</label><p>${auditEscape(booking.notes)}</p></div>` : ''}
     </div>
@@ -2314,6 +2340,9 @@ function showConfirmation(booking) {
     actions.appendChild(button);
   };
   const idx = data.bookings.findIndex(item => item.id === booking.id);
+  if (idx >= 0 && String(booking.id).startsWith('DB-') && ((Array.isArray(booking.assignedEmployees) && booking.assignedEmployees.length) || ['Confirmed', 'Completed'].includes(booking.status))) {
+    addAction('View Assigned Employees', 'btn btn-outline', () => openAssignedEmployeesModal(idx));
+  }
   const canManage = !window.NardsUI || window.NardsUI.can('bookings.manage');
   if (canManage) {
     if (booking.archived) {
@@ -2335,6 +2364,59 @@ function showConfirmation(booking) {
   openModal('confirm-modal');
 }
 
+async function applyBookingStatusChange(booking, nextStatus, cancellationReason, employeeIds) {
+  const labels = { confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled' };
+  const label = labels[nextStatus];
+  if (booking.id && booking.id.startsWith('DB-')) {
+    const dbId = booking.id.replace('DB-', '');
+    try {
+      const res = await fetch(`${API}/bookings/${dbId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus, cancellationReason })
+      });
+      const response = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const details = Array.isArray(response.details) && response.details.length
+          ? '\n' + response.details.map(item => `${item.ingredient}: need ${item.required}, available ${item.available}`).join('\n')
+          : '';
+        notify((response.error || `Failed to mark booking ${label.toLowerCase()}`) + details, '❌');
+        return false;
+      }
+      if (nextStatus === 'confirmed' && Array.isArray(employeeIds)) {
+        const teamRes = await fetch(`${API}/employees/booking/${dbId}/team`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employeeIds })
+        });
+        if (teamRes.ok) {
+          const freshTeam = await fetch(`${API}/employees/booking/${dbId}/team`, { cache: 'no-store' });
+          if (freshTeam.ok) booking.assignedEmployees = await freshTeam.json();
+        }
+      }
+    } catch (error) {
+      notify('Could not reach the server. The booking status was not changed.', '❌');
+      return false;
+    }
+  }
+
+  booking.status = label;
+  booking.cancellationReason = cancellationReason;
+  if (nextStatus === 'completed' && !data.clients.find(client => client.name.toLowerCase() === booking.client.toLowerCase())) {
+    data.clients.push({ id: uid('CL'), name: booking.client, phone: booking.phone || '', email: booking.email || '', address: '' });
+  }
+  saveData();
+  if (nextStatus === 'confirmed' || nextStatus === 'cancelled') {
+    await syncInventoryFromAPI();
+    await fetchAssets();
+  }
+  renderBookings();
+  if (document.getElementById('view-calendar').classList.contains('active')) renderCalendar();
+  showConfirmation(booking);
+  notify(`Booking ${label.toLowerCase()}.`, '✅');
+  return true;
+}
+
 async function finalizeBookingStatus(bookingId, nextStatus) {
   const idx = data.bookings.findIndex(item => item.id === bookingId);
   const booking = data.bookings[idx];
@@ -2342,6 +2424,15 @@ async function finalizeBookingStatus(bookingId, nextStatus) {
   const labels = { confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled' };
   const label = labels[nextStatus];
   if (!label) return;
+
+  if (nextStatus === 'confirmed' && booking.id && booking.id.startsWith('DB-') && window.openBookingTeamModal) {
+    window.openBookingTeamModal(booking, {
+      mode: 'confirm',
+      onConfirm: (employeeIds) => applyBookingStatusChange(booking, 'confirmed', '', employeeIds)
+    });
+    return;
+  }
+
   if (typeof Swal === 'undefined') {
     notify('Confirmation dialog is unavailable. Please reload the page.', '❌');
     return;
@@ -2370,38 +2461,7 @@ async function finalizeBookingStatus(bookingId, nextStatus) {
   if (!result.isConfirmed) return;
 
   const cancellationReason = isCancellation ? String(result.value || '').trim() : '';
-  if (booking.id && booking.id.startsWith('DB-')) {
-    try {
-      const res = await fetch(`${API}/bookings/${booking.id.replace('DB-', '')}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus, cancellationReason })
-      });
-      const response = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const details = Array.isArray(response.details) && response.details.length
-          ? '\n' + response.details.map(item => `${item.ingredient}: need ${item.required}, available ${item.available}`).join('\n')
-          : '';
-        notify((response.error || `Failed to mark booking ${label.toLowerCase()}`) + details, '❌');
-        return;
-      }
-    } catch (error) {
-      notify('Could not reach the server. The booking status was not changed.', '❌');
-      return;
-    }
-  }
-
-  booking.status = label;
-  booking.cancellationReason = cancellationReason;
-  if (nextStatus === 'completed' && !data.clients.find(client => client.name.toLowerCase() === booking.client.toLowerCase())) {
-    data.clients.push({ id: uid('CL'), name: booking.client, phone: booking.phone || '', email: booking.email || '', address: '' });
-  }
-  saveData();
-  if (nextStatus === 'confirmed') await syncInventoryFromAPI();
-  renderBookings();
-  if (document.getElementById('view-calendar').classList.contains('active')) renderCalendar();
-  showConfirmation(booking);
-  notify(`Booking ${label.toLowerCase()}.`, '✅');
+  await applyBookingStatusChange(booking, nextStatus, cancellationReason, null);
 }
 
 

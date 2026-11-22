@@ -2,14 +2,14 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../Controller/employeesController');
 const { requireInternalUser } = require('../Middleware/authMiddleware');
-const { requirePermission } = require('../Model/permissions');
+const { requirePermission, requireAnyPermission } = require('../Model/permissions');
 
-router.use(requireInternalUser, requirePermission('employees.manage'));
-router.get('/', controller.list);
-router.post('/', controller.create);
-router.get('/booking/:id/team', controller.getTeam);
-router.put('/booking/:id/team', controller.setTeam);
-router.put('/:id', controller.update);
-router.patch('/:id/status', controller.setStatus);
+router.use(requireInternalUser);
+router.get('/', requireAnyPermission('employees.manage', 'bookings.manage'), controller.list);
+router.post('/', requirePermission('employees.manage'), controller.create);
+router.get('/booking/:id/team', requireAnyPermission('employees.manage', 'bookings.manage'), controller.getTeam);
+router.put('/booking/:id/team', requireAnyPermission('employees.manage', 'bookings.manage'), controller.setTeam);
+router.put('/:id', requirePermission('employees.manage'), controller.update);
+router.patch('/:id/status', requirePermission('employees.manage'), controller.setStatus);
 
 module.exports = router;

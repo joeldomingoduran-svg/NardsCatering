@@ -64,6 +64,20 @@ function requirePermission(permission) {
   };
 }
 
+function requireAnyPermission(...permissions) {
+  return async (req, res, next) => {
+    try {
+      if (req.user?.role === 'admin') return next();
+      const matrix = await loadMatrix();
+      const rolePerms = matrix[req.user?.role];
+      if (rolePerms && permissions.some((p) => rolePerms.has(p))) return next();
+      res.status(403).json({ error: 'Your role does not have permission to do this.' });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  };
+}
+
 async function seedPermissions() {
   for (const role of EDITABLE_ROLES) {
     for (const key of ALL) {
@@ -90,6 +104,7 @@ module.exports = {
   EDITABLE_ROLES,
   permissionsFor,
   requirePermission,
+  requireAnyPermission,
   clearCache,
   seedPermissions,
   seedRole,

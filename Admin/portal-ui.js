@@ -295,6 +295,7 @@
       btn.innerHTML = '<span class="nav-icon" aria-hidden="true">' + (ICONS[view] || '\u2022') + '</span><span class="nav-label">' + esc(label) + '</span>';
       btn.title = label;
       btn.dataset.view = view;
+      if (user.role && user.role !== 'admin' && VIEW_PERMISSION[view]) btn.style.display = 'none';
       nav.appendChild(btn);
     });
     tabs.remove();

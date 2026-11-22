@@ -709,6 +709,13 @@ input.invalid, select.invalid { border-color: var(--danger) !important; }
   .permission-options { grid-template-columns:1fr; }
 }
 @media (max-width: 480px) {
-  .roles-summary { grid-template-columns:1fr; }
+  .roles-summary { grid-template-columns: 1fr; }
   .roles-page-head h2 { font-size:25px; }
 }
+
+.booking-team-chip { display:inline-flex; align-items:center; gap:5px; margin-top:5px; padding:3px 9px; border-radius:999px; background:var(--gold-light); color:var(--gold-dark); font-size:11px; font-weight:600; }
+.booking-team-list { display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; margin-top:10px; }
+.booking-team-item { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fffdf8; cursor:pointer; }
+.booking-team-item:hover { border-color:var(--gold); background:var(--gold-light); }
+.booking-team-item label { display:flex; align-items:center; gap:10px; cursor:pointer; flex:1; margin:0; color:var(--dark); font-weight:600; font-size:14px; }
+.booking-team-item small { color:var(--text-muted); font-size:12px; font-weight:500; }
