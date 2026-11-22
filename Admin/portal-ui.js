@@ -386,7 +386,7 @@
     wrap.id = 'profile-menu';
     wrap.innerHTML = '<button type="button" class="profile-btn" aria-haspopup="true" aria-expanded="false"><span class="profile-avatar"></span><span class="profile-name"></span><span class="profile-caret" aria-hidden="true">\u25BE</span></button>' +
       '<div class="profile-popover" role="menu" hidden><div class="profile-popover-head"><strong></strong><span></span></div>' +
-      (hasProfile ? '<button type="button" role="menuitem" data-go="profile">\uD83D\uDC64 My Profile</button><button type="button" role="menuitem" data-go="password">\uD83D\uDD12 Change Password</button>' : '') +
+      (hasProfile ? '<button type="button" role="menuitem" data-go="profile">\uD83D\uDC64 My Profile</button>' : '') +
       '<button type="button" role="menuitem" data-go="logout" class="danger">\u21AA Logout</button></div>';
     actions.appendChild(wrap);
     if (logout) logout.remove();
@@ -415,10 +415,6 @@
       var go = target.dataset.go;
       if (go === 'logout') return window.logout && window.logout();
       window.navigate('profile');
-      if (go === 'password') setTimeout(function () {
-        var field = document.getElementById('current-password');
-        if (field) { field.scrollIntoView({ behavior: 'smooth', block: 'center' }); field.focus(); }
-      }, 120);
     });
     document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) close(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });

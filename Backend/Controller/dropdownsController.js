@@ -4,14 +4,16 @@ const CATEGORIES = {
   event_type: 'Event Type',
   inventory_category: 'Inventory Category',
   inventory_unit: 'Inventory Unit',
-  asset_unit: 'Asset Unit'
+  asset_unit: 'Asset Unit',
+  dish_category: 'Dish Category'
 };
 
 const SEED = {
   event_type: ['Wedding', 'Birthday Party', 'Christening', 'Debut', 'Baptismal', 'Party', 'Anniversary', 'House Blessing', 'Corporate Event', 'Other'],
   inventory_category: ['Meat & Poultry', 'Seafood', 'Vegetables', 'Dairy', 'Grains & Rice', 'Spices & Condiments', 'Beverages', 'Other'],
   inventory_unit: ['kg', 'g', 'L', 'mL', 'pcs', 'sacks', 'boxes', 'cans'],
-  asset_unit: ['pcs', 'sets', 'units']
+  asset_unit: ['pcs', 'sets', 'units'],
+  dish_category: ['Main Course', 'Pasta', 'Soup', 'Salad', 'Dessert', 'Bread', 'Beverage', 'Rice', 'Other']
 };
 
 exports.seedDropdowns = async () => {

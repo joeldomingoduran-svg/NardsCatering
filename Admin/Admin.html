@@ -665,7 +665,7 @@
     <div class="form-grid">
       <div class="form-group full"><label>Dish Name *</label><input id="dsh-name" type="text" placeholder="e.g. Lechon Baboy"></div>
       <div class="form-group full"><label>Category</label>
-        <select id="dsh-cat">
+        <select id="dsh-cat" data-dropdown="dish_category">
           <option value="Main Course">Main Course</option>
           <option value="Pasta">Pasta</option>
           <option value="Soup">Soup</option>
@@ -1243,6 +1243,7 @@ async function dropdownRequest(url, method, body) {
   const out = await res.json().catch(() => ({}));
   if (!res.ok) { notify(out.error || 'Request failed.', '❌'); return false; }
   await loadDropdowns();
+  if (window.NardsUI && window.NardsUI.fillLibrarySelects) window.NardsUI.fillLibrarySelects();
   return true;
 }
 
@@ -2651,7 +2652,12 @@ function openDishModal(dishId) {
   editDishId = dishId || null;
   document.getElementById('dish-modal-title').textContent = dish ? 'Edit Dish' : 'Add Dish';
   document.getElementById('dsh-name').value = dish ? dish.name     : '';
-  document.getElementById('dsh-cat').value  = dish ? dish.category : 'Main Course';
+  const catSel = document.getElementById('dsh-cat');
+  const desired = dish ? dish.category : (Array.from(catSel.options).some(o => o.value === 'Main Course') ? 'Main Course' : (catSel.options[0]?.value || ''));
+  if (dish && desired && !Array.from(catSel.options).some(o => o.value === desired)) {
+    catSel.insertAdjacentHTML('beforeend', `<option>${auditEscape(desired)}</option>`);
+  }
+  if (desired) catSel.value = desired;
   openModal('dish-modal');
 }
 
