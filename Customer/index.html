@@ -290,6 +290,18 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
 #termsModal .terms-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--border-light)}
 #termsModal .terms-agree-btn{border:0;border-radius:8px;background:var(--brown);color:#fff;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
 @media(max-width:600px){#termsModal .terms-modal-card{padding:22px 20px;margin:3vh auto;max-height:94vh}}
+#customerProfileModal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:10000;padding:16px}
+#customerProfileModal .terms-modal-content{background:#fff;border-radius:16px;padding:24px 28px;width:100%;max-width:520px;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);color:var(--text)}
+#customerProfileModal .terms-modal-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+#customerProfileModal h2{font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--dark);margin:0}
+#customerProfileModal h3{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--dark);margin:0 0 10px}
+#customerProfileModal .modal-close{border:0;background:transparent;color:var(--muted);font-size:26px;cursor:pointer;line-height:1;padding:0 4px}
+#customerProfileModal form{display:flex;flex-direction:column;gap:8px}
+#customerProfileModal label{font-size:13px;font-weight:600;color:var(--dark);margin-top:4px}
+#customerProfileModal input{width:100%;padding:10px 12px;border:1px solid #d5cfc6;border-radius:8px;font:inherit;box-sizing:border-box}
+#customerProfileModal hr{border:0;border-top:1px solid #e7e1d8;margin:18px 0}
+#customerProfileModal .btn-primary{margin-top:8px;align-self:flex-start;border:0;border-radius:8px;background:var(--brown);color:#fff;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
+#customerProfileModal .btn-primary:hover{opacity:.92}
 </style>
 </head>
 <body>
@@ -1701,12 +1713,20 @@ function ensureCustomerLoggedIn() {
     window.location.href = '/customer-login';
     return false;
   }
+  fillBookingIdentity(session);
+  return true;
+}
 
-  function customerAuthHeaders() {
-    return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (sessionStorage.getItem('nards_customer_token') || '') };
+function customerAuthHeaders() {
+  return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (sessionStorage.getItem('nards_customer_token') || '') };
+}
+
+async function openCustomerProfile() {
+  if (!getCustomerSession()) {
+    window.location.href = '/customer-login';
+    return;
   }
-
-  async function openCustomerProfile() {
+  try {
     const res = await fetch('/clients/me/profile', { headers: customerAuthHeaders() });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) return showPopup('error', 'Profile unavailable', out.error || 'Please log in again.');
@@ -1714,31 +1734,44 @@ function ensureCustomerLoggedIn() {
     document.getElementById('profileContact').value = out.client.contact || '';
     document.getElementById('profileEmail').textContent = out.client.email || '';
     document.getElementById('customerProfileModal').style.display = 'flex';
+  } catch (err) {
+    showPopup('error', 'Profile unavailable', 'Could not load your profile. Please try again.');
   }
+}
 
-  document.getElementById('customerProfileBtn').addEventListener('click', openCustomerProfile);
-  document.getElementById('closeCustomerProfile').addEventListener('click', () => {
-    document.getElementById('customerProfileModal').style.display = 'none';
-  });
-  document.getElementById('customerProfileForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const confirmed = await confirmPopup('Save profile changes?', 'Your customer details will be updated.');
-    if (!confirmed) return;
-    const res = await fetch('/clients/me/profile', { method: 'PUT', headers: customerAuthHeaders(), body: JSON.stringify({
-      name: document.getElementById('profileName').value, contact: document.getElementById('profileContact').value
-    })});
+document.getElementById('customerProfileBtn').addEventListener('click', openCustomerProfile);
+document.getElementById('closeCustomerProfile').addEventListener('click', () => {
+  document.getElementById('customerProfileModal').style.display = 'none';
+});
+document.getElementById('customerProfileModal').addEventListener('click', (event) => {
+  if (event.target === event.currentTarget) event.currentTarget.style.display = 'none';
+});
+document.getElementById('customerProfileForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const confirmed = await confirmPopup('Save profile changes?', 'Your customer details will be updated.');
+  if (!confirmed) return;
+  try {
+    const name = document.getElementById('profileName').value;
+    const contact = document.getElementById('profileContact').value;
+    const res = await fetch('/clients/me/profile', { method: 'PUT', headers: customerAuthHeaders(), body: JSON.stringify({ name, contact }) });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) return showPopup('error', 'Update failed', out.error || 'Could not update profile.');
     const session = getCustomerSession();
-    setCustomerSession({ ...session, name: document.getElementById('profileName').value, contact: document.getElementById('profileContact').value });
+    const updated = { ...session, name: name.trim(), contact: contact.trim() };
+    setCustomerSession(updated);
+    fillBookingIdentity(updated);
     showPopup('success', 'Profile updated', out.message);
-  });
-  document.getElementById('customerPasswordForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const next = document.getElementById('customerNewPassword').value;
-    if (next !== document.getElementById('customerConfirmPassword').value) return showPopup('error', 'Passwords do not match', 'Confirm the new password and try again.');
-    const confirmed = await confirmPopup('Change password?', 'You will need the new password the next time you log in.');
-    if (!confirmed) return;
+  } catch (err) {
+    showPopup('error', 'Update failed', 'Could not reach the server.');
+  }
+});
+document.getElementById('customerPasswordForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const next = document.getElementById('customerNewPassword').value;
+  if (next !== document.getElementById('customerConfirmPassword').value) return showPopup('error', 'Passwords do not match', 'Confirm the new password and try again.');
+  const confirmed = await confirmPopup('Change password?', 'You will need the new password the next time you log in.');
+  if (!confirmed) return;
+  try {
     const res = await fetch('/clients/me/change-password', { method: 'POST', headers: customerAuthHeaders(), body: JSON.stringify({
       currentPassword: document.getElementById('customerCurrentPassword').value, newPassword: next
     })});
@@ -1746,11 +1779,10 @@ function ensureCustomerLoggedIn() {
     if (!res.ok) return showPopup('error', 'Password update failed', out.error || 'Could not change password.');
     event.target.reset();
     showPopup('success', 'Password updated', out.message);
-  });
-
-  fillBookingIdentity(session);
-  return true;
-}
+  } catch (err) {
+    showPopup('error', 'Password update failed', 'Could not reach the server.');
+  }
+});
 
 document.getElementById('customerAuthStatus').addEventListener('click', () => {
   const session = getCustomerSession();
