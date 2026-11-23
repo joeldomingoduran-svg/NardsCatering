@@ -73,9 +73,12 @@ function renderSalesAnalytics() {
   sold.forEach(b => { const i = indexByKey.get(keyOf(b)); if (i !== undefined) revenue[i] += Number(b.amount) || 0; });
 
   const totalRevenue = revenue.reduce((s, n) => s + n, 0);
+  const netProfit = Number((totalRevenue * 0.15).toFixed(2));
   const best = revenue.indexOf(Math.max(...revenue));
   document.getElementById('sales-range').textContent = range;
   document.getElementById('sales-total').textContent = fmtMoney(totalRevenue);
+  const profitEl = document.getElementById('sales-profit');
+  if (profitEl) profitEl.textContent = fmtMoney(netProfit);
   document.getElementById('sales-bookings').textContent = inRange.length;
   document.getElementById('sales-avg').textContent = fmtMoney(sold.length ? Math.round(totalRevenue / sold.length) : 0);
   document.getElementById('sales-best-label').textContent = 'Best ' + unit;
@@ -122,9 +125,9 @@ function exportSalesData(format) {
     counts[i]++;
     if (b.status === 'Completed') revenue[i] += Number(b.amount) || 0;
   });
-  const rows = [[unit, 'Bookings', 'Sales (Completed)']]
-    .concat(buckets.map((b, i) => [b.label, counts[i], revenue[i]]))
-    .concat([['Total', counts.reduce((s, n) => s + n, 0), revenue.reduce((s, n) => s + n, 0)]]);
+  const rows = [[unit, 'Bookings', 'Sales (Completed)', 'Net Profits (15%)']]
+    .concat(buckets.map((b, i) => [b.label, counts[i], revenue[i], Number((revenue[i] * 0.15).toFixed(2))]))
+    .concat([['Total', counts.reduce((s, n) => s + n, 0), revenue.reduce((s, n) => s + n, 0), Number((revenue.reduce((s, n) => s + n, 0) * 0.15).toFixed(2))]]);
   const name = 'sales-' + period + '-' + String(range).replace(/[^\w]+/g, '-');
   if (format === 'xlsx') NardsExport.xlsx(name, [{ name: 'Sales per ' + unit, rows }]);
   else NardsExport.csv(name, rows);
