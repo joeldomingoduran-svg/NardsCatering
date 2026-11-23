@@ -64,8 +64,8 @@ function renderSalesAnalytics() {
   document.getElementById('sales-week').style.display = period === 'weekly' ? '' : 'none';
 
   const { buckets, keyOf, inRange, range, unit } = salesBuckets(period);
-  // Only confirmed and completed bookings count as sales.
-  const sold = inRange.filter(b => b.status === 'Confirmed' || b.status === 'Completed');
+  // Only completed bookings count as sales.
+  const sold = inRange.filter(b => b.status === 'Completed');
   const indexByKey = new Map(buckets.map((b, i) => [b.key, i]));
   const revenue = new Array(buckets.length).fill(0);
   const counts = new Array(buckets.length).fill(0);
@@ -120,9 +120,9 @@ function exportSalesData(format) {
     const i = idx.get(keyOf(b));
     if (i === undefined) return;
     counts[i]++;
-    if (b.status === 'Confirmed' || b.status === 'Completed') revenue[i] += Number(b.amount) || 0;
+    if (b.status === 'Completed') revenue[i] += Number(b.amount) || 0;
   });
-  const rows = [[unit, 'Bookings', 'Sales (Confirmed + Completed)']]
+  const rows = [[unit, 'Bookings', 'Sales (Completed)']]
     .concat(buckets.map((b, i) => [b.label, counts[i], revenue[i]]))
     .concat([['Total', counts.reduce((s, n) => s + n, 0), revenue.reduce((s, n) => s + n, 0)]]);
   const name = 'sales-' + period + '-' + String(range).replace(/[^\w]+/g, '-');
