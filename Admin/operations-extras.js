@@ -939,6 +939,12 @@
 
       const tbody = document.getElementById('inventory-tbody');
       if (tbody) {
+        const archivedCount = invList.filter(function (i) { return Boolean(i.archived); }).length;
+        const emptyHtml = arch
+          ? '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">&#129474;</div><p>No archived ingredients.</p></div></td></tr>'
+          : (!search && inventoryPerishableFilter === 'all' && archivedCount > 0
+              ? '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">&#129474;</div><p>No active ingredients.</p><p style="font-size:12.5px;color:var(--text-muted);margin-top:4px">You have <strong>' + archivedCount + '</strong> archived ingredient(s) in the Archive tab.</p><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px" onclick="setInventoryArchiveView(true)">Open Archive (' + archivedCount + ')</button></div></td></tr>'
+              : '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">&#129474;</div><p>No matching ingredients found.</p></div></td></tr>');
         tbody.innerHTML = items.length ? items.map(function (i) {
           const realIdx = invList.indexOf(i);
           const s = typeof window.stockStatus === 'function' ? window.stockStatus(i) : { label: 'OK', cls: 'badge-success', fillCls: 'fill-success', pct: 100 };
@@ -967,7 +973,7 @@
             '<td style="font-size:12px;color:var(--text-muted)">' + esc(arch ? (i.archivedAt || i.updated || '-') : (i.updated || '-')) + '</td>' +
             '<td>' + actionsHtml + '</td>' +
           '</tr>';
-        }).join('') : '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">&#129474;</div><p>' + (arch ? 'No archived ingredients.' : 'No matching ingredients found.') + '</p></div></td></tr>';
+        }).join('') : emptyHtml;
       }
 
       const activeBtn = document.getElementById('inventory-active-btn');

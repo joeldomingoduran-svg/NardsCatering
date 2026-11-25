@@ -1550,11 +1550,25 @@ async function saveIngredient() {
   const min   = document.getElementById('ing-min').value;
   if (!name || stock === '' || min === '') { notify('Please fill required fields', '⚠️'); return; }
 
+  if (editIdx.ingredient < 0) await syncInventoryFromAPI();
   const duplicate = data.inventory.find((item, index) =>
     index !== editIdx.ingredient && String(item.name || '').trim().toLowerCase() === name.toLowerCase()
   );
   if (duplicate) {
-    notify('An ingredient with this name already exists. Restore or edit the existing item.', '⚠️');
+    if (duplicate.archived) {
+      const goArchive = await confirmAction(`"${duplicate.name}" is already in your Archive.`, {
+        icon: 'info',
+        text: 'Would you like to open the Archive tab so you can restore it?',
+        confirmButtonText: 'Open Archive',
+        confirmButtonColor: '#8d6a36'
+      });
+      if (goArchive) {
+        closeModal('ingredient-modal');
+        setInventoryArchiveView(true);
+      }
+      return;
+    }
+    notify(`An active ingredient named "${duplicate.name}" already exists. Edit or restock it from the table.`, '⚠️');
     return;
   }
 
