@@ -548,6 +548,18 @@
       </div>
       <div class="form-group"><label>Minimum Required *</label><input id="ing-min" type="number" min="0" step="1" placeholder="10"></div>
       <div class="form-group"><label>Good Stock Level</label><input id="ing-good" type="number" min="0" step="1" placeholder="50"></div>
+      <div class="form-group"><label>Unit Cost (&#8369;)</label><input id="ing-cost" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>Supplier</label><input id="ing-supplier" type="text" placeholder="e.g. Balintawak Fresh Market"></div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+          <input id="ing-perishable" type="checkbox" style="width:16px;height:16px" onchange="document.getElementById('ing-expiry-wrap').style.display=this.checked?'block':'none';if(!this.checked)document.getElementById('ing-expiry').value='';">
+          <span>Perishable Item (Requires Expiration Date)</span>
+        </label>
+      </div>
+      <div class="form-group" id="ing-expiry-wrap" style="display:none;grid-column:1/-1">
+        <label>Expiration Date *</label>
+        <input id="ing-expiry" type="date">
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('ingredient-modal')">Cancel</button>
@@ -1359,7 +1371,14 @@ async function openBookingModal(idx) {
 function openIngredientModal(idx) {
   editIdx.ingredient = idx !== undefined ? idx : -1;
   document.getElementById('ing-modal-title').textContent = idx !== undefined ? 'Edit Ingredient' : 'Add Ingredient';
-  ['ing-name','ing-stock','ing-min','ing-good'].forEach(f => document.getElementById(f).value = '');
+  ['ing-name','ing-stock','ing-min','ing-good','ing-cost','ing-supplier','ing-expiry'].forEach(f => {
+    const el = document.getElementById(f);
+    if (el) el.value = '';
+  });
+  const perEl = document.getElementById('ing-perishable');
+  const expWrap = document.getElementById('ing-expiry-wrap');
+  if (perEl) perEl.checked = false;
+  if (expWrap) expWrap.style.display = 'none';
   if (idx !== undefined) {
     const i = data.inventory[idx];
     document.getElementById('ing-name').value  = i.name;
@@ -1368,6 +1387,12 @@ function openIngredientModal(idx) {
     document.getElementById('ing-unit').value  = i.unit;
     document.getElementById('ing-min').value   = i.min;
     document.getElementById('ing-good').value  = i.good;
+    if (document.getElementById('ing-cost')) document.getElementById('ing-cost').value = i.costPerUnit || '';
+    if (document.getElementById('ing-supplier')) document.getElementById('ing-supplier').value = i.supplier || '';
+    const isPer = Boolean(i.isPerishable);
+    if (perEl) perEl.checked = isPer;
+    if (expWrap) expWrap.style.display = isPer ? 'block' : 'none';
+    if (isPer && document.getElementById('ing-expiry')) document.getElementById('ing-expiry').value = i.expiryDate || '';
   }
   openModal('ingredient-modal');
 }
@@ -1535,15 +1560,29 @@ async function saveIngredient() {
     return;
   }
 
+  const isPerishable = Boolean(document.getElementById('ing-perishable')?.checked);
+  const expiryDate = document.getElementById('ing-expiry')?.value || '';
+  if (isPerishable && !expiryDate) {
+    notify('Expiration date is required for perishable items', '⚠️');
+    return;
+  }
+  const costPerUnit = parseFloat(document.getElementById('ing-cost')?.value || '0') || 0;
+  const supplier = (document.getElementById('ing-supplier')?.value || '').trim();
+  const goodInt = parseInt(document.getElementById('ing-good').value, 10) || minInt * 3;
+
   const ing = {
-    id:       editIdx.ingredient >= 0 ? data.inventory[editIdx.ingredient].id : uid('ING'),
+    id:           editIdx.ingredient >= 0 ? data.inventory[editIdx.ingredient].id : uid('ING'),
     name,
-    category: document.getElementById('ing-cat').value,
-    stock:    stockInt,
-    unit:     document.getElementById('ing-unit').value,
-    min:      minInt,
-    good:     parseInt(document.getElementById('ing-good').value, 10) || minInt * 3,
-    updated:  today()
+    category:     document.getElementById('ing-cat').value,
+    stock:        stockInt,
+    unit:         document.getElementById('ing-unit').value,
+    min:          minInt,
+    good:         goodInt,
+    isPerishable,
+    expiryDate:   isPerishable ? expiryDate : '',
+    costPerUnit,
+    supplier,
+    updated:      today()
   };
 
   try {
@@ -1557,13 +1596,25 @@ async function saveIngredient() {
       body: JSON.stringify({
         name,
         quantity: stockInt,
-        threshold: minInt
+        threshold: minInt,
+        category: ing.category,
+        unit: ing.unit,
+        good_level: goodInt,
+        is_perishable: isPerishable,
+        expiry_date: isPerishable ? expiryDate : null,
+        cost_per_unit: costPerUnit,
+        supplier
       })
     });
-
+    const out = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      notify(err.error || 'Failed to save ingredient', '❌');
+      notify(out.error || 'Failed to save ingredient', '❌');
+      return;
+    }
+    if (res.status === 202 || out.pendingApproval) {
+      closeModal('ingredient-modal');
+      if (window.loadApprovalsList) window.loadApprovalsList();
+      notify(out.message || 'Submitted for Administrator approval.', '⏳');
       return;
     }
 
@@ -1650,10 +1701,24 @@ async function confirmRestock() {
       body: JSON.stringify({
         name: current.name,
         quantity: Number(current.stock) + qty,
-        threshold: Number(current.min) || 0
+        threshold: Number(current.min) || 0,
+        category: current.category,
+        unit: current.unit,
+        good_level: current.good,
+        is_perishable: Boolean(current.isPerishable),
+        expiry_date: current.expiryDate || null,
+        cost_per_unit: current.costPerUnit || 0,
+        supplier: current.supplier || ''
       })
     });
-    if (!res.ok) { notify('Failed to update stock', '❌'); return; }
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Failed to update stock', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      closeModal('restock-modal');
+      if (window.loadApprovalsList) window.loadApprovalsList();
+      notify(out.message || 'Restock request submitted for Administrator approval.', '⏳');
+      return;
+    }
 
     current.stock += qty;
     current.updated = today();
@@ -2383,6 +2448,7 @@ async function applyBookingStatusChange(booking, nextStatus, cancellationReason,
         notify((response.error || `Failed to mark booking ${label.toLowerCase()}`) + details, '❌');
         return false;
       }
+      if (window.notifyStockShortages) window.notifyStockShortages(response);
       if (nextStatus === 'confirmed' && Array.isArray(employeeIds)) {
         const teamRes = await fetch(`${API}/employees/booking/${dbId}/team`, {
           method: 'PUT',
@@ -2510,7 +2576,13 @@ async function deleteIngredient(idx) {
   if (!invId) { notify('Ingredient is not synced to server yet', '⚠️'); return; }
   try {
     const res = await fetch(`${API}/inventory/${invId}`, { method: 'DELETE' });
-    if (!res.ok) { notify('Failed to archive ingredient', '❌'); return; }
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Failed to archive ingredient', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      if (window.loadApprovalsList) window.loadApprovalsList();
+      notify(out.message || 'Archive request submitted for Administrator approval.', '⏳');
+      return;
+    }
     data.inventory[idx].archived = true;
     data.inventory[idx].archivedAt = today();
     saveData();
@@ -2530,7 +2602,13 @@ async function restoreIngredient(idx) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ archived: false })
     });
-    if (!res.ok) { notify('Failed to restore ingredient', '❌'); return; }
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Failed to restore ingredient', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      if (window.loadApprovalsList) window.loadApprovalsList();
+      notify(out.message || 'Restore request submitted for Administrator approval.', '⏳');
+      return;
+    }
     item.archived = false;
     delete item.archivedAt;
     saveData();
@@ -2644,12 +2722,16 @@ async function syncInventoryFromAPI() {
       return {
         id: r.id,
         name: r.name,
-        category: matched.category || 'Uncategorized',
+        category: r.category || matched.category || 'Other',
         stock: parseInt(r.quantity, 10) || 0,
-        unit: matched.unit || 'kg',
+        unit: r.unit || matched.unit || 'kg',
         min,
-        good: parseInt(matched.good, 10) || Math.max(min * 3, 1),
-        updated: matched.updated || today(),
+        good: parseInt(r.good_level, 10) || parseInt(matched.good, 10) || Math.max(min * 3, 1),
+        isPerishable: Boolean(Number(r.is_perishable)),
+        expiryDate: r.expiry_date ? String(r.expiry_date).slice(0, 10) : '',
+        costPerUnit: Number(r.cost_per_unit) || 0,
+        supplier: r.supplier || '',
+        updated: r.updated_at ? String(r.updated_at).slice(0, 10) : (matched.updated || today()),
         archived: Boolean(Number(r.is_archived)),
         archivedAt: matched.archivedAt
       };
@@ -2734,7 +2816,14 @@ async function saveAsset() {
     const url    = editAssetId ? `${API}/assets/${editAssetId}` : `${API}/assets`;
     const method = editAssetId ? 'PUT' : 'POST';
     const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!res.ok) { const e = await res.json(); notify(e.error || 'Error saving', '❌'); return; }
+    const out    = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Error saving', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      closeModal('asset-modal');
+      if (window.loadApprovalsList) window.loadApprovalsList();
+      notify(out.message || 'Asset request submitted for Administrator approval.', '⏳');
+      return;
+    }
     closeModal('asset-modal');
     renderAssets();
     notify(editAssetId ? 'Asset updated!' : 'Asset added!', '✅');
@@ -2748,7 +2837,13 @@ async function deleteAsset(id) {
   })) return;
   try {
     const res = await fetch(`${API}/assets/${id}`, { method: 'DELETE' });
-    if (!res.ok) { notify('Failed to archive asset', '❌'); return; }
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Failed to archive asset', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      if (window.loadApprovalsList) window.loadApprovalsList();
+      notify(out.message || 'Archive request submitted for Administrator approval.', '⏳');
+      return;
+    }
     renderAssets();
     notify('Asset archived', '✅');
   } catch(e) { notify('Server not connected', '❌'); }
@@ -2761,9 +2856,14 @@ async function restoreAsset(id) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ archived: false })
     });
+    const out = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const error = await res.json().catch(() => ({}));
-      notify(error.error || 'Failed to restore asset', '❌');
+      notify(out.error || 'Failed to restore asset', '❌');
+      return;
+    }
+    if (res.status === 202 || out.pendingApproval) {
+      if (window.loadApprovalsList) window.loadApprovalsList();
+      notify(out.message || 'Restore request submitted for Administrator approval.', '⏳');
       return;
     }
     renderAssets();

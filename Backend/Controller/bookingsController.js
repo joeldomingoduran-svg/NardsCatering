@@ -6,6 +6,55 @@ const { validatePhilippineAddress } = require('../Model/address');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_missing_key');
 
 const TERMS_VERSION = '2026-10-15';
+const MAX_EVENTS_PER_DAY = 2;
+
+async function recordBookingStockMovement(conn, entry) {
+  try {
+    await conn.query(
+      `INSERT INTO inventory_movements
+        (item_type, item_id, item_name, change_qty, previous_qty, new_qty, reason, reference_booking_id, actor)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entry.itemType,
+        entry.itemId,
+        entry.itemName,
+        entry.changeQty,
+        entry.previousQty,
+        entry.newQty,
+        entry.reason,
+        entry.bookingId || null,
+        entry.actor || null
+      ]
+    );
+  } catch (err) {
+    // Ignore when movement logging table is absent in unit test mocks.
+  }
+}
+
+async function readAdvisoryFlag() {
+  try {
+    const [rows] = await pool.query("SELECT settingValue FROM Settings WHERE settingKey = 'bookingAdvisory' LIMIT 1");
+    if (!rows.length || !rows[0].settingValue) return { active: true, title: 'Online Reservation Notice — Temporarily Unavailable' };
+    const parsed = JSON.parse(rows[0].settingValue);
+    return { active: Boolean(parsed.active), title: parsed.title || 'Online Reservation Notice — Temporarily Unavailable' };
+  } catch (err) {
+    return { active: false };
+  }
+}
+
+async function sendBookingOtpFollowUp(email, details, bookingId, awaitingPayment) {
+  if (!email || !process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return { sent: false, code: null };
+  try {
+    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+    try { await pool.query('UPDATE Bookings SET booking_otp = ? WHERE id = ?', [otpCode, bookingId]); } catch (e) {}
+    const { sendBookingFollowUpEmail } = require('../Model/mailer');
+    await sendBookingFollowUpEmail(email, { ...details, bookingId, awaitingPayment }, otpCode);
+    return { sent: true, code: otpCode };
+  } catch (err) {
+    console.error('Booking follow-up email failed:', err.message);
+    return { sent: false, code: null };
+  }
+}
 
 // Rejects a guest count above the package limit (a limit of 0 means no limit).
 async function guestLimitError(packageName, guests) {
@@ -160,6 +209,12 @@ exports.createBooking = async (req, res) => {
     // Multipart requests come from the customer form; admin JSON requests skip payment.
     let amountDue = null, proofPath = null, refValue = null, optionValue = null;
     if (req.is('multipart/form-data')) {
+      const advisory = await readAdvisoryFlag();
+      if (advisory.active) {
+        return res.status(503).json({
+          error: `${advisory.title}: Online booking submissions are temporarily unavailable. Please check the News & Advisories section or contact us directly.`
+        });
+      }
       if (req.body.termsAccepted !== 'true') {
         return res.status(400).json({ error: 'Please accept the Terms and Conditions before submitting your booking.' });
       }
@@ -168,6 +223,23 @@ exports.createBooking = async (req, res) => {
       const earliestStr = `${earliest.getFullYear()}-${String(earliest.getMonth() + 1).padStart(2, '0')}-${String(earliest.getDate()).padStart(2, '0')}`;
       if (String(eventDate) < earliestStr) {
         return res.status(400).json({ error: `Bookings need at least 3 full days notice. The earliest available date is ${earliestStr}.` });
+      }
+      const [daySlots] = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM Bookings WHERE DATE(eventDate) = DATE(?) AND status = 'confirmed' AND COALESCE(is_archived, 0) = 0",
+        [eventDate]
+      );
+      if (Number(daySlots[0]?.cnt || 0) >= MAX_EVENTS_PER_DAY) {
+        return res.status(400).json({ error: `This date already has ${MAX_EVENTS_PER_DAY} confirmed events (daily maximum reached). Please select another date.` });
+      }
+      const slotTime = validTime(eventTime);
+      if (slotTime) {
+        const [timeClash] = await pool.query(
+          "SELECT id FROM Bookings WHERE DATE(eventDate) = DATE(?) AND eventTime = ? AND status = 'confirmed' AND COALESCE(is_archived, 0) = 0 LIMIT 1",
+          [eventDate, slotTime]
+        );
+        if (timeClash.length) {
+          return res.status(400).json({ error: 'This date and time slot is already booked. Please choose another time.' });
+        }
       }
       if (!isRealName(clientName)) {
         return res.status(400).json({ error: 'Please enter your real full name.' });
@@ -202,8 +274,25 @@ exports.createBooking = async (req, res) => {
     if (optionValue) {
       await writeAudit({ username: email || clientName, role: 'customer' }, 'Submitted booking', 'bookings', result.insertId, `${eventType} on ${eventDate}, GCash ${optionValue} payment${awaitingPayment ? ' (awaiting payment, 24h)' : ''}`);
     }
+    const followUp = await sendBookingOtpFollowUp(email, {
+      clientName,
+      address,
+      eventType,
+      packageName: eventPackage,
+      eventDate,
+      eventTime: validTime(eventTime) ? String(eventTime).slice(0, 5) : '',
+      guests: guests || 0,
+      paymentOption: optionValue,
+      amountDue
+    }, result.insertId, awaitingPayment);
     await notify('booking', 'New booking request', `${clientName} booked ${eventType} on ${eventDate}.`, ['admin', 'manager', 'staff'], 'bookings');
-    res.status(201).json({ message: "Booking created", bookingId: result.insertId, awaitingPayment, amountDue });
+    res.status(201).json({
+      message: "Booking created",
+      bookingId: result.insertId,
+      awaitingPayment,
+      amountDue,
+      followUpOtpSent: followUp.sent
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -315,12 +404,13 @@ exports.requestChange = async (req, res) => {
 };
 
 // Deduct (direction = -1) or restore (direction = +1) both Inventory ingredients and CateringAssets for a package.
-async function adjustPackageStocks(conn, packageName, direction) {
+// Confirmation is allowed even when stock is insufficient; shortages are reported for immediate restocking.
+async function adjustPackageStocks(conn, packageName, direction, bookingId = null, actor = null) {
   const [pkgRows] = await conn.query(
     'SELECT id FROM Packages WHERE name = ? ORDER BY id DESC LIMIT 1',
     [packageName]
   );
-  if (!pkgRows.length) return { ok: true, changed: false };
+  if (!pkgRows.length) return { ok: true, changed: false, shortages: [] };
   const pkgId = pkgRows[0].id;
 
   const [invRows] = await conn.query(
@@ -340,33 +430,71 @@ async function adjustPackageStocks(conn, packageName, direction) {
     [pkgId]
   );
 
+  const shortages = [];
   if (direction < 0) {
-    const insufficient = [
-      ...invRows.filter((r) => Number(r.current_stock) < Math.trunc(Number(r.required_qty))),
-      ...assetRows.filter((r) => Number(r.current_stock) < Math.trunc(Number(r.required_qty)))
-    ];
-    if (insufficient.length) {
-      return {
-        ok: false,
-        details: insufficient.map((i) => ({
-          ingredient: i.name,
-          required: Math.trunc(Number(i.required_qty)),
-          available: Math.trunc(Number(i.current_stock))
-        }))
-      };
+    for (const r of invRows) {
+      const reqQty = Math.trunc(Number(r.required_qty));
+      const avail = Math.trunc(Number(r.current_stock));
+      if (avail < reqQty) shortages.push({ itemType: 'ingredient', ingredient: r.name, required: reqQty, available: avail, deficit: reqQty - Math.max(0, avail) });
+    }
+    for (const a of assetRows) {
+      const reqQty = Math.trunc(Number(a.required_qty));
+      const avail = Math.trunc(Number(a.current_stock));
+      if (avail < reqQty) shortages.push({ itemType: 'asset', ingredient: a.name, required: reqQty, available: avail, deficit: reqQty - Math.max(0, avail) });
     }
   }
 
-  const signOp = direction < 0 ? '-' : '+';
   for (const r of invRows) {
     const qty = Math.trunc(Number(r.required_qty));
-    if (qty > 0) await conn.query(`UPDATE Inventory SET quantity = quantity ${signOp} ? WHERE id = ?`, [qty, r.inventory_id]);
+    if (qty > 0) {
+      const prev = Math.trunc(Number(r.current_stock) || 0);
+      const deduct = direction < 0 ? Math.min(Math.max(0, prev), qty) : qty;
+      const newQty = direction < 0 ? Math.max(0, prev - deduct) : prev + qty;
+      const delta = newQty - prev;
+      await conn.query('UPDATE Inventory SET quantity = ? WHERE id = ?', [newQty, r.inventory_id]);
+      if (delta !== 0) {
+        await recordBookingStockMovement(conn, {
+          itemType: 'ingredient',
+          itemId: r.inventory_id,
+          itemName: r.name,
+          changeQty: delta,
+          previousQty: prev,
+          newQty,
+          reason: direction < 0
+            ? `Booking #${bookingId || ''} confirmed${prev < qty ? ` (shortage: needed ${qty})` : ''}`
+            : `Booking #${bookingId || ''} cancelled (stock restored)`,
+          bookingId,
+          actor
+        });
+      }
+    }
   }
   for (const a of assetRows) {
     const qty = Math.trunc(Number(a.required_qty));
-    if (qty > 0) await conn.query(`UPDATE CateringAssets SET quantity = quantity ${signOp} ? WHERE id = ?`, [qty, a.asset_id]);
+    if (qty > 0) {
+      const prev = Math.trunc(Number(a.current_stock) || 0);
+      const deduct = direction < 0 ? Math.min(Math.max(0, prev), qty) : qty;
+      const newQty = direction < 0 ? Math.max(0, prev - deduct) : prev + qty;
+      const delta = newQty - prev;
+      await conn.query('UPDATE CateringAssets SET quantity = ? WHERE id = ?', [newQty, a.asset_id]);
+      if (delta !== 0) {
+        await recordBookingStockMovement(conn, {
+          itemType: 'asset',
+          itemId: a.asset_id,
+          itemName: a.name,
+          changeQty: delta,
+          previousQty: prev,
+          newQty,
+          reason: direction < 0
+            ? `Booking #${bookingId || ''} confirmed${prev < qty ? ` (shortage: needed ${qty})` : ''}`
+            : `Booking #${bookingId || ''} cancelled (stock restored)`,
+          bookingId,
+          actor
+        });
+      }
+    }
   }
-  return { ok: true, changed: Boolean(invRows.length || assetRows.length) };
+  return { ok: true, changed: Boolean(invRows.length || assetRows.length), shortages };
 }
 
 exports.resolveRequest = async (req, res) => {
@@ -390,7 +518,7 @@ exports.resolveRequest = async (req, res) => {
     let stockRestored = false;
     if (decision === 'approved' && booking.requestType === 'cancel') {
       if (booking.status === 'confirmed') {
-        const restored = await adjustPackageStocks(conn, booking.package, +1);
+        const restored = await adjustPackageStocks(conn, booking.package, +1, booking.id, req.user?.username || 'system');
         stockRestored = restored.changed;
       }
       await conn.query("UPDATE Bookings SET status = 'cancelled', is_archived = 1, cancellationReason = COALESCE(NULLIF(cancellationReason, ''), ?) WHERE id = ?", [`Cancelled at customer request: ${booking.requestReason}`.slice(0, 500), booking.id]);
@@ -442,7 +570,7 @@ exports.updateBookingStatus = async (req, res) => {
     await conn.beginTransaction();
 
     const [bookingRows] = await conn.query(
-      "SELECT id, package, status, guests, paymentOption, paymentProof FROM Bookings WHERE id = ? FOR UPDATE",
+      "SELECT id, package, status, eventDate, eventTime, guests, paymentOption, paymentProof FROM Bookings WHERE id = ? FOR UPDATE",
       [req.params.id]
     );
     if (!bookingRows.length) {
@@ -453,18 +581,31 @@ exports.updateBookingStatus = async (req, res) => {
     const booking = bookingRows[0];
     const isTransitionToConfirmed = status === 'confirmed' && booking.status !== 'confirmed';
     const isConfirmedCancelled = booking.status === 'confirmed' && status === 'cancelled';
+    let stockShortages = [];
 
     if (isTransitionToConfirmed) {
-      const check = await adjustPackageStocks(conn, booking.package, -1);
-      if (!check.ok) {
+      const [dayCountRows] = await conn.query(
+        "SELECT COUNT(*) AS cnt FROM Bookings WHERE DATE(eventDate) = DATE(?) AND status = 'confirmed' AND COALESCE(is_archived, 0) = 0 AND id <> ?",
+        [booking.eventDate, booking.id]
+      );
+      if (Number(dayCountRows[0]?.cnt || 0) >= MAX_EVENTS_PER_DAY) {
         await conn.rollback();
-        return res.status(400).json({
-          error: 'Insufficient ingredient or asset stock for confirmation',
-          details: check.details
-        });
+        return res.status(400).json({ error: `This date already has ${MAX_EVENTS_PER_DAY} confirmed events (daily maximum reached).` });
       }
+      if (booking.eventTime) {
+        const [clashRows] = await conn.query(
+          "SELECT id FROM Bookings WHERE DATE(eventDate) = DATE(?) AND eventTime = ? AND status = 'confirmed' AND COALESCE(is_archived, 0) = 0 AND id <> ? LIMIT 1",
+          [booking.eventDate, booking.eventTime, booking.id]
+        );
+        if (clashRows.length) {
+          await conn.rollback();
+          return res.status(400).json({ error: 'Another confirmed booking already uses this date and time slot.' });
+        }
+      }
+      const check = await adjustPackageStocks(conn, booking.package, -1, booking.id, req.user?.username || 'system');
+      stockShortages = check.shortages || [];
     } else if (isConfirmedCancelled) {
-      await adjustPackageStocks(conn, booking.package, +1);
+      await adjustPackageStocks(conn, booking.package, +1, booking.id, req.user?.username || 'system');
     }
 
     await conn.query(
@@ -474,10 +615,20 @@ exports.updateBookingStatus = async (req, res) => {
 
     await conn.commit();
     await notify('status', 'Booking status updated', `Booking #${req.params.id} is now ${status} (by ${req.user?.username || 'system'}).`, ['admin', 'manager', 'staff'], 'bookings');
+    if (stockShortages.length) {
+      await notify(
+        'warning',
+        'Restock Needed for Confirmed Booking',
+        `Booking #${req.params.id} was confirmed with insufficient stock for: ${stockShortages.map((s) => `${s.ingredient} (short ${s.deficit})`).join(', ')}.`,
+        ['admin', 'manager', 'staff'],
+        'inventory'
+      );
+    }
     res.json({
       message: "Booking status updated",
       inventoryDeducted: isTransitionToConfirmed,
-      stockRestored: isConfirmedCancelled
+      stockRestored: isConfirmedCancelled,
+      stockShortages
     });
   } catch (err) {
     await conn.rollback();

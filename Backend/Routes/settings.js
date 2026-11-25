@@ -6,5 +6,7 @@ const upload = require('../Middleware/upload');
 
 router.get('/gcash-qr', settingsController.getGcashQr);
 router.post('/gcash-qr', requireInternalUser, requireAdmin, upload.single('qr'), settingsController.setGcashQr);
+router.get('/booking-advisory', settingsController.getBookingAdvisory);
+router.put('/booking-advisory', requireInternalUser, requireAdmin, settingsController.setBookingAdvisory);
 
 module.exports = router;

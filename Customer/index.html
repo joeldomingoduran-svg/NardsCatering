@@ -311,6 +311,7 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
   <a href="#home" class="nav-logo">Nards<span>.</span></a>
   <ul class="nav-links">
     <li><a href="#home">Home</a></li>
+    <li><a href="#news">News</a></li>
     <li><a href="#offers">Packages</a></li>
     <li><a href="#services">Services</a></li>
     <li><a href="#calendar">Availability</a></li>
@@ -356,6 +357,7 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
 </div>
 <div class="mobile-nav" id="mobile-nav">
   <a href="#home"    onclick="closeMobileNav()">Home</a>
+  <a href="#news"    onclick="closeMobileNav()">News &amp; Advisories</a>
   <a href="#offers"  onclick="closeMobileNav()">Packages</a>
   <a href="#services" onclick="closeMobileNav()">Services</a>
   <a href="#calendar" onclick="closeMobileNav()">Availability</a>
@@ -452,6 +454,22 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
   <button type="button" class="food-lightbox-close" id="foodLightboxClose" aria-label="Close photo">&times;</button>
   <img id="foodLightboxImage" alt="">
 </dialog>
+
+<section id="news" style="padding:56px 0 24px">
+  <div class="section-inner">
+    <span class="section-badge reveal">News &amp; Advisories</span>
+    <h2 class="section-heading reveal reveal-delay-1">Service <em>Announcements</em></h2>
+    <div class="gold-line reveal reveal-delay-2"></div>
+    <div id="newsAdvisoryCard" style="background:#fffdf9;border:1px solid #dccaa6;border-left:5px solid #8d6a36;border-radius:14px;padding:24px 28px;box-shadow:0 8px 28px rgba(58,45,26,0.08);max-width:920px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span id="newsAdvisoryPill" style="display:inline-block;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;background:#fff1d6;color:#7a4f01">Official Advisory</span>
+        <span id="newsAdvisoryUpdated" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <h3 id="newsAdvisoryTitle" style="font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--dark);margin:0 0 10px">Loading service updates...</h3>
+      <p id="newsAdvisoryBody" style="margin:0;color:var(--text);font-size:15px;line-height:1.75;white-space:pre-line"></p>
+    </div>
+  </div>
+</section>
 
 <section id="offers">
   <div class="section-inner">
@@ -551,6 +569,11 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
 
 <section id="inquiry">
   <div class="section-inner">
+
+    <div id="inquiryAdvisoryBanner" style="display:none;max-width:780px;margin:0 auto 24px;background:#fff8eb;border:1px solid #d9b878;border-left:4px solid #8d6a36;border-radius:12px;padding:18px 22px;color:#3a2d1a">
+      <strong id="inquiryAdvisoryTitle" style="display:block;font-size:16px;margin-bottom:6px"></strong>
+      <p id="inquiryAdvisoryMessage" style="margin:0;font-size:14px;line-height:1.65;white-space:pre-line"></p>
+    </div>
 
     <div id="inquiryLoginGate" class="inquiry-login-gate reveal reveal-delay-4" style="display:none">
       <button type="button" class="inquiry-login-gate-btn" onclick="window.location.href='/customer-login'">Book Now</button>
@@ -886,12 +909,13 @@ async function loadPackages() {
            </div>`
         : '<div class="pkg-dish-empty">&#127869; Menu details coming soon</div>';
 
+      const paxCount = Number(p.max_guests) || Number(p.min_guests) || 0;
       return `<div class="promo-package${featured}">
         <div class="promo-header">
           <span class="pax">${p.name}</span>
           <span class="price">&#8369;${Number(p.price).toLocaleString('en-PH')}</span>
         </div>
-        <div class="pkg-min-guests">Min. ${p.min_guests} guests${Number(p.max_guests) ? ` &middot; Max. ${p.max_guests} guests` : ''}</div>
+        ${paxCount ? `<div class="pkg-min-guests">${paxCount} pax</div>` : ''}
         ${assetStrip}
         ${freebieStrip}
         <div class="pkg-divider"></div>
@@ -903,9 +927,10 @@ async function loadPackages() {
   
   const sel = document.getElementById('guest-count');
   sel.innerHTML = '<option value="">Select a package...</option>' +
-    customerPackages.map(p =>
-      `<option value="${p.name}" data-price="${p.price}" data-min="${p.min_guests || 0}" data-max="${p.max_guests || 0}">${p.name} — Min. ${p.min_guests} guests${Number(p.max_guests) ? `, Max. ${p.max_guests}` : ''} (&#8369;${Number(p.price).toLocaleString('en-PH')})</option>`
-    ).join('');
+    customerPackages.map(p => {
+      const paxCount = Number(p.max_guests) || Number(p.min_guests) || 0;
+      return `<option value="${p.name}" data-price="${p.price}" data-max="${paxCount}">${p.name}${paxCount ? ` — ${paxCount} pax` : ''} (&#8369;${Number(p.price).toLocaleString('en-PH')})</option>`;
+    }).join('');
 }
 
 
@@ -924,11 +949,10 @@ function fieldMsg(inputId, msgId, text) {
 function checkGuests() {
   const opt = packageSelect.options[packageSelect.selectedIndex];
   const input = document.getElementById('guests');
-  const min = Number(opt?.dataset?.min || 0), max = Number(opt?.dataset?.max || 0), v = Number(input.value);
+  const max = Number(opt?.dataset?.max || 0), v = Number(input.value);
   let text = '';
   if (input.value !== '' && (!Number.isInteger(v) || v < 1)) text = 'Enter a whole number of guests.';
-  else if (max && v > max) text = `${opt.value} allows a maximum of ${max} guests.`;
-  else if (min && input.value !== '' && v < min) text = `${opt.value} requires at least ${min} guests.`;
+  else if (max && v > max) text = `${opt.value} accommodates up to ${max} pax.`;
   return fieldMsg('guests', 'guests-msg', text);
 }
 function checkEmailField() {
@@ -1270,6 +1294,51 @@ function custCalSelectDay(dateStr) {
 loadCustCalBookings();
 
 setInterval(loadCustCalBookings, 2 * 60 * 1000);
+
+async function loadBookingAdvisory() {
+  const titleEl = document.getElementById('newsAdvisoryTitle');
+  const bodyEl = document.getElementById('newsAdvisoryBody');
+  const pillEl = document.getElementById('newsAdvisoryPill');
+  const updEl = document.getElementById('newsAdvisoryUpdated');
+  const formBanner = document.getElementById('inquiryAdvisoryBanner');
+  const formTitle = document.getElementById('inquiryAdvisoryTitle');
+  const formMsg = document.getElementById('inquiryAdvisoryMessage');
+  const submitBtn = document.getElementById('submit-btn');
+  try {
+    const res = await fetch('/settings/booking-advisory', { cache: 'no-store' });
+    const adv = await res.json();
+    if (adv && adv.active) {
+      if (pillEl) { pillEl.textContent = 'Booking Advisory · Temporarily Unavailable'; pillEl.style.background = '#fde8e8'; pillEl.style.color = '#9b1c1c'; }
+      if (titleEl) titleEl.textContent = adv.title || 'Online Reservation Notice — Temporarily Unavailable';
+      if (bodyEl) bodyEl.textContent = adv.message || '';
+      if (formBanner) formBanner.style.display = 'block';
+      if (formTitle) formTitle.textContent = adv.title || 'Online Reservation Notice — Temporarily Unavailable';
+      if (formMsg) formMsg.textContent = adv.message || '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        const txt = submitBtn.querySelector('.btn-text');
+        if (txt) txt.textContent = 'Online Bookings Temporarily Unavailable';
+      }
+    } else {
+      if (pillEl) { pillEl.textContent = 'Service Update · Open for Reservations'; pillEl.style.background = '#e6f4ea'; pillEl.style.color = '#1e6b34'; }
+      if (titleEl) titleEl.textContent = 'Online Reservations Are Now Open';
+      if (bodyEl) bodyEl.textContent = 'We are pleased to welcome new catering and event setup reservations. Select your preferred package, verify available dates in our Event Calendar, and submit your booking request at least 3 days ahead of your event.';
+      if (formBanner) formBanner.style.display = 'none';
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        const txt = submitBtn.querySelector('.btn-text');
+        if (txt) txt.textContent = '\u2709 Send Booking Request';
+      }
+    }
+    if (updEl && adv?.updatedAt) {
+      updEl.textContent = 'Updated ' + new Date(adv.updatedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+  } catch (e) {
+    if (titleEl) titleEl.textContent = 'Nard’s Catering & Setup Updates';
+    if (bodyEl) bodyEl.textContent = 'Please check back shortly or contact our coordination team at +63 9477604320 for current booking availability.';
+  }
+}
+loadBookingAdvisory();
 
 
 const eventDateInput = document.getElementById('event-date');
@@ -2064,9 +2133,9 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
       loadCustCalBookings(); 
       renderCustomerBookings();
       if (result.awaitingPayment) {
-        showPopup('warning', 'Payment required within 24 hours', 'Your booking is Pending. Please settle the payment through the GCash QR within 24 hours so our staff can confirm it, or the booking will be cancelled automatically.');
+        showPopup('warning', 'Booking submitted — payment required within 24 hours', `Your booking is Pending. ${result.followUpOtpSent ? 'A follow-up email with your booking details and verification OTP has been sent to your Gmail. ' : ''}Please settle the payment through the GCash QR within 24 hours so our staff can confirm it, or the booking will be cancelled automatically.`);
       } else {
-        showPopup('success', 'Booking submitted', 'Your payment proof is being verified by our staff.');
+        showPopup('success', 'Booking submitted', `${result.followUpOtpSent ? 'A follow-up email with your booking details and verification OTP has been sent to your Gmail. ' : ''}Your payment proof is being verified by our staff.`);
       }
       setTimeout(() => {
         btn.disabled = false;
