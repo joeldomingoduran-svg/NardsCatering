@@ -489,8 +489,15 @@
         </select>
       </div>
       <div class="form-group"><label>Event Date *</label><input id="bk-date" type="date"></div>
-      <div class="form-group"><label>Event Time</label><input id="bk-time" type="time"></div>
-      <div class="form-group"><label>Number of Guests *</label><input id="bk-guests" type="number" min="1" step="1" placeholder="Select a package first"></div>
+      <div class="form-group"><label>Event Time * <small>(8:00 AM - 6:00 PM)</small></label>
+        <input id="bk-time" type="text" list="bk-hours-list" placeholder="e.g. 9:00 AM, 2:00 PM" autocomplete="off">
+        <datalist id="bk-hours-list">
+          <option value="8:00 AM"><option value="9:00 AM"><option value="10:00 AM"><option value="11:00 AM">
+          <option value="12:00 PM"><option value="1:00 PM"><option value="2:00 PM"><option value="3:00 PM">
+          <option value="4:00 PM"><option value="5:00 PM"><option value="6:00 PM">
+        </datalist>
+      </div>
+      <div class="form-group"><label>Additional Guests <small>(Optional &middot; &#8369;350/pax)</small></label><input id="bk-addguests" type="number" min="0" step="1" placeholder="0 (optional)"><input id="bk-guests" type="hidden" value="0"></div>
       <div class="form-group"><label>Package</label><select id="bk-package"><option value="">Select package...</option></select></div>
       <div class="form-group"><label>Venue</label><input id="bk-venue" type="text" placeholder="Event venue address"></div>
       <div class="form-group"><label>Package Price (₱)</label><input id="bk-pkgprice" type="number" readonly placeholder="Auto-filled from package"></div>
@@ -1032,7 +1039,7 @@ async function syncFromAPI() {
         if (Object.keys(pay).some(key => existing[key] !== pay[key])) {
           Object.assign(existing, pay); changed = true;
         }
-        const total = price + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
         if (Number(existing.amount) !== total) { existing.amount = total; changed = true; }
         if (Number(existing.dp) !== Math.round(total * 0.2)) { existing.dp = Math.round(total * 0.2); changed = true; }
         const freshTeam = Array.isArray(row.assignedEmployees) ? row.assignedEmployees : [];
@@ -1041,7 +1048,7 @@ async function syncFromAPI() {
         }
       } else {
         const pay = paymentFieldsFromRow(row);
-        const total = price + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
         data.bookings.push({
           id:      apiId,
           client:  row.clientName  || '',
@@ -1195,6 +1202,7 @@ function paymentFieldsFromRow(row) {
     paymentProof: row.paymentProof || '',
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
+    addGuests: Number(row.additional_guests) || 0,
     paid: String(row.paymentStatus || '').toLowerCase() === 'paid',
     requestType: row.requestType || '',
     requestReason: row.requestReason || '',
@@ -1455,9 +1463,11 @@ async function saveBooking() {
   const client = document.getElementById('bk-client').value.trim();
   const event  = document.getElementById('bk-event').value;
   const date   = document.getElementById('bk-date').value;
-  const guests = document.getElementById('bk-guests').value;
+  const addGuestsEl = document.getElementById('bk-addguests');
+  const addGuests = addGuestsEl ? Math.max(0, parseInt(addGuestsEl.value, 10) || 0) : 0;
+  const guests = document.getElementById('bk-guests')?.value;
   const amount = document.getElementById('bk-amount').value;
-  if (!client || !event || !date || !guests || !amount) { notify('Please fill all required fields', '⚠️'); return; }
+  if (!client || !event || !date || (!addGuestsEl && !guests) || !amount) { notify('Please fill all required fields', '⚠️'); return; }
   if (!window.isRealName(client)) { notify('Enter the client\'s real full name.', '⚠️'); return; }
   if (!/^\d{11}$/.test(document.getElementById('bk-phone').value.trim())) { notify('Contact number must be exactly 11 digits.', '⚠️'); return; }
 
@@ -1470,7 +1480,8 @@ async function saveBooking() {
     email:   document.getElementById('bk-email').value.trim(),
     event, date,
     time:    document.getElementById('bk-time').value,
-    guests:  parseInt(guests),
+    guests:  parseInt(guests, 10) || addGuests || 1,
+    ...(addGuestsEl ? { addGuests } : {}),
     package: document.getElementById('bk-package').value,
     venue:   document.getElementById('bk-venue').value.trim(),
     amount:  parseFloat(amount),
@@ -1497,6 +1508,7 @@ async function saveBooking() {
           phone: booking.phone,
           email: booking.email,
           guests: booking.guests,
+          ...(addGuestsEl ? { additionalGuests: addGuests } : {}),
           additionalRequest: booking.addReq,
           additionalCost: booking.addCost,
           notes: booking.notes

@@ -8,17 +8,19 @@
   var esc = function (v) { return window.NardsUI ? window.NardsUI.esc(v) : String(v); };
 
   window.createSharedBooking = async function (booking) {
+    var payload = {
+      clientName: booking.client, address: booking.venue, eventType: booking.event,
+      package: booking.package, eventDate: booking.date, eventTime: booking.time,
+      phone: booking.phone, email: booking.email, guests: booking.guests,
+      notes: booking.notes, additionalRequest: booking.addReq, additionalCost: booking.addCost
+    };
+    if (booking.addGuests !== undefined) payload.additionalGuests = booking.addGuests;
     var response;
     try {
       response = await fetch('/bookings/internal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientName: booking.client, address: booking.venue, eventType: booking.event,
-          package: booking.package, eventDate: booking.date, eventTime: booking.time,
-          phone: booking.phone, email: booking.email, guests: booking.guests,
-          notes: booking.notes, additionalRequest: booking.addReq, additionalCost: booking.addCost
-        })
+        body: JSON.stringify(payload)
       });
     } catch (error) {
       console.error('Booking submission failed:', error);
@@ -121,25 +123,50 @@
     return ok;
   }
 
+  function parseBusinessTime(rawVal) {
+    var raw = String(rawVal || '').trim().toLowerCase();
+    if (!raw) return null;
+    var h, mm = 0;
+    var m24 = /^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(raw);
+    if (m24 && !/(am|pm)$/.test(raw)) {
+      h = Number(m24[1]);
+      mm = Number(m24[2]);
+    } else {
+      var m12 = /^(\d{1,2})(?::([0-5]\d))?\s*(am|pm)?$/.exec(raw);
+      if (!m12) return null;
+      h = Number(m12[1]);
+      mm = Number(m12[2] || 0);
+      var mer = m12[3];
+      if (mer === 'am') { if (h === 12) h = 0; }
+      else if (mer === 'pm') { if (h < 12) h += 12; }
+      else if (h >= 1 && h <= 6) { h += 12; }
+    }
+    var mins = h * 60 + mm;
+    if (mins < toMinutes(OPEN) || mins > toMinutes(CLOSE)) return null;
+    return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+  }
+
   function checkTime(show) {
     var input = $('bk-time');
     if (!input) return true;
     var message = '';
-    if (!input.value) {
-      message = 'Select the event time.';
+    var normalized = parseBusinessTime(input.value);
+    if (!input.value || !String(input.value).trim()) {
+      message = 'Enter the event time (8:00 AM - 6:00 PM).';
+    } else if (!normalized) {
+      message = 'Event time must be between ' + fmt12(OPEN) + ' and ' + fmt12(CLOSE) + ' (e.g. 9:00 AM, 2:00 PM).';
     } else {
-      var m = toMinutes(input.value);
-      if (!(m >= toMinutes(OPEN) && m <= toMinutes(CLOSE))) message = 'Event time must be within business hours (' + fmt12(OPEN) + ' - ' + fmt12(CLOSE) + '). Midnight is not available.';
-      else if (m % 30 !== 0) message = 'Choose a 30-minute slot, for example 10:00 or 10:30.';
-      else if (checkDate(false) && $('bk-date').value === todayStr() && m <= new Date().getHours() * 60 + new Date().getMinutes()) message = 'That time has already passed today.';
-      else if (slotTaken()) message = 'This time slot is already booked for the selected date. Choose another time.';
+      if (show) input.value = normalized;
+      var m = toMinutes(normalized);
+      if (checkDate(false) && $('bk-date').value === todayStr() && m <= new Date().getHours() * 60 + new Date().getMinutes()) message = 'That time has already passed today.';
+      else if (slotTaken(normalized)) message = 'This time slot is already booked for the selected date. Choose another time.';
     }
     if (show || !message) setError(input, message);
     return !message;
   }
 
-  function slotTaken() {
-    var date = $('bk-date').value, time = $('bk-time').value, own = editingBooking();
+  function slotTaken(timeVal) {
+    var date = $('bk-date').value, time = timeVal || parseBusinessTime($('bk-time').value) || $('bk-time').value, own = editingBooking();
     if (!date || !time) return false;
     try {
       return data.bookings.some(function (b) {
@@ -148,16 +175,20 @@
     } catch (e) { return false; }
   }
 
-  function checkGuests(show, clamp) {
+  function checkGuests(show) {
+    var addEl = $('bk-addguests');
+    if (addEl) {
+      var raw = String(addEl.value || '').trim();
+      var val = Number(raw);
+      var msg = raw !== '' && (!Number.isInteger(val) || val < 0) ? 'Additional guests must be 0 or a whole number.' : '';
+      if (show || !msg) setError(addEl, msg);
+      return !msg;
+    }
     var input = $('bk-guests');
     if (!input || input.tagName === 'SELECT') return true;
-    var pkg = selectedPackage(), max = maxGuests(pkg), value = Number(input.value);
+    var value = Number(input.value);
     var message = '';
-    if (input.value !== '' && (!Number.isInteger(value) || value < 1)) message = 'Enter a whole number of guests (1 or more).';
-    else if (max && value > max) {
-      message = (pkg.name + ' allows a maximum of ' + max + ' guests.');
-      if (clamp) input.value = max;
-    }
+    if (input.value !== '' && (!Number.isInteger(value) || value < 0)) message = 'Enter a whole number of guests.';
     if (show || !message) setError(input, message);
     return !message;
   }
@@ -168,21 +199,28 @@
     if (!priceEl || !totalEl) return;
     var pkg = selectedPackage();
     var price = pkg ? Number(pkg.price) || 0 : 0;
+    var addEl = $('bk-addguests');
+    var addGuests = addEl ? Math.max(0, Math.trunc(Number(addEl.value) || 0)) : 0;
+    var basePax = pkg ? (Number(pkg.max_guests || pkg.maxGuests || pkg.min_guests || pkg.minGuests || 0) || 0) : 0;
+    if (addEl && $('bk-guests')) {
+      $('bk-guests').value = pkg ? (basePax + addGuests || 1) : (addGuests || 0);
+    }
+    var guestExtraFee = addGuests * 350;
     var extra = Math.max(0, Number($('bk-addcost') && $('bk-addcost').value) || 0);
-    priceEl.value = pkg ? price : '';
-    var total = pkg ? price + extra : '';
+    var adjustedPkgPrice = pkg ? (price + guestExtraFee) : '';
+    priceEl.value = adjustedPkgPrice;
+    var total = pkg ? (adjustedPkgPrice + extra) : '';
     totalEl.value = total;
     // Down payment follows the customer rule: 20% of the total.
     if ($('bk-dp')) $('bk-dp').value = total === '' ? '' : Math.round(total * 0.2);
   }
 
   function onPackageChange() {
-    var pkg = selectedPackage(), guests = $('bk-guests'), max = maxGuests(pkg);
-    if (guests && guests.tagName !== 'SELECT') {
-      if (max) guests.setAttribute('max', max); else guests.removeAttribute('max');
-      var min = pkg ? Number(pkg.min_guests || pkg.minGuests || 0) : 0;
-      hint(guests, pkg ? ('Package guests: ' + (min ? 'min ' + min : 'any') + (max ? ', max ' + max : ', no maximum')) : 'Select a package to see its guest limit.');
-      checkGuests(true, true);
+    var pkg = selectedPackage(), addEl = $('bk-addguests');
+    if (addEl) {
+      var basePax = pkg ? (Number(pkg.max_guests || pkg.maxGuests || pkg.min_guests || pkg.minGuests || 0) || 0) : 0;
+      hint(addEl, pkg ? ('Includes ' + (basePax ? basePax + ' pax' : 'package capacity') + '. Optional extra guests: \u20b1350/person.') : 'Optional additional guests (\u20b1350 per person).');
+      checkGuests(false);
     }
     recalc();
   }
@@ -191,10 +229,10 @@
   function prepareFields() {
     var date = $('bk-date'), time = $('bk-time');
     if (date) date.min = todayStr();
-    if (time) { time.min = OPEN; time.max = CLOSE; time.step = 1800; hint(time, 'Business hours: ' + fmt12(OPEN) + ' - ' + fmt12(CLOSE) + ' (30-minute slots).'); }
+    if (time) { hint(time, 'Type or choose a time between ' + fmt12(OPEN) + ' and ' + fmt12(CLOSE) + '.'); }
     var email = $('bk-email');
     if (email) email.setAttribute('autocomplete', 'off');
-    ['bk-date', 'bk-time', 'bk-guests', 'bk-email', 'bk-package', 'bk-addcost'].forEach(function (id) {
+    ['bk-date', 'bk-time', 'bk-addguests', 'bk-guests', 'bk-email', 'bk-package', 'bk-addcost'].forEach(function (id) {
       var el = $(id);
       if (el) el.classList.remove('invalid');
     });
@@ -203,12 +241,13 @@
   }
 
   function bind() {
-    var map = { 'bk-date': ['change', function () { checkDate(true); checkTime(false); }], 'bk-time': ['change', function () { checkTime(true); }],
-      'bk-guests': ['input', function () { checkGuests(true, true); }], 'bk-email': ['blur', function () { checkEmail(true); }],
+    var map = { 'bk-date': ['change', function () { checkDate(true); checkTime(false); }], 'bk-time': ['blur', function () { checkTime(true); }],
+      'bk-addguests': ['input', function () { checkGuests(true); recalc(); }],
+      'bk-guests': ['input', function () { checkGuests(true); }], 'bk-email': ['blur', function () { checkEmail(true); }],
       'bk-package': ['change', onPackageChange], 'bk-addcost': ['input', recalc] };
     Object.keys(map).forEach(function (id) { if ($(id)) $(id).addEventListener(map[id][0], map[id][1]); });
     if ($('bk-email')) $('bk-email').addEventListener('input', function () { if (this.classList.contains('invalid')) checkEmail(true); });
-    if ($('bk-time')) $('bk-time').addEventListener('input', function () { if (this.classList.contains('invalid')) checkTime(true); });
+    if ($('bk-time')) $('bk-time').addEventListener('input', function () { if (this.classList.contains('invalid')) checkTime(false); });
     ['bk-amount', 'bk-dp', 'bk-pkgprice'].forEach(function (id) { if ($(id)) $(id).readOnly = true; });
   }
 
@@ -219,9 +258,12 @@
       prepareFields();
       var b = editingBooking();
       if (b) {
+        if ($('bk-addguests')) $('bk-addguests').value = b.addGuests || '';
         if ($('bk-addreq')) $('bk-addreq').value = b.addReq || '';
         if ($('bk-addcost')) $('bk-addcost').value = b.addCost || '';
         recalc();
+      } else if ($('bk-addguests')) {
+        $('bk-addguests').value = '';
       }
       return result;
     };

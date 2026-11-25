@@ -17,13 +17,18 @@
   <button type="button" class="brand" id="brand-toggle" title="Show or hide the menu" aria-expanded="true"><span class="brand-name">Nards<span>.</span></span><small>Admin</small></button>
   <nav class="tabs">
     <button class="nav-item active" onclick="navigate('dashboard')">Dashboard</button>
+    <button class="nav-item" onclick="navigate('bookings')">Bookings</button>
+    <button class="nav-item" onclick="navigate('calendar')">Calendar</button>
     <button class="nav-item" onclick="navigate('clients')">Clients</button>
     <button class="nav-item" onclick="navigate('inventory')">Inventory</button>
+    <button class="nav-item" onclick="navigate('menu')">Menu Packages</button>
+    <button class="nav-item" onclick="navigate('assets')">Catering Assets</button>
+    <button class="nav-item" onclick="navigate('dishes')">Dishes</button>
     <button class="nav-item" onclick="navigate('reports')">Reports</button>
-        <button class="nav-item" onclick="navigate('audit')">Audit Trail</button>
+    <button class="nav-item" onclick="navigate('audit')">Audit Trail</button>
     <button class="nav-item" onclick="navigate('logins')">Login Activity</button>
     <button class="nav-item" onclick="navigate('staff')">Users &amp; Settings</button>
-    <button class="nav-item" onclick="navigate('employees')">Employees</button>
+    <button class="nav-item" onclick="navigate('employees')">Staff Management</button>
     <button class="nav-item" onclick="navigate('roles')">Roles &amp; Permissions</button>
     <button class="nav-item" onclick="navigate('dropdowns')">Dropdown Library</button>
   </nav>
@@ -287,15 +292,22 @@
         <div class="form-row">
           <div class="form-group"><label for="staff-name">Full Name</label><input id="staff-name" type="text" placeholder="Staff name"></div>
           <div class="form-group"><label for="staff-username">Username</label><input id="staff-username" type="text" placeholder="staff.username"></div>
-          <div class="form-group"><label for="staff-password">Password</label><input id="staff-password" type="password" placeholder="At least 6 characters"></div>
+          <div class="form-group"><label for="staff-password">Password</label><input id="staff-password" type="password" placeholder="At least 10 characters"></div>
           <div class="form-group"><label for="staff-role">Account Role</label><select id="staff-role"><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
+          <div class="form-group"><label for="staff-job-role">Staff Designation / Work Role *</label>
+            <input id="staff-job-role" type="text" list="staff-job-suggestions" maxlength="60" placeholder="Type role e.g. Cook, Server, Driver">
+            <datalist id="staff-job-suggestions">
+              <option value="Cook"><option value="Assistant Cook"><option value="Server"><option value="Waiter">
+              <option value="Driver"><option value="Event Coordinator"><option value="Setup Crew">
+            </datalist>
+          </div>
         </div>
         <button class="btn btn-primary" onclick="createStaffUser()">Create Account</button>
       </div>
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Designation</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody id="staff-users-tbody"></tbody>
           </table>
         </div>
@@ -304,7 +316,7 @@
 
     <div class="view" id="view-employees">
       <div class="section-header" style="justify-content:flex-end">
-        <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add employee</button>
+        <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Staff Member</button>
       </div>
       <div class="search-bar">
         <input type="text" id="employee-search" placeholder="Search name or address..." oninput="filterEmployees()">
@@ -512,8 +524,15 @@
         </select>
       </div>
       <div class="form-group"><label>Event Date *</label><input id="bk-date" type="date"></div>
-      <div class="form-group"><label>Event Time</label><input id="bk-time" type="time"></div>
-      <div class="form-group"><label>Number of Guests *</label><input id="bk-guests" type="number" min="1" placeholder="100"></div>
+      <div class="form-group"><label>Event Time * <small>(8:00 AM - 6:00 PM)</small></label>
+        <input id="bk-time" type="text" list="bk-hours-list" placeholder="e.g. 9:00 AM, 2:00 PM" autocomplete="off">
+        <datalist id="bk-hours-list">
+          <option value="8:00 AM"><option value="9:00 AM"><option value="10:00 AM"><option value="11:00 AM">
+          <option value="12:00 PM"><option value="1:00 PM"><option value="2:00 PM"><option value="3:00 PM">
+          <option value="4:00 PM"><option value="5:00 PM"><option value="6:00 PM">
+        </datalist>
+      </div>
+      <div class="form-group"><label>Additional Guests <small>(Optional &middot; &#8369;350/pax)</small></label><input id="bk-addguests" type="number" min="0" step="1" placeholder="0 (optional)"><input id="bk-guests" type="hidden" value="0"></div>
       <div class="form-group"><label>Package</label><select id="bk-package"><option value="">Select package...</option></select></div>
       <div class="form-group"><label>Venue</label><input id="bk-venue" type="text" placeholder="Event venue address"></div>
       <div class="form-group"><label>Package Price (₱)</label><input id="bk-pkgprice" type="number" readonly placeholder="Auto-filled from package"></div>
@@ -1052,12 +1071,12 @@ async function syncFromAPI() {
         if (Object.keys(pay).some(key => existing[key] !== pay[key])) {
           Object.assign(existing, pay); changed = true;
         }
-        const total = price + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
         if (Number(existing.amount) !== total) { existing.amount = total; changed = true; }
         if (Number(existing.dp) !== Math.round(total * 0.2)) { existing.dp = Math.round(total * 0.2); changed = true; }
       } else {
         const pay = paymentFieldsFromRow(row);
-        const total = price + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
         data.bookings.push({
           id:      apiId,
           client:  row.clientName  || '',
@@ -1290,7 +1309,7 @@ function navigate(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
-  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', sales:'Sales Analytics', audit:'Audit Trail', logins:'Login Activity', staff:'Users & Settings', profile:'My Admin Profile', employees:'Employees', roles:'Roles & Permissions', dropdowns:'Dropdown Library' };
+  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', sales:'Sales Analytics', audit:'Audit Trail', logins:'Login Activity', staff:'Users & Settings', profile:'My Admin Profile', employees:'Staff Management', roles:'Roles & Permissions', dropdowns:'Dropdown Library' };
   document.getElementById('pageTitle').textContent = titles[view] || view;
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + view + "'")) n.classList.add('active');
@@ -1363,6 +1382,7 @@ function paymentFieldsFromRow(row) {
     paymentProof: row.paymentProof || '',
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
+    addGuests: Number(row.additional_guests) || 0,
     paid: String(row.paymentStatus || '').toLowerCase() === 'paid'
   };
 }
@@ -1409,6 +1429,7 @@ async function loadStaffUsers() {
         <td>${user.name}</td>
         <td>${user.username}</td>
         <td>${user.role}</td>
+        <td>${auditEscape(user.job_role || '-')}</td>
         <td>${user.is_active ? 'Active' : 'Disabled'}</td>
         <td>
           ${user.role !== 'admin' ? `
@@ -1420,7 +1441,7 @@ async function loadStaffUsers() {
       </tr>
     `).join('');
   } catch (error) {
-    tbody.innerHTML = `<tr><td colspan="5">${error.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6">${error.message}</td></tr>`;
   }
 }
 
@@ -1428,11 +1449,16 @@ async function createStaffUser() {
   if (!window.isRealName(document.getElementById('staff-name').value)) {
     return notify('Enter the staff member\'s real full name.', '⚠️');
   }
+  const jobRole = (document.getElementById('staff-job-role')?.value || '').trim();
+  if (!jobRole) {
+    return notify('Type the staff designation (e.g. Cook, Server, Driver).', '⚠️');
+  }
   const body = {
     name: document.getElementById('staff-name').value.trim(),
     username: document.getElementById('staff-username').value.trim(),
     password: document.getElementById('staff-password').value,
-    role: document.getElementById('staff-role').value
+    role: document.getElementById('staff-role').value,
+    jobRole
   };
   const response = await fetch('/staff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const result = await response.json();
@@ -1440,8 +1466,10 @@ async function createStaffUser() {
   document.getElementById('staff-name').value = '';
   document.getElementById('staff-username').value = '';
   document.getElementById('staff-password').value = '';
-  notify('Staff account created.', '✅');
+  if (document.getElementById('staff-job-role')) document.getElementById('staff-job-role').value = '';
+  notify(`Staff account created and tagged as "${jobRole}".`, '✅');
   loadStaffUsers();
+  if (typeof window.loadEmployees === 'function') window.loadEmployees();
 }
 
 async function editStaffUser(id, currentName) {
@@ -1597,9 +1625,11 @@ async function saveBooking() {
   const client = document.getElementById('bk-client').value.trim();
   const event  = document.getElementById('bk-event').value;
   const date   = document.getElementById('bk-date').value;
-  const guests = document.getElementById('bk-guests').value;
+  const addGuestsEl = document.getElementById('bk-addguests');
+  const addGuests = addGuestsEl ? Math.max(0, parseInt(addGuestsEl.value, 10) || 0) : 0;
+  const guests = document.getElementById('bk-guests')?.value;
   const amount = document.getElementById('bk-amount').value;
-  if (!client || !event || !date || !guests || !amount) { notify('Please fill all required fields', '⚠️'); return; }
+  if (!client || !event || !date || (!addGuestsEl && !guests) || !amount) { notify('Please fill all required fields', '⚠️'); return; }
   if (!window.isRealName(client)) { notify('Enter the client\'s real full name.', '⚠️'); return; }
   if (!/^\d{11}$/.test(document.getElementById('bk-phone').value.trim())) { notify('Contact number must be exactly 11 digits.', '⚠️'); return; }
 
@@ -1612,7 +1642,8 @@ async function saveBooking() {
     email:   document.getElementById('bk-email').value.trim(),
     event, date,
     time:    document.getElementById('bk-time').value,
-    guests:  parseInt(guests),
+    guests:  parseInt(guests, 10) || addGuests || 1,
+    ...(addGuestsEl ? { addGuests } : {}),
     package: document.getElementById('bk-package').value,
     venue:   document.getElementById('bk-venue').value.trim(),
     amount:  parseFloat(amount),
@@ -1653,6 +1684,7 @@ async function saveBooking() {
           phone:      booking.phone,
           email:      booking.email,
           guests:     booking.guests,
+          ...(addGuestsEl ? { additionalGuests: addGuests } : {}),
           additionalRequest: booking.addReq,
           additionalCost: booking.addCost,
           notes:      booking.notes
@@ -3312,7 +3344,7 @@ fetchPackages().then(() => syncInventoryFromAPI()).then(() => syncFromAPI()).the
 });
 </script>
 <script src="/Admin/password-toggle.js"></script>
-<div class="modal-overlay" id="employee-modal"><div class="modal role-modal-card"><div class="modal-title"><span id="employee-modal-title">Add employee</span><button class="modal-close" onclick="closeModal('employee-modal')">✕</button></div><div class="form-group"><label>Name *</label><input id="employee-name" maxlength="120"></div><div class="form-row"><div class="form-group"><label>Age *</label><input id="employee-age" type="number" min="15" max="100"></div><div class="form-group"><label>Job role *</label><input id="employee-job-role" maxlength="60" placeholder="Cook, Driver, Server"></div></div><div class="form-group"><label>Address *</label><textarea id="employee-address" maxlength="255"></textarea></div><div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('employee-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEmployee()">Save employee</button></div></div></div>
+<div class="modal-overlay" id="employee-modal"><div class="modal role-modal-card"><div class="modal-title"><span id="employee-modal-title">Add Staff Member</span><button class="modal-close" onclick="closeModal('employee-modal')">✕</button></div><div class="form-group"><label>Name *</label><input id="employee-name" maxlength="120"></div><div class="form-row"><div class="form-group"><label>Age *</label><input id="employee-age" type="number" min="15" max="100"></div><div class="form-group"><label>Job role *</label><input id="employee-job-role" maxlength="60" placeholder="Cook, Driver, Server"></div></div><div class="form-group"><label>Address *</label><textarea id="employee-address" maxlength="255"></textarea></div><div class="modal-actions"><button class="btn btn-outline" onclick="closeModal('employee-modal')">Cancel</button><button class="btn btn-primary" onclick="saveEmployee()">Save Staff Member</button></div></div></div>
 <script src="/Admin/booking-form.js"></script>
 <script src="/Admin/employees.js"></script>
 <script src="/Admin/portal-ui.js"></script>

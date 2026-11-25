@@ -10,6 +10,7 @@ function publicUser(user) {
     name: user.name,
     username: user.username,
     role: user.role,
+    job_role: user.job_role || null,
     profileImage: user.profileImage || null,
     is_active: Boolean(user.is_active),
     created_at: user.created_at
@@ -114,9 +115,16 @@ exports.changeOwnPassword = async (req, res) => {
 
 exports.getUsers = async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT id, name, username, role, profileImage, is_active, created_at FROM StaffUsers ORDER BY role DESC, id ASC'
-    );
+    let rows;
+    try {
+      [rows] = await pool.query(
+        'SELECT id, name, username, role, job_role, profileImage, is_active, created_at FROM StaffUsers ORDER BY role DESC, id ASC'
+      );
+    } catch (e) {
+      [rows] = await pool.query(
+        'SELECT id, name, username, role, profileImage, is_active, created_at FROM StaffUsers ORDER BY role DESC, id ASC'
+      );
+    }
     res.json(rows.map(publicUser));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -125,7 +133,8 @@ exports.getUsers = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { name, username, password, role = 'staff' } = req.body;
+    const { name, username, password, role = 'staff', jobRole } = req.body;
+    const cleanJobRole = String(jobRole || '').trim().slice(0, 60);
     if (!name || !username || !password) return res.status(400).json({ error: 'Name, username, and password are required.' });
     const [roleRows] = await pool.query('SELECT role FROM role_definitions WHERE role = ? AND is_active = 1 LIMIT 1', [role]);
     if (!roleRows.length || role === 'admin') return res.status(400).json({ error: 'Choose an active non-administrator role.' });
@@ -140,10 +149,27 @@ exports.createUser = async (req, res) => {
       'INSERT INTO StaffUsers (name, username, password, role, is_active) VALUES (?, ?, ?, ?, 1)',
       [String(name).trim(), String(username).trim(), hashedPassword, role]
     );
+    if (cleanJobRole) {
+      try {
+        await pool.query('UPDATE StaffUsers SET job_role = ? WHERE id = ?', [cleanJobRole, result.insertId]);
+      } catch (e) {}
+      try {
+        const [empExisting] = await pool.query('SELECT id FROM employees WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1', [name]);
+        if (empExisting.length) {
+          await pool.query('UPDATE employees SET job_role = ?, is_active = 1, updated_at = NOW() WHERE id = ?', [cleanJobRole, empExisting[0].id]);
+        } else {
+          await pool.query(
+            'INSERT INTO employees (name, age, address, job_role, is_active) VALUES (?, 18, ?, ?, 1) RETURNING id',
+            [String(name).trim(), 'Staff Account', cleanJobRole]
+          );
+        }
+      } catch (e) {}
+    }
     const [rows] = await pool.query(
       'SELECT id, name, username, role, is_active, created_at FROM StaffUsers WHERE id = ?',
       [result.insertId]
     );
+    if (rows[0] && cleanJobRole) rows[0].job_role = cleanJobRole;
     res.status(201).json({ message: 'Account created.', user: publicUser(rows[0]) });
   } catch (error) {
     res.status(error.code === 'ER_DUP_ENTRY' ? 409 : 500).json({

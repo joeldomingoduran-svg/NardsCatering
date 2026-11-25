@@ -23,14 +23,41 @@ const isElevenDigitPhone = (value) => /^09\d{9}$/.test(String(value || '').trim(
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(String(value || '').trim());
 
-// Events may start from opening time until closing time (Mon-Sat, 8:00 AM - 6:00 PM).
+// Events may start from opening time until closing time (8:00 AM - 6:00 PM).
 const OPENING_MINUTES = 8 * 60;
 const CLOSING_MINUTES = 18 * 60;
-function isWithinBusinessHours(time) {
-  const m = /^(\d{2}):(\d{2})/.exec(String(time || ''));
-  if (!m) return false;
-  const minutes = Number(m[1]) * 60 + Number(m[2]);
-  return minutes >= OPENING_MINUTES && minutes <= CLOSING_MINUTES;
+
+function parseBusinessTime(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return null;
+  const m24 = /^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(raw);
+  if (m24 && !/(am|pm)$/.test(raw)) {
+    const h = Number(m24[1]);
+    const mm = Number(m24[2]);
+    const mins = h * 60 + mm;
+    if (mins < OPENING_MINUTES || mins > CLOSING_MINUTES) return null;
+    return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  }
+  const m12 = /^(\d{1,2})(?::([0-5]\d))?\s*(am|pm)?$/.exec(raw);
+  if (!m12) return null;
+  let h = Number(m12[1]);
+  const mm = Number(m12[2] || 0);
+  const mer = m12[3];
+  if (mer === 'am') {
+    if (h === 12) h = 0;
+  } else if (mer === 'pm') {
+    if (h < 12) h += 12;
+  } else if (h >= 1 && h <= 6) {
+    h += 12;
+  }
+  if (h > 23 || mm > 59) return null;
+  const mins = h * 60 + mm;
+  if (mins < OPENING_MINUTES || mins > CLOSING_MINUTES) return null;
+  return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
-module.exports = { isRealName, isElevenDigitPhone, isValidEmail, isWithinBusinessHours };
+function isWithinBusinessHours(time) {
+  return parseBusinessTime(time) !== null;
+}
+
+module.exports = { isRealName, isElevenDigitPhone, isValidEmail, isWithinBusinessHours, parseBusinessTime };

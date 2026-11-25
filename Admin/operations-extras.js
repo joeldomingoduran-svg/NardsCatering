@@ -793,32 +793,36 @@
     card.style.padding = '18px';
     card.style.marginBottom = '16px';
     card.innerHTML =
-      '<h3 style="margin-top:0">Customer News &amp; Online Booking Advisory</h3>' +
-      '<p style="margin:0 0 12px;font-size:13px;color:var(--text-muted)">Control the News &amp; Advisories announcement on the customer site and pause or open online reservations.</p>' +
-      '<div class="form-group" style="margin-bottom:10px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input id="adv-active" type="checkbox" style="width:auto"> Show "Online Bookings Temporarily Unavailable" Advisory (Pause Customer Booking Form)</label></div>' +
+      '<h3 style="margin-top:0">Customer News &amp; Inventory-Linked Booking Advisory</h3>' +
+      '<p style="margin:0 0 12px;font-size:13px;color:var(--text-muted)">The unavailability notice on the customer site turns on <strong>automatically</strong> whenever active inventory stocks are empty, depleted, or insufficient for package ingredients. Customize the announcement text displayed when triggered below.</p>' +
+      '<div id="adv-live-status" style="margin-bottom:12px;padding:10px 14px;border-radius:8px;font-size:13px;background:#f8f4eb;border:1px solid #e6d7b8">Checking live inventory availability...</div>' +
       '<div class="form-group" style="margin-bottom:10px"><label for="adv-title">Advisory Headline</label><input id="adv-title" type="text" maxlength="140"></div>' +
       '<div class="form-group" style="margin-bottom:12px"><label for="adv-message">Professional Advisory Message</label><textarea id="adv-message" rows="4" maxlength="1500"></textarea></div>' +
-      '<button type="button" class="btn btn-primary" id="adv-save-btn">Save Advisory</button>';
+      '<button type="button" class="btn btn-primary" id="adv-save-btn">Save Advisory Text</button>';
     viewStaff.prepend(card);
 
     fetch(apiBase() + '/settings/booking-advisory', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (adv) {
         if (!adv) return;
-        document.getElementById('adv-active').checked = Boolean(adv.active);
+        const statusEl = document.getElementById('adv-live-status');
+        if (statusEl) {
+          statusEl.innerHTML = adv.active
+            ? '<strong style="color:#9b1c1c">Currently Showing Advisory to Customers:</strong> Inventory stocks are empty or insufficient (' + esc((adv.shortages || []).slice(0, 3).join(', ') || 'restock needed') + ').'
+            : '<strong style="color:#1e6b34">Online Reservations Open:</strong> All required inventory stocks are currently sufficient.';
+        }
         document.getElementById('adv-title').value = adv.title || '';
         document.getElementById('adv-message').value = adv.message || '';
       }).catch(function () {});
 
     document.getElementById('adv-save-btn').addEventListener('click', async function () {
-      const active = document.getElementById('adv-active').checked;
       const title = document.getElementById('adv-title').value.trim();
       const message = document.getElementById('adv-message').value.trim();
       try {
         const res = await fetch(apiBase() + '/settings/booking-advisory', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ active, title, message })
+          body: JSON.stringify({ active: false, title, message })
         });
         const out = await res.json().catch(function () { return {}; });
         if (window.notify) window.notify(res.ok ? (out.message || 'Advisory updated.') : (out.error || 'Could not save advisory.'), res.ok ? '✅' : '❌');

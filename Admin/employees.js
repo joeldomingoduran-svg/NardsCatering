@@ -28,7 +28,7 @@
   window.openEmployeeModal = function (id) {
     editingId = id || null;
     const e = employees.find((x) => x.id === id);
-    $('employee-modal-title').textContent = e ? 'Edit employee' : 'Add employee';
+    $('employee-modal-title').textContent = e ? 'Edit Staff Member' : 'Add Staff Member';
     $('employee-name').value = e?.name || ''; $('employee-age').value = e?.age || '';
     $('employee-address').value = e?.address || ''; $('employee-job-role').value = e?.job_role || '';
     openModal('employee-modal');
@@ -86,7 +86,7 @@
     const searchEl = $('bt-search');
     const actionsEl = $('bt-modal-actions');
 
-    titleEl.textContent = mode === 'confirm' ? 'Confirm Booking & Assign Employees' : 'Assigned Employees';
+    titleEl.textContent = mode === 'confirm' ? 'Confirm Booking & Assign Staff' : 'Assigned Staff Crew';
     subEl.textContent = `${booking.client || ''} — ${booking.event || 'Event'}${booking.date ? ' on ' + booking.date : ''}`;
     viewSec.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Loading assigned employees...</p>';
     editSec.style.display = 'none';

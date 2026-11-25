@@ -137,6 +137,12 @@ async function ensureExtraSchema() {
   if (!(await columnExists('Bookings', 'booking_otp'))) {
     await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS booking_otp varchar(12)');
   }
+  if (!(await columnExists('Bookings', 'additional_guests'))) {
+    await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS additional_guests integer NOT NULL DEFAULT 0');
+  }
+  if (!(await columnExists('StaffUsers', 'job_role'))) {
+    await pool.query('ALTER TABLE StaffUsers ADD COLUMN IF NOT EXISTS job_role varchar(60)');
+  }
   if (!(await columnExists('Inventory', 'is_perishable'))) {
     await pool.query("ALTER TABLE Inventory ADD COLUMN IF NOT EXISTS category varchar(80) NOT NULL DEFAULT 'Other'");
     await pool.query("ALTER TABLE Inventory ADD COLUMN IF NOT EXISTS unit varchar(40) NOT NULL DEFAULT 'pcs'");

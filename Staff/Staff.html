@@ -24,8 +24,7 @@
 <header class="topnav">
   <button type="button" class="brand" id="brand-toggle" title="Show or hide the menu" aria-expanded="true"><span class="brand-name">Nards<span>.</span></span><small>Staff</small></button>
   <nav class="tabs">
-    <button class="nav-item active" onclick="navigate('bookings')">Bookings</button>
-    <button class="nav-item" onclick="navigate('calendar')">Calendar</button>
+    <button class="nav-item active" onclick="navigate('calendar')">Calendar</button>
     <button class="nav-item" onclick="navigate('clients')">Clients</button>
     <button class="nav-item" onclick="navigate('inventory')">Inventory</button>
     <button class="nav-item" onclick="navigate('menu')">Menu Packages</button>
@@ -129,19 +128,14 @@
     </div>
 
     
-    <div class="view active" id="view-bookings">
+    <div class="view" id="view-bookings" style="display:none !important">
       <div class="bk-toolbar">
         <div class="bk-pills" id="booking-status-pills">
           <button type="button" class="bk-pill active" data-filter="all" onclick="setBookingStatusFilter('all')">All</button>
-          <button type="button" class="bk-pill" data-filter="pending" onclick="setBookingStatusFilter('pending')">Pending</button>
-          <button type="button" class="bk-pill" data-filter="confirmed" onclick="setBookingStatusFilter('confirmed')">Confirmed</button>
-          <button type="button" class="bk-pill" data-filter="cancelled" onclick="setBookingStatusFilter('cancelled')">Cancelled</button>
-          <button type="button" class="bk-pill" data-filter="requests" onclick="setBookingStatusFilter('requests')">Requests</button>
         </div>
         <div class="bk-toolbar-right">
           <input type="text" id="booking-search" class="bk-search-input" placeholder="Search client, event, or ID..." oninput="renderBookings()">
           <button class="btn btn-outline" id="booking-archive-btn" onclick="setBookingArchiveView(!bookingArchiveView)">Archive</button>
-          <button class="btn btn-primary" data-perm="bookings.manage" onclick="openBookingModal()">+ New Booking</button>
         </div>
       </div>
       <div class="card" id="bookings-active-section">
@@ -368,7 +362,7 @@
     </div>
 
     
-    <div class="view" id="view-calendar">
+    <div class="view active" id="view-calendar">
       <div class="cal-layout">
         
         <div class="cal-card">
@@ -382,13 +376,18 @@
             <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text)"><span class="cal-dot dot-confirmed" style="width:10px;height:10px"></span>Confirmed</span>
             <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text)"><span class="cal-dot dot-pending"   style="width:10px;height:10px"></span>Pending</span>
             <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text)"><span class="cal-dot dot-completed" style="width:10px;height:10px"></span>Completed</span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#155e34;font-weight:600">&#9733; Assigned to You</span>
           </div>
         </div>
         
-        <div class="card" id="cal-detail" style="min-width:280px;max-width:340px">
+        <div class="card" id="cal-detail" style="min-width:300px;max-width:360px">
           <div class="card-title" id="cal-detail-title" style="font-size:15px">Select a date</div>
-          <div id="cal-detail-list"><p style="font-size:13px;color:var(--text-muted)">Click any date with a dot to see bookings.</p></div>
+          <div id="cal-detail-list"><p style="font-size:13px;color:var(--text-muted)">Click any date to see event schedule and assigned staff.</p></div>
         </div>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <div class="card-title">My Assigned Event Schedule</div>
+        <div id="staff-assigned-list"><p style="font-size:13px;color:var(--text-muted)">Loading your assigned dates and times...</p></div>
       </div>
     </div>
 
@@ -1031,7 +1030,7 @@ async function syncFromAPI() {
         if (Object.keys(pay).some(key => existing[key] !== pay[key])) {
           Object.assign(existing, pay); changed = true;
         }
-        const total = price + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
         if (Number(existing.amount) !== total) { existing.amount = total; changed = true; }
         if (Number(existing.dp) !== Math.round(total * 0.2)) { existing.dp = Math.round(total * 0.2); changed = true; }
         const freshTeam = Array.isArray(row.assignedEmployees) ? row.assignedEmployees : [];
@@ -1040,7 +1039,7 @@ async function syncFromAPI() {
         }
       } else {
         const pay = paymentFieldsFromRow(row);
-        const total = price + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
         data.bookings.push({
           id:      apiId,
           client:  row.clientName  || '',
@@ -1075,11 +1074,11 @@ async function syncFromAPI() {
 
 
 function navigate(view) {
-  if (!document.getElementById('view-' + view)) view = 'bookings';
+  if (view === 'bookings' || !document.getElementById('view-' + view)) view = 'calendar';
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
-  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', employees:'Employee Management', reports:'Business Reports', audit:'Audit Trail', profile:'My Profile', staff:'Users & Settings' };
+  const titles = { dashboard:'Dashboard', calendar:'Event Schedule & Assignments', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', employees:'Employee Management', reports:'Business Reports', audit:'Audit Trail', profile:'My Profile', staff:'Users & Settings' };
   document.getElementById('pageTitle').textContent = titles[view] || view;
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + view + "'")) n.classList.add('active');
@@ -1194,6 +1193,7 @@ function paymentFieldsFromRow(row) {
     paymentProof: row.paymentProof || '',
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
+    addGuests: Number(row.additional_guests) || 0,
     paid: String(row.paymentStatus || '').toLowerCase() === 'paid',
     requestType: row.requestType || '',
     requestReason: row.requestReason || '',
@@ -1454,9 +1454,11 @@ async function saveBooking() {
   const client = document.getElementById('bk-client').value.trim();
   const event  = document.getElementById('bk-event').value;
   const date   = document.getElementById('bk-date').value;
-  const guests = document.getElementById('bk-guests').value;
+  const addGuestsEl = document.getElementById('bk-addguests');
+  const addGuests = addGuestsEl ? Math.max(0, parseInt(addGuestsEl.value, 10) || 0) : 0;
+  const guests = document.getElementById('bk-guests')?.value;
   const amount = document.getElementById('bk-amount').value;
-  if (!client || !event || !date || !guests || !amount) { notify('Please fill all required fields', '⚠️'); return; }
+  if (!client || !event || !date || (!addGuestsEl && !guests) || !amount) { notify('Please fill all required fields', '⚠️'); return; }
   if (!window.isRealName(client)) { notify('Enter the client\'s real full name.', '⚠️'); return; }
   if (!/^\d{11}$/.test(document.getElementById('bk-phone').value.trim())) { notify('Contact number must be exactly 11 digits.', '⚠️'); return; }
 
@@ -1470,7 +1472,8 @@ async function saveBooking() {
     email:   document.getElementById('bk-email').value.trim(),
     event, date,
     time:    document.getElementById('bk-time').value,
-    guests:  parseInt(guests),
+    guests:  parseInt(guests, 10) || addGuests || 1,
+    ...(addGuestsEl ? { addGuests } : {}),
     package: document.getElementById('bk-package').value,
     venue:   document.getElementById('bk-venue').value.trim(),
     amount:  parseFloat(amount),
@@ -1497,6 +1500,7 @@ async function saveBooking() {
           phone: booking.phone,
           email: booking.email,
           guests: booking.guests,
+          ...(addGuestsEl ? { additionalGuests: addGuests } : {}),
           additionalRequest: booking.addReq,
           additionalCost: booking.addCost,
           notes: booking.notes
@@ -3333,6 +3337,44 @@ function calBookingsByDate() {
   return map;
 }
 
+function findMyAssignment(booking) {
+  const team = Array.isArray(booking?.assignedEmployees) ? booking.assignedEmployees : [];
+  if (!team.length || !INTERNAL_USER) return null;
+  const myName = String(INTERNAL_USER.name || '').trim().toLowerCase();
+  const myUser = String(INTERNAL_USER.username || '').trim().toLowerCase();
+  return team.find(m => {
+    const n = String(m.name || '').trim().toLowerCase();
+    return (myName && n === myName) || (myUser && n === myUser);
+  }) || null;
+}
+
+function renderMyAssignedSchedule() {
+  const box = document.getElementById('staff-assigned-list');
+  if (!box) return;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const mine = data.bookings
+    .filter(b => !b.archived && b.status !== 'Cancelled' && (findMyAssignment(b) || (Array.isArray(b.assignedEmployees) && b.assignedEmployees.length > 0 && b.date >= todayStr)))
+    .map(b => ({ b, mine: findMyAssignment(b) }))
+    .filter(x => x.mine)
+    .sort((a, b) => String(a.b.date || '').localeCompare(String(b.b.date || '')) || String(a.b.time || '').localeCompare(String(b.b.time || '')));
+
+  if (!mine.length) {
+    box.innerHTML = '<p style="font-size:13px;color:var(--text-muted);margin:0">You have no assigned events yet. Once an Admin or Manager assigns you to a booking, the date, time, and event details will appear here and on the calendar above.</p>';
+    return;
+  }
+  box.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Time</th><th>My Designation</th><th>Event &amp; Client</th><th>Venue</th><th>Status</th></tr></thead>
+    <tbody>${mine.map(({ b, mine: m }) => `<tr>
+      <td style="white-space:nowrap"><strong>${fmtDate(b.date)}</strong></td>
+      <td style="white-space:nowrap"><span class="badge badge-gold">${b.time ? fmtTime(b.time) : 'Time TBD'}</span></td>
+      <td><span class="badge badge-success">${auditEscape(m.job_role || 'Crew')}</span></td>
+      <td><strong>${auditEscape(b.event)}</strong><br><small style="color:var(--text-muted)">${auditEscape(b.client)} &middot; ${auditEscape(b.package || '-')}</small></td>
+      <td style="font-size:13px">${auditEscape(b.venue || 'TBD')}</td>
+      <td>${statusBadge(b.status)}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
 function renderCalendar() {
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   document.getElementById('cal-month-label').textContent = `${monthNames[calMonth]} ${calYear}`;
@@ -3358,6 +3400,7 @@ function renderCalendar() {
     const hasConfirmed = dayBkgs.some(b => b.status === 'Confirmed'  || b.status === 'confirmed');
     const hasPending   = dayBkgs.some(b => b.status === 'Pending'    || b.status === 'pending');
     const hasCompleted = dayBkgs.some(b => b.status === 'Completed'  || b.status === 'completed');
+    const myDayItems   = dayBkgs.map(b => ({ b, mine: findMyAssignment(b) })).filter(x => x.mine);
 
     let cls = 'cal-cell';
     if (isToday)    cls += ' cal-today';
@@ -3370,14 +3413,19 @@ function renderCalendar() {
     if (hasConfirmed) dots += `<span class="cal-dot dot-confirmed" title="Confirmed"></span>`;
     if (hasPending)   dots += `<span class="cal-dot dot-pending"   title="Pending"></span>`;
     if (hasCompleted) dots += `<span class="cal-dot dot-completed" title="Completed"></span>`;
+    const assignedTag = myDayItems.length
+      ? `<div style="margin-top:3px;font-size:10px;font-weight:700;color:#155e34;background:#e6f4ea;border-radius:4px;padding:1px 4px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">&#9733; ${myDayItems[0].b.time ? fmtTime(myDayItems[0].b.time) : 'Assigned'}</div>`
+      : '';
 
     html += `<div class="${cls}" onclick="calSelectDay('${dateStr}')">
       <span class="cal-num">${d}</span>
       <div class="cal-dots">${dots}</div>
+      ${assignedTag}
     </div>`;
   }
 
   grid.innerHTML = html;
+  renderMyAssignedSchedule();
   if (calSelectedDate) calSelectDay(calSelectedDate);
 }
 
@@ -3413,18 +3461,26 @@ function calSelectDay(dateStr) {
   document.getElementById('cal-detail-list').innerHTML = bkgs.map(b => {
     const realIdx  = data.bookings.indexOf(b);
     const isDone   = b.status === 'Completed' || b.status === 'completed';
+    const mine = findMyAssignment(b);
+    const teamList = Array.isArray(b.assignedEmployees) && b.assignedEmployees.length
+      ? `<div style="font-size:12px;color:#3a2d1a;margin-top:4px"><strong>Assigned Crew:</strong> ${b.assignedEmployees.map(m => `${auditEscape(m.name)} (${auditEscape(m.job_role || 'Crew')})`).join(', ')}</div>`
+      : '';
+    const mineBadge = mine
+      ? `<div style="margin-top:4px"><span class="badge badge-success">&#9733; Assigned to You (${auditEscape(mine.job_role || 'Crew')}) &middot; ${fmtDate(dateStr)} at ${b.time ? fmtTime(b.time) : 'Time TBD'}</span></div>`
+      : '';
     return `<div class="cal-booking-item">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div>
-          <div style="font-weight:600;font-size:14px;color:var(--dark)">${b.client}</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${b.event} &bull; ${b.package || 'No package'}</div>
-          <div style="font-size:12px;color:var(--text-muted)">${b.guests ? b.guests + ' guests' : ''} ${b.time ? '&bull; ' + b.time : ''}</div>
-          <div style="font-size:12px;color:var(--text-muted)">${b.venue || ''}</div>
+          <div style="font-weight:600;font-size:14px;color:var(--dark)">${auditEscape(b.client)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${auditEscape(b.event)} &bull; ${auditEscape(b.package || 'No package')}</div>
+          <div style="font-size:12px;color:var(--dark);font-weight:600;margin-top:2px">${fmtDate(dateStr)} &bull; ${b.time ? fmtTime(b.time) : 'Time TBD'}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${auditEscape(b.venue || '')}</div>
+          ${mineBadge}${teamList}
         </div>
         <span style="font-size:11px;font-weight:600;color:${statusColor[b.status]||'var(--text-muted)'};white-space:nowrap">${b.status}</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        ${realIdx >= 0 ? `<button class="btn btn-outline btn-sm" style="flex:1;font-size:11px" onclick="showConfirmation(data.bookings[${realIdx}])">View</button>` : ''}
+        ${realIdx >= 0 ? `<button class="btn btn-outline btn-sm" style="flex:1;font-size:11px" onclick="showConfirmation(data.bookings[${realIdx}])">View Schedule Details</button>` : ''}
         ${isDone ? `<div style="font-size:12px;color:var(--success);font-weight:600;padding:4px 0">&#10003; Completed</div>` : ''}
       </div>
     </div>`;
@@ -3492,7 +3548,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 fetchPackages().then(() => syncInventoryFromAPI()).then(() => syncFromAPI()).then(() => {
   renderDashboard();
   loadEventNotifications();
-  navigate('bookings');
+  navigate('calendar');
 });
 document.addEventListener('nards:permissions', () => renderBookings());
 </script>
