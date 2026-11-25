@@ -631,6 +631,7 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
             <select id="guest-count" name="package" required>
               <option value="">Select a package...</option>
             </select>
+            <div id="package-availability-msg" role="alert" style="display:none;margin-top:8px;padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.45"></div>
           </div>
         </div>
 
@@ -920,9 +921,13 @@ async function loadPackages() {
         : '<div class="pkg-dish-empty">&#127869; Menu details coming soon</div>';
 
       const paxCount = Number(p.max_guests) || Number(p.min_guests) || 0;
+      const isAvail = p.is_available !== false;
+      const unavailTag = !isAvail
+        ? `<span style="display:inline-block;margin-left:8px;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#9b1c1c;font-size:11px;font-weight:700;vertical-align:middle">Not Available</span>`
+        : '';
       return `<div class="promo-package${featured}">
         <div class="promo-header">
-          <span class="pax">${p.name}</span>
+          <span class="pax">${p.name}${unavailTag}</span>
           <span class="price">&#8369;${Number(p.price).toLocaleString('en-PH')}</span>
         </div>
         ${paxCount ? `<div class="pkg-min-guests">${paxCount} pax</div>` : ''}
@@ -939,8 +944,29 @@ async function loadPackages() {
   sel.innerHTML = '<option value="">Select a package...</option>' +
     customerPackages.map(p => {
       const paxCount = Number(p.max_guests) || Number(p.min_guests) || 0;
-      return `<option value="${p.name}" data-price="${p.price}" data-max="${paxCount}">${p.name}${paxCount ? ` — ${paxCount} pax` : ''} (&#8369;${Number(p.price).toLocaleString('en-PH')})</option>`;
+      const isAvail = p.is_available !== false;
+      const unavailJson = escHtml(JSON.stringify(p.unavailable_items || []));
+      return `<option value="${escHtml(p.name)}" data-price="${p.price}" data-max="${paxCount}" data-available="${isAvail ? '1' : '0'}" data-unavailable="${unavailJson}">${escHtml(p.name)}${paxCount ? ` — ${paxCount} pax` : ''} (&#8369;${Number(p.price).toLocaleString('en-PH')})${isAvail ? '' : ' — Not Available'}</option>`;
     }).join('');
+  updatePackageAvailabilityNotice();
+}
+
+function updatePackageAvailabilityNotice() {
+  const box = document.getElementById('package-availability-msg');
+  if (!box) return;
+  const opt = packageSelect.options[packageSelect.selectedIndex];
+  if (!opt || !opt.value || opt.dataset.available !== '0') {
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  let missing = [];
+  try { missing = JSON.parse(opt.dataset.unavailable || '[]'); } catch (e) { missing = []; }
+  const detailText = missing.length
+    ? missing.map(m => `${escHtml(m.name)} (${m.available}${m.unit ? ' ' + escHtml(m.unit) : ''} available / needs ${m.required}${m.unit ? ' ' + escHtml(m.unit) : ''})`).join(', ')
+    : 'Required inventory items are currently out of stock.';
+  box.innerHTML = `<strong>&#9888;&#65039; Not Available:</strong> Some items included in <strong>${escHtml(opt.value)}</strong> are currently unavailable in inventory (${detailText}).`;
+  box.style.display = 'block';
 }
 
 
@@ -1047,6 +1073,7 @@ document.getElementById('event-time').addEventListener('blur', () => checkEventT
 document.getElementById('event-date').addEventListener('change', checkEventDate);
 
 packageSelect.addEventListener('change', function() {
+  updatePackageAvailabilityNotice();
   updateCustomerPricing();
 });
 

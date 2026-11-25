@@ -6,7 +6,7 @@ exports.getAllPackages = async (req, res) => {
     const [packages] = await pool.query('SELECT * FROM Packages ORDER BY id ASC');
     for (const pkg of packages) {
       const [assets] = await pool.query(
-        `SELECT pa.qty_required, ca.id AS asset_id, ca.name, ca.unit
+        `SELECT pa.qty_required, ca.id AS asset_id, ca.name, ca.unit, ca.quantity AS available_qty, COALESCE(ca.is_archived, 0) AS asset_archived
          FROM PackageAssets pa
          JOIN CateringAssets ca ON ca.id = pa.asset_id
          WHERE pa.package_id = ?`,
@@ -26,6 +26,49 @@ exports.getAllPackages = async (req, res) => {
         [pkg.id]
       );
       pkg.freebies = freebies;
+
+      const unavailableItems = [];
+      try {
+        const [ingRows] = await pool.query(
+          `SELECT i.id AS inventory_id, i.name, i.unit, i.quantity AS available_qty, COALESCE(i.is_archived, 0) AS is_archived,
+                  CAST(SUM(di.qty_required) AS SIGNED) AS required_qty
+           FROM (SELECT DISTINCT dish_id FROM PackageDishes WHERE package_id = ?) pd
+           JOIN DishIngredients di ON di.dish_id = pd.dish_id
+           JOIN Inventory i ON i.id = di.inventory_id
+           GROUP BY i.id, i.name, i.unit, i.quantity, i.is_archived`,
+          [pkg.id]
+        );
+        for (const ing of ingRows) {
+          const avail = Number(ing.available_qty) || 0;
+          const reqQty = Number(ing.required_qty) || 0;
+          if (Number(ing.is_archived) === 1 || avail <= 0 || avail < reqQty) {
+            unavailableItems.push({
+              type: 'ingredient',
+              name: ing.name,
+              available: avail,
+              required: reqQty,
+              unit: ing.unit || ''
+            });
+          }
+        }
+      } catch (e) {}
+
+      for (const a of assets) {
+        const avail = Number(a.available_qty) || 0;
+        const reqQty = Number(a.qty_required) || 0;
+        if (Number(a.asset_archived) === 1 || avail <= 0 || avail < reqQty) {
+          unavailableItems.push({
+            type: 'asset',
+            name: a.name,
+            available: avail,
+            required: reqQty,
+            unit: a.unit || ''
+          });
+        }
+      }
+
+      pkg.unavailable_items = unavailableItems;
+      pkg.is_available = unavailableItems.length === 0;
     }
     res.json(packages);
   } catch (err) {
