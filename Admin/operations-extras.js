@@ -906,7 +906,8 @@
 
     if (typeof window.setInventoryArchiveView === 'function' && !window.setInventoryArchiveView._wrappedOps) {
       const origArch = window.setInventoryArchiveView;
-      window.setInventoryArchiveView = function () {
+      window.setInventoryArchiveView = function (showArchive) {
+        window.inventoryArchiveView = Boolean(showArchive);
         setInvMode('items');
         return origArch.apply(this, arguments);
       };
@@ -916,6 +917,7 @@
     if (typeof window.setAssetArchiveView === 'function' && !window.setAssetArchiveView._wrappedOps) {
       const origAssetArch = window.setAssetArchiveView;
       window.setAssetArchiveView = function (showArchive) {
+        window.assetArchiveView = Boolean(showArchive);
         setAssetMode(showArchive ? 'archive' : 'active');
         return origAssetArch.apply(this, arguments);
       };

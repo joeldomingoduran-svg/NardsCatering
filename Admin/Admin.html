@@ -1003,10 +1003,10 @@ function saveData() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
 }
 
-let data = loadData();
+var data = loadData();
 let editIdx = { booking: -1, ingredient: -1 };
 let restockIdx = -1;
-let inventoryArchiveView = false;
+var inventoryArchiveView = false;
 
 
 
@@ -2525,11 +2525,11 @@ async function restorePackage(id) {
 
 
 
-let assetsList    = [];
+var assetsList    = [];
 let editAssetId   = null;
-let assetArchiveView = false;
+var assetArchiveView = false;
 let editPackageId = null;
-let packagesList  = [];
+var packagesList  = [];
 let menuArchiveView = false;
 let dishesList    = [];
 let editDishId    = null;
