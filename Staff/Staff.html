@@ -130,20 +130,25 @@
 
     
     <div class="view active" id="view-bookings">
-      <div class="section-header" style="justify-content:flex-end">
-        <div style="display:flex;gap:8px;align-items:center">
+      <div class="bk-toolbar">
+        <div class="bk-pills" id="booking-status-pills">
+          <button type="button" class="bk-pill active" data-filter="all" onclick="setBookingStatusFilter('all')">All</button>
+          <button type="button" class="bk-pill" data-filter="pending" onclick="setBookingStatusFilter('pending')">Pending</button>
+          <button type="button" class="bk-pill" data-filter="confirmed" onclick="setBookingStatusFilter('confirmed')">Confirmed</button>
+          <button type="button" class="bk-pill" data-filter="cancelled" onclick="setBookingStatusFilter('cancelled')">Cancelled</button>
+          <button type="button" class="bk-pill" data-filter="requests" onclick="setBookingStatusFilter('requests')">Requests</button>
+        </div>
+        <div class="bk-toolbar-right">
+          <input type="text" id="booking-search" class="bk-search-input" placeholder="Search client, event, or ID..." oninput="renderBookings()">
           <button class="btn btn-outline" id="booking-archive-btn" onclick="setBookingArchiveView(!bookingArchiveView)">Archive</button>
           <button class="btn btn-primary" data-perm="bookings.manage" onclick="openBookingModal()">+ New Booking</button>
         </div>
-      </div>
-      <div class="search-bar">
-        <input type="text" id="booking-search" placeholder="Search by client name or event..." oninput="renderBookings()">
       </div>
       <div class="card" id="bookings-active-section">
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>Booking ID</th><th>Client</th><th>Event</th><th>Date &amp; Time</th><th>Guests</th><th>Package</th><th>Status</th><th>Payment</th><th>Actions</th></tr>
+              <tr><th>Client &amp; Event</th><th>Schedule</th><th>Package &amp; Total</th><th>Payment</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody id="bookings-tbody"></tbody>
           </table>
@@ -1878,16 +1883,52 @@ function openAssignedEmployeesModal(idx) {
     onSaved: () => { saveData(); renderBookings(); if (document.getElementById('confirm-modal').classList.contains('open')) showConfirmation(b); }
   });
 }
+let bookingStatusFilter = 'all';
+function setBookingStatusFilter(filter) {
+  bookingStatusFilter = filter || 'all';
+  document.querySelectorAll('#booking-status-pills .bk-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === bookingStatusFilter);
+  });
+  renderBookings();
+}
+
 function renderBookings() {
   const search = (document.getElementById('booking-search')?.value || '').toLowerCase();
-  const items  = data.bookings.filter(b =>
+  const base = data.bookings.filter(b =>
     Boolean(b.archived) === bookingArchiveView
     && (bookingArchiveView || b.status !== 'Completed')
-    && (!search || b.client.toLowerCase().includes(search) || b.event.toLowerCase().includes(search))
-  ).sort(window.compareBookingNewest);
+  );
+  const counts = {
+    all: base.length,
+    pending: base.filter(b => b.status === 'Pending').length,
+    confirmed: base.filter(b => b.status === 'Confirmed').length,
+    cancelled: base.filter(b => b.status === 'Cancelled').length,
+    requests: base.filter(b => b.requestType && !b.requestHandled).length
+  };
+  document.querySelectorAll('#booking-status-pills .bk-pill').forEach(btn => {
+    const key = btn.dataset.filter;
+    const labels = { all: 'All', pending: 'Pending', confirmed: 'Confirmed', cancelled: 'Cancelled', requests: 'Requests' };
+    btn.textContent = counts[key] > 0 ? `${labels[key]} (${counts[key]})` : labels[key];
+    btn.classList.toggle('active', key === bookingStatusFilter);
+  });
+
+  const items = base.filter(b => {
+    if (!bookingArchiveView) {
+      if (bookingStatusFilter === 'pending' && b.status !== 'Pending') return false;
+      if (bookingStatusFilter === 'confirmed' && b.status !== 'Confirmed') return false;
+      if (bookingStatusFilter === 'cancelled' && b.status !== 'Cancelled') return false;
+      if (bookingStatusFilter === 'requests' && !(b.requestType && !b.requestHandled)) return false;
+    }
+    return !search
+      || String(b.client || '').toLowerCase().includes(search)
+      || String(b.event || '').toLowerCase().includes(search)
+      || String(b.id || '').toLowerCase().includes(search);
+  }).sort(window.compareBookingNewest);
   const archiveBtn = document.getElementById('booking-archive-btn');
   archiveBtn.className = `btn ${bookingArchiveView ? 'btn-primary' : 'btn-outline'}`;
   archiveBtn.textContent = bookingArchiveView ? 'Active Bookings' : 'Archive';
+  const pillsEl = document.getElementById('booking-status-pills');
+  if (pillsEl) pillsEl.style.display = bookingArchiveView ? 'none' : 'flex';
 
   const canManageBookings = !window.NardsUI || window.NardsUI.can('bookings.manage');
   document.getElementById('bookings-tbody').innerHTML = items.length
@@ -1895,28 +1936,37 @@ function renderBookings() {
         const realIdx = data.bookings.indexOf(b);
         const payHtml = window.paymentCell
           ? window.paymentCell(b)
-          : (b.paid ? '<span class="badge" style="background:#27ae60;color:#fff">Paid</span>' : b.paymentProof ? '<span class="badge badge-gold">Receipt submitted</span>' : '<span class="badge" style="background:#c0392b;color:#fff">Unpaid</span>');
-        const teamChip = window.bookingAssignedBadgeHtml ? window.bookingAssignedBadgeHtml(b) : '';
-        const hasTeamOrConfirmed = (Array.isArray(b.assignedEmployees) && b.assignedEmployees.length > 0) || ['Confirmed', 'Completed'].includes(b.status);
+          : (b.paid ? '<span class="badge badge-success">Paid</span>' : b.paymentProof ? '<span class="badge badge-gold">Receipt submitted</span>' : '<span class="badge badge-danger">Unpaid</span>');
+        const crewCount = Array.isArray(b.assignedEmployees) ? b.assignedEmployees.length : 0;
+        const crewNote = crewCount ? ` &middot; ${crewCount} crew` : '';
+        const reqBadge = b.requestType && !b.requestHandled
+          ? `<div class="bk-sub" style="color:var(--gold-dark);font-weight:600">${b.requestType === 'cancel' ? 'Cancel request' : 'Resched request'}</div>`
+          : '';
         return `<tr>
-          <td><span class="badge badge-gold">${b.id}</span></td>
-          <td><strong>${auditEscape(b.client)}</strong><br><span style="font-size:12px;color:var(--text-muted)">${auditEscape(b.phone)}</span>${teamChip}</td>
-          <td>${auditEscape(b.event)}</td>
-          <td>${fmtDate(b.date)}<br><span style="font-size:12px;color:var(--text-muted)">${b.time ? fmtTime(b.time) : 'Time not set'}</span></td>
-          <td>${b.guests || '-'}</td>
-          <td>${auditEscape(b.package || '-')}</td>
-          <td>${statusBadge(b.status)}${b.requestType && !b.requestHandled ? `<br><span class="badge badge-gold" style="margin-top:4px">${b.requestType === 'cancel' ? 'Cancel request' : 'Resched request'}</span>` : ''}</td>
+          <td>
+            <div class="bk-title-row"><strong>${auditEscape(b.client)}</strong><span class="bk-ref">${auditEscape(b.id)}</span></div>
+            <div class="bk-meta">${auditEscape(b.event)} &middot; ${b.guests || '-'} pax${crewNote}</div>
+          </td>
+          <td style="white-space:nowrap">
+            <div>${fmtDate(b.date)}</div>
+            <div class="bk-sub">${b.time ? fmtTime(b.time) : 'Time not set'}</div>
+          </td>
+          <td>
+            <div>${auditEscape(b.package || 'No package')}</div>
+            <div class="bk-sub"><strong style="color:var(--dark)">${fmtMoney(b.amount)}</strong></div>
+          </td>
           <td>${payHtml}</td>
-        <td><div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-outline btn-sm" onclick="showConfirmation(data.bookings[${realIdx}])">View</button>
-          ${hasTeamOrConfirmed && String(b.id).startsWith('DB-') ? `<button class="btn btn-outline btn-sm" onclick="openAssignedEmployeesModal(${realIdx})">View Assigned Employees</button>` : ''}
-          ${canManageBookings ? (bookingArchiveView
-            ? `<button class="btn btn-success btn-sm" onclick="restoreBooking(${realIdx})">Restore</button>`
-            : `<button class="btn btn-danger btn-sm" onclick="archiveBooking(${realIdx})">Archive</button>`) : ''}
-        </div></td>
+          <td>${statusBadge(b.status)}${reqBadge}</td>
+          <td><div class="bk-actions">
+            <button class="btn btn-outline btn-sm" onclick="showConfirmation(data.bookings[${realIdx}])">View</button>
+            ${canManageBookings && !bookingArchiveView ? `<button class="btn btn-outline btn-sm" onclick="openBookingModal(${realIdx})">Edit</button>` : ''}
+            ${canManageBookings ? (bookingArchiveView
+              ? `<button class="btn btn-success btn-sm" onclick="restoreBooking(${realIdx})">Restore</button>`
+              : `<button class="btn btn-ghost-danger btn-sm" onclick="archiveBooking(${realIdx})">Archive</button>`) : ''}
+          </div></td>
         </tr>`;
       }).join('')
-    : `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📋</div><p>${bookingArchiveView ? 'No archived bookings.' : 'No active bookings found.'}</p><p style="font-size:12px;color:var(--muted);margin-top:4px">Completed bookings are stored in <strong>Client Records</strong>.</p></div></td></tr>`;
+    : `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><p>${bookingArchiveView ? 'No archived bookings.' : 'No bookings match this filter.'}</p><p style="font-size:12px;color:var(--muted);margin-top:4px">Completed events are stored in <strong>Client Records</strong>.</p></div></td></tr>`;
 }
 
 let bookingArchiveView = false;

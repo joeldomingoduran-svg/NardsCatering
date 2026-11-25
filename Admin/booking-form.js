@@ -253,13 +253,16 @@
   /* ----------------------------------------------- Payment column and receipt */
   // Paid bookings get a clear "view receipt" action; unpaid ones with a receipt are flagged for review.
   window.paymentCell = function (b) {
-    var badge = b.paid
-      ? '<span class="badge badge-success">\u2713 Paid</span>'
-      : b.paymentProof ? '<span class="badge badge-gold">Receipt submitted</span>' : '<span class="badge badge-danger">Unpaid</span>';
-    if (!b.paymentProof) return badge;
+    if (!b.paymentProof) {
+      return b.paid
+        ? '<span class="badge badge-success">Paid</span>'
+        : '<span class="badge badge-danger">Unpaid</span>';
+    }
     var url = esc(b.paymentProof).replace(/'/g, '&#39;');
-    var label = b.paid ? '\uD83E\uDDFE View receipt' : '\uD83D\uDD0E Review receipt';
-    return badge + '<div class="receipt-status"><button type="button" class="btn-receipt' + (b.paid ? '' : ' pending') + '" onclick="openReceiptModal(\'' + url + '\')" title="' + (b.paid ? 'Payment verified. Open the receipt' : 'Receipt submitted. Open to verify') + '">' + label + '</button></div>';
+    if (b.paid) {
+      return '<button type="button" class="badge badge-success" style="border:0;cursor:pointer" onclick="openReceiptModal(\'' + url + '\')" title="Payment verified. View receipt">Paid &middot; Receipt</button>';
+    }
+    return '<button type="button" class="badge badge-gold" style="border:0;cursor:pointer" onclick="openReceiptModal(\'' + url + '\')" title="Receipt submitted. Click to review">Review Receipt</button>';
   };
 
   bind();
