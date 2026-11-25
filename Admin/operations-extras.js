@@ -214,6 +214,16 @@
         alertsEl.after(readyDiv);
       }
 
+      const viewAssetsEl = document.getElementById('view-assets');
+      if (viewAssetsEl && isAdmin && !document.getElementById('assets-approval-banner')) {
+        const assetHeader = viewAssetsEl.querySelector('.section-header');
+        if (assetHeader) {
+          const aBanner = document.createElement('div');
+          aBanner.id = 'assets-approval-banner';
+          assetHeader.after(aBanner);
+        }
+      }
+
       const searchBar = viewInv.querySelector('.search-bar');
       if (searchBar && !document.getElementById('inv-perish-pills')) {
         const pills = document.createElement('div');
@@ -438,14 +448,20 @@
       const count = Array.isArray(pendingRows) ? pendingRows.length : 0;
       const appBtn = document.getElementById('inventory-approvals-btn');
       if (appBtn) appBtn.textContent = 'Pending Approvals (' + count + ')';
-      const banner = document.getElementById('inv-approval-banner');
-      if (banner) {
-        banner.innerHTML = count > 0
-          ? '<div class="approval-banner"><div><strong>&#128276; ' + count + ' Manager Inventory Request' + (count === 1 ? '' : 's') + ' Pending Approval</strong><br><span style="font-size:13px">Review and approve/reject Manager stock changes before they take effect.</span></div><button type="button" class="btn btn-primary btn-sm" id="banner-open-approvals">Review Pending Requests</button></div>'
-          : '';
-        const openBtn = document.getElementById('banner-open-approvals');
-        if (openBtn) openBtn.addEventListener('click', function () { setInvMode('approvals'); });
-      }
+      const bannerHtml = count > 0
+        ? '<div class="approval-banner"><div><strong>&#128276; ' + count + ' Manager Inventory Request' + (count === 1 ? '' : 's') + ' Pending Approval</strong><br><span style="font-size:13px">Review and approve/reject Manager stock changes before they take effect.</span></div><button type="button" class="btn btn-primary btn-sm" data-open-approvals="1">Review Pending Requests</button></div>'
+        : '';
+      ['inv-approval-banner', 'assets-approval-banner'].forEach(function (bid) {
+        const banner = document.getElementById(bid);
+        if (!banner) return;
+        banner.innerHTML = bannerHtml;
+        const openBtn = banner.querySelector('[data-open-approvals]');
+        if (openBtn) {
+          openBtn.addEventListener('click', function () {
+            if (typeof window.openPendingApprovals === 'function') window.openPendingApprovals();
+          });
+        }
+      });
 
       const tbody = document.getElementById('inventory-approvals-tbody');
       if (!tbody) return;
@@ -1186,6 +1202,18 @@
     }
   }
 
+  window.loadApprovalsList = loadApprovalsList;
+  window.openPendingApprovals = function () {
+    if (typeof window.navigate === 'function') window.navigate('inventory');
+    setInvMode('approvals');
+  };
+
   installHooks();
+  if (currentUser().role === 'admin') {
+    loadApprovalsList('pending');
+    setInterval(function () {
+      if (!document.hidden) loadApprovalsList('pending');
+    }, 15000);
+  }
 })();
 
