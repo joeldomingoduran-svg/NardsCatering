@@ -574,3 +574,8 @@ button, .btn, a, select, input[type="checkbox"], input[type="radio"],
 .menu-picker-cat h5 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .7px; color: #76501c; border-bottom: 1px solid #f2eadb; padding-bottom: 4px; }
 .menu-picker-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 2px; color: #2b1a0e; cursor: pointer; }
 .menu-picker-item input { width: 15px; height: 15px; accent-color: #8d6a36; }
+.menu-picker-item.is-disabled { opacity: 0.45; cursor: not-allowed; }
+.menu-picker-item.is-disabled input { cursor: not-allowed; }
+.menu-add-more-bar { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #faf3e4; border: 1px dashed #c9a24a; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.menu-add-more-btn { padding: 7px 14px; border-radius: 8px; border: 1px solid #8d6a36; background: #3A2D1A; color: #FFF8ED; font-family: 'Jost', sans-serif; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: transform .15s ease, background .15s ease; }
+.menu-add-more-btn:hover { background: #59401f; transform: translateY(-1px); }

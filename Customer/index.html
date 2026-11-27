@@ -993,7 +993,10 @@ function getSelectedMainDishes() {
     .map(cb => cb.value);
 }
 
+let extraMenusUnlocked = false;
+
 function renderCustomerMenuPicker() {
+  extraMenusUnlocked = false;
   const box = document.getElementById('customer-menu-picker');
   if (!box) return;
   const opt = packageSelect.options[packageSelect.selectedIndex];
@@ -1038,7 +1041,7 @@ function renderCustomerMenuPicker() {
     <div class="menu-picker-head">
       <div>
         <strong>Select Your Preferred Main Courses (${limit} included in ${escHtml(opt.value)})</strong><br>
-        <small style="color:#65523b">Choose at least ${limit} main courses. Additional dishes beyond ${limit} add <strong>+&#8369;2,000</strong> per dish.</small>
+        <small style="color:#65523b">Select your ${limit} included main courses. Need more than ${limit}? Click <strong>Want to add more?</strong> (+&#8369;2,000 per extra dish).</small>
       </div>
       <span id="menu-picker-counter" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#f4e6cc;color:#76501c">0 / ${limit} selected</span>
     </div>
@@ -1049,10 +1052,13 @@ function renderCustomerMenuPicker() {
           <h5>${escHtml(cat)}</h5>
           ${list.map(d => `<label class="menu-picker-item"><input type="checkbox" value="${escHtml(d.name)}"><span>${escHtml(d.name)}</span></label>`).join('')}
         </div>`).join('')}
-    </div>`;
+    </div>
+    <div id="menu-add-more-bar" class="menu-add-more-bar" style="display:none"></div>`;
 
   box.querySelectorAll('input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => {
+      const checkedCount = getSelectedMainDishes().length;
+      if (checkedCount < limit) extraMenusUnlocked = false;
       updateMenuPickerCounter();
       updateCustomerPricing();
     });
@@ -1061,13 +1067,48 @@ function renderCustomerMenuPicker() {
   updateCustomerPricing();
 }
 
+function unlockExtraMenus() {
+  extraMenusUnlocked = true;
+  updateMenuPickerCounter();
+  updateCustomerPricing();
+}
+
 function updateMenuPickerCounter() {
   const counterEl = document.getElementById('menu-picker-counter');
-  if (!counterEl) return;
+  const box = document.getElementById('customer-menu-picker');
+  const addMoreBar = document.getElementById('menu-add-more-bar');
+  if (!counterEl || !box) return;
   const opt = packageSelect.options[packageSelect.selectedIndex];
   const limit = Math.max(0, parseInt(opt?.dataset?.limit || '0', 10) || 0);
   const chosen = getSelectedMainDishes().length;
   const extra = limit > 0 ? Math.max(0, chosen - limit) : 0;
+
+  // Lock remaining unchecked options once included allowance is filled unless unlocked.
+  const locked = limit > 0 && chosen >= limit && !extraMenusUnlocked;
+  box.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    const disable = locked && !cb.checked;
+    cb.disabled = disable;
+    const lbl = cb.closest('.menu-picker-item');
+    if (lbl) lbl.classList.toggle('is-disabled', disable);
+  });
+
+  if (addMoreBar) {
+    if (limit > 0 && chosen >= limit && !extraMenusUnlocked) {
+      addMoreBar.style.display = 'flex';
+      addMoreBar.innerHTML = `
+        <span style="font-size:12.5px;color:#5a4300">You have selected all <strong>${limit}</strong> included main courses for <strong>${escHtml(opt.value)}</strong>.</span>
+        <button type="button" class="menu-add-more-btn" onclick="unlockExtraMenus()">+ Want to add more? (+&#8369;2,000 / dish)</button>`;
+    } else if (limit > 0 && extraMenusUnlocked) {
+      addMoreBar.style.display = 'flex';
+      addMoreBar.innerHTML = extra > 0
+        ? `<span style="font-size:12.5px;color:#92400e"><strong>Extra Menu Selection Active:</strong> +${extra} additional main course(s) &times; &#8369;2,000 = <strong>+&#8369;${(extra * EXTRA_MENU_RATE).toLocaleString('en-PH')}</strong> automatically added to your price.</span>`
+        : `<span style="font-size:12.5px;color:#1e6b34"><strong>Extra Menu Selection Unlocked:</strong> Check any additional main courses below (+&#8369;2,000 per dish).</span>`;
+    } else {
+      addMoreBar.style.display = 'none';
+      addMoreBar.innerHTML = '';
+    }
+  }
+
   if (extra > 0) {
     counterEl.style.background = '#fff3dc';
     counterEl.style.color = '#92400e';
@@ -1075,7 +1116,7 @@ function updateMenuPickerCounter() {
   } else if (chosen >= limit) {
     counterEl.style.background = '#e6f4ea';
     counterEl.style.color = '#1e6b34';
-    counterEl.textContent = `${chosen} / ${limit} selected`;
+    counterEl.textContent = `${chosen} / ${limit} selected (limit reached)`;
   } else {
     counterEl.style.background = '#f4e6cc';
     counterEl.style.color = '#76501c';
