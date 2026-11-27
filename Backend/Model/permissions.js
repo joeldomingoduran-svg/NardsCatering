@@ -22,7 +22,7 @@ const ALL = PERMISSIONS.map((p) => p.key);
 const DEFAULTS = {
   admin: ALL,
   manager: ['bookings.view', 'bookings.manage', 'calendar.view', 'clients.view', 'inventory.manage', 'packages.manage', 'assets.manage', 'dishes.manage', 'employees.manage', 'reports.view', 'audit.view'],
-  staff: ['bookings.view', 'bookings.manage', 'calendar.view']
+  staff: ['bookings.view', 'calendar.view']
 };
 const SYSTEM_ROLES = ['admin', 'manager', 'staff'];
 const EDITABLE_ROLES = ['manager', 'staff'];

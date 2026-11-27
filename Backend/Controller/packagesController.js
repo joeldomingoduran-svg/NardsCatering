@@ -1,4 +1,6 @@
 const pool = require('../Model/db');
+const { notify } = require('../Model/notifications');
+const { createApprovalRequest } = require('../Model/stockMovements');
 
 
 exports.getAllPackages = async (req, res) => {
@@ -131,6 +133,19 @@ exports.createPackage = async (req, res) => {
       await conn.rollback();
       return res.status(409).json({ error: 'A package with this name already exists' });
     }
+    if (req.user?.role === 'manager') {
+      await conn.rollback();
+      const requestId = await createApprovalRequest({
+        actionType: 'package_create',
+        targetType: 'package',
+        itemName: name,
+        payload: { name, price, min_guests: min_guests || 0, max_guests: max_guests || 0, assets: assets || [], dishes: dishes || [], freebies: freebies || [] },
+        summary: `Add menu package "${name}" (₱${Number(price).toLocaleString('en-PH')})`,
+        user: req.user
+      });
+      await notify('approval', 'Package Approval Required', `${req.user.username} requested to add package "${name}".`, ['admin'], 'menu');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Package request submitted for Administrator approval.' });
+    }
     const [result] = await conn.query(
       'INSERT INTO Packages (name, price, min_guests, max_guests) VALUES (?, ?, ?, ?)',
       [name, price, min_guests || 0, max_guests || 0]
@@ -192,6 +207,22 @@ exports.updatePackage = async (req, res) => {
       await conn.rollback();
       return res.status(409).json({ error: 'A package with this name already exists' });
     }
+    if (req.user?.role === 'manager') {
+      const [existsPkg] = await conn.query('SELECT id FROM Packages WHERE id=? LIMIT 1', [req.params.id]);
+      await conn.rollback();
+      if (!existsPkg.length) return res.status(404).json({ error: 'Package not found' });
+      const requestId = await createApprovalRequest({
+        actionType: 'package_update',
+        targetType: 'package',
+        targetId: req.params.id,
+        itemName: name,
+        payload: { name, price, min_guests: min_guests || 0, max_guests: max_guests || 0, assets: assets || [], dishes: dishes || [], freebies: freebies || [] },
+        summary: `Update menu package "${name}" (₱${Number(price).toLocaleString('en-PH')})`,
+        user: req.user
+      });
+      await notify('approval', 'Package Approval Required', `${req.user.username} requested to update package "${name}".`, ['admin'], 'menu');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Package update submitted for Administrator approval.' });
+    }
     const [result] = await conn.query(
       'UPDATE Packages SET name=?, price=?, min_guests=?, max_guests=? WHERE id=?',
       [name, price, min_guests || 0, max_guests || 0, req.params.id]
@@ -240,6 +271,21 @@ exports.updatePackage = async (req, res) => {
 
 exports.deletePackage = async (req, res) => {
   try {
+    const [rows] = await pool.query('SELECT id, name FROM Packages WHERE id=? AND is_archived=0 LIMIT 1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Package not found' });
+    if (req.user?.role === 'manager') {
+      const requestId = await createApprovalRequest({
+        actionType: 'package_archive',
+        targetType: 'package',
+        targetId: rows[0].id,
+        itemName: rows[0].name,
+        payload: { archived: true },
+        summary: `Archive menu package "${rows[0].name}"`,
+        user: req.user
+      });
+      await notify('approval', 'Package Approval Required', `${req.user.username} requested to archive package "${rows[0].name}".`, ['admin'], 'menu');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Archive request submitted for Administrator approval.' });
+    }
     const [result] = await pool.query('UPDATE Packages SET is_archived=1 WHERE id=? AND is_archived=0', [req.params.id]);
     if (!result.affectedRows) return res.status(404).json({ error: 'Package not found' });
     res.json({ message: 'Package archived' });
@@ -253,10 +299,24 @@ exports.setPopularPackage = async (req, res) => {
   try {
     const popular = req.body.popular === true;
     await conn.beginTransaction();
-    const [rows] = await conn.query('SELECT id FROM Packages WHERE id=?', [req.params.id]);
+    const [rows] = await conn.query('SELECT id, name FROM Packages WHERE id=?', [req.params.id]);
     if (!rows.length) {
       await conn.rollback();
       return res.status(404).json({ error: 'Package not found' });
+    }
+    if (req.user?.role === 'manager') {
+      await conn.rollback();
+      const requestId = await createApprovalRequest({
+        actionType: 'package_popular',
+        targetType: 'package',
+        targetId: rows[0].id,
+        itemName: rows[0].name,
+        payload: { popular },
+        summary: `${popular ? 'Set' : 'Remove'} Popular badge on "${rows[0].name}"`,
+        user: req.user
+      });
+      await notify('approval', 'Package Approval Required', `${req.user.username} requested popular status change on "${rows[0].name}".`, ['admin'], 'menu');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Popular package change submitted for Administrator approval.' });
     }
     // Only one package can carry the Popular badge at a time.
     if (popular) await conn.query('UPDATE Packages SET is_popular=0 WHERE is_popular=1');
@@ -274,14 +334,27 @@ exports.setPopularPackage = async (req, res) => {
 exports.archivePackage = async (req, res) => {
   try {
     const archived = req.body.archived === true;
+    const [current] = await pool.query('SELECT id, name FROM Packages WHERE id=?', [req.params.id]);
+    if (!current.length) return res.status(404).json({ error: 'Package not found' });
     if (!archived) {
-      const [current] = await pool.query('SELECT name FROM Packages WHERE id=?', [req.params.id]);
-      if (!current.length) return res.status(404).json({ error: 'Package not found' });
       const [existing] = await pool.query(
         'SELECT id FROM Packages WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) AND id<>? LIMIT 1',
         [current[0].name, req.params.id]
       );
       if (existing.length) return res.status(409).json({ error: 'Another package with this name already exists' });
+    }
+    if (req.user?.role === 'manager') {
+      const requestId = await createApprovalRequest({
+        actionType: archived ? 'package_archive' : 'package_restore',
+        targetType: 'package',
+        targetId: current[0].id,
+        itemName: current[0].name,
+        payload: { archived },
+        summary: `${archived ? 'Archive' : 'Restore'} menu package "${current[0].name}"`,
+        user: req.user
+      });
+      await notify('approval', 'Package Approval Required', `${req.user.username} requested to ${archived ? 'archive' : 'restore'} package "${current[0].name}".`, ['admin'], 'menu');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Submitted for Administrator approval.' });
     }
     const [result] = await pool.query(
       'UPDATE Packages SET is_archived=? WHERE id=?',

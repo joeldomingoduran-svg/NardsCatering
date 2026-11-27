@@ -25,14 +25,7 @@
   <button type="button" class="brand" id="brand-toggle" title="Show or hide the menu" aria-expanded="true"><span class="brand-name">Nards<span>.</span></span><small>Staff</small></button>
   <nav class="tabs">
     <button class="nav-item active" onclick="navigate('calendar')">Calendar</button>
-    <button class="nav-item" onclick="navigate('clients')">Clients</button>
-    <button class="nav-item" onclick="navigate('inventory')">Inventory</button>
-    <button class="nav-item" onclick="navigate('menu')">Menu Packages</button>
-    <button class="nav-item" onclick="navigate('assets')">Assets</button>
-    <button class="nav-item" onclick="navigate('dishes')">Dishes</button>
-    <button class="nav-item" onclick="navigate('employees')">Employees</button>
-    <button class="nav-item" onclick="navigate('reports')">Reports</button>
-    <button class="nav-item" onclick="navigate('audit')">Audit Trail</button>
+    <button class="nav-item" onclick="navigate('profile')">My Profile</button>
   </nav>
   <div class="topnav-actions">
     <button class="btn-notif-bell" id="notif-bell-btn" onclick="openEventNotifications()" title="Event notifications">
@@ -1194,6 +1187,9 @@ function paymentFieldsFromRow(row) {
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
     addGuests: Number(row.additional_guests) || 0,
+    damageFee: Number(row.damage_fee_amount) || 0,
+    damageFeePaid: Boolean(Number(row.damage_fee_paid)),
+    damageConflictNotes: row.damage_conflict_notes || '',
     paid: String(row.paymentStatus || '').toLowerCase() === 'paid',
     requestType: row.requestType || '',
     requestReason: row.requestReason || '',
@@ -2443,7 +2439,9 @@ function showConfirmation(booking) {
       ${booking.gcashRef ? `<div class="confirm-field"><label>GCash Reference</label><p>${auditEscape(booking.gcashRef)}</p></div>` : ''}
       ${booking.addReq ? `<div class="confirm-field" style="grid-column:1/-1"><label>Additional Request</label><p>${auditEscape(booking.addReq)}</p></div>` : ''}
       ${booking.addCost ? `<div class="confirm-field"><label>Additional Cost</label><p>${fmtMoney(booking.addCost)}</p></div>` : ''}
-      ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') || (window.NardsUI && !window.NardsUI.can('bookings.manage')) ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}
+      ${booking.damageFee > 0 ? `<div class="confirm-field"><label>Damage / Conflict Fee</label><p>${fmtMoney(booking.damageFee)} (${booking.damageFeePaid ? 'Paid' : 'Unpaid'})</p></div>` : ''}
+      ${booking.damageConflictNotes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Conflict / Asset Return Notes</label><p>${auditEscape(booking.damageConflictNotes)}</p></div>` : ''}
+      ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}</div>` : ''}
       ${booking.paymentOption || booking.paymentProof ? `<div class="confirm-field"><label>Payment Status</label><p>${booking.paid ? 'Paid' : booking.paymentProof ? 'Receipt submitted for review' : 'Unpaid'}</p></div>` : ''}
       ${booking.paymentProof ? `<div class="confirm-field"><label>Receipt</label><p><button class="btn btn-primary btn-sm" onclick="openReceiptModal('${auditEscape(booking.paymentProof)}')">View receipt</button></p></div>` : ''}
       ${Array.isArray(booking.assignedEmployees) && booking.assignedEmployees.length ? `<div class="confirm-field" style="grid-column:1/-1"><label>Assigned Employees (${booking.assignedEmployees.length})</label><p>${booking.assignedEmployees.map(e => `${auditEscape(e.name)} (${auditEscape(e.job_role || 'Crew')})`).join(', ')}</p></div>` : ''}
@@ -2473,27 +2471,10 @@ function showConfirmation(booking) {
     actions.appendChild(button);
   };
   const idx = data.bookings.findIndex(item => item.id === booking.id);
-  const canManage = !window.NardsUI || window.NardsUI.can('bookings.manage');
   if (idx >= 0 && String(booking.id).startsWith('DB-') && ((Array.isArray(booking.assignedEmployees) && booking.assignedEmployees.length) || ['Confirmed', 'Completed'].includes(booking.status))) {
     addAction('View Assigned Employees', 'btn btn-outline', () => openAssignedEmployeesModal(idx));
   }
-  if (canManage) {
-    if (booking.archived) {
-      addAction('Delete', 'btn btn-danger', () => deleteBooking(idx));
-    } else {
-      if (idx >= 0) addAction('Edit Booking', 'btn btn-outline', () => {
-        closeModal('confirm-modal');
-        openBookingModal(idx);
-      });
-      if (status === 'pending') {
-        addAction('Confirm Booking', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'confirmed'));
-        addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
-      } else if (status === 'confirmed') {
-        addAction('Mark Completed', 'btn btn-success', () => finalizeBookingStatus(booking.id, 'completed'));
-        addAction('Cancel Booking', 'btn btn-danger', () => finalizeBookingStatus(booking.id, 'cancelled'));
-      }
-    }
-  }
+  // Staff portal is strictly read-only for viewing complete assigned booking details.
   openModal('confirm-modal');
 }
 
@@ -3363,15 +3344,19 @@ function renderMyAssignedSchedule() {
     return;
   }
   box.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>Date</th><th>Time</th><th>My Designation</th><th>Event &amp; Client</th><th>Venue</th><th>Status</th></tr></thead>
-    <tbody>${mine.map(({ b, mine: m }) => `<tr>
+    <thead><tr><th>Date</th><th>Time</th><th>My Designation</th><th>Event &amp; Client</th><th>Venue</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>${mine.map(({ b, mine: m }) => {
+      const realIdx = data.bookings.indexOf(b);
+      return `<tr>
       <td style="white-space:nowrap"><strong>${fmtDate(b.date)}</strong></td>
       <td style="white-space:nowrap"><span class="badge badge-gold">${b.time ? fmtTime(b.time) : 'Time TBD'}</span></td>
       <td><span class="badge badge-success">${auditEscape(m.job_role || 'Crew')}</span></td>
       <td><strong>${auditEscape(b.event)}</strong><br><small style="color:var(--text-muted)">${auditEscape(b.client)} &middot; ${auditEscape(b.package || '-')}</small></td>
       <td style="font-size:13px">${auditEscape(b.venue || 'TBD')}</td>
       <td>${statusBadge(b.status)}</td>
-    </tr>`).join('')}</tbody>
+      <td>${realIdx >= 0 ? `<button type="button" class="btn btn-primary btn-sm" onclick="showConfirmation(data.bookings[${realIdx}])">View Complete Details</button>` : ''}</td>
+    </tr>`;
+    }).join('')}</tbody>
   </table></div>`;
 }
 
@@ -3480,7 +3465,7 @@ function calSelectDay(dateStr) {
         <span style="font-size:11px;font-weight:600;color:${statusColor[b.status]||'var(--text-muted)'};white-space:nowrap">${b.status}</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        ${realIdx >= 0 ? `<button class="btn btn-outline btn-sm" style="flex:1;font-size:11px" onclick="showConfirmation(data.bookings[${realIdx}])">View Schedule Details</button>` : ''}
+        ${realIdx >= 0 ? `<button class="btn btn-primary btn-sm" style="flex:1;font-size:11px" onclick="showConfirmation(data.bookings[${realIdx}])">View Complete Details</button>` : ''}
         ${isDone ? `<div style="font-size:12px;color:var(--success);font-weight:600;padding:4px 0">&#10003; Completed</div>` : ''}
       </div>
     </div>`;

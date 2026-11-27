@@ -28,10 +28,7 @@
     <button class="nav-item" onclick="navigate('calendar')">Calendar</button>
     <button class="nav-item" onclick="navigate('clients')">Clients</button>
     <button class="nav-item" onclick="navigate('inventory')">Inventory</button>
-    <button class="nav-item" onclick="navigate('menu')">Menu Packages</button>
-    <button class="nav-item" onclick="navigate('assets')">Assets</button>
-    <button class="nav-item" onclick="navigate('dishes')">Dishes</button>
-    <button class="nav-item" onclick="navigate('employees')">Employees</button>
+    <button class="nav-item" onclick="navigate('employees')">Staff Management</button>
     <button class="nav-item" onclick="navigate('reports')">Reports</button>
     <button class="nav-item" onclick="navigate('audit')">Audit Trail</button>
   </nav>
@@ -1087,7 +1084,7 @@ function navigate(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
-  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', audit:'Audit Trail', profile:'My Profile', staff:'Users & Settings', employees:'Employees' };
+  const titles = { dashboard:'Dashboard', bookings:'Booking Management', calendar:'Booking Calendar', inventory:'Ingredient Inventory', menu:'Menu Packages', assets:'Catering Assets', dishes:'Dish Management', clients:'Client Records', reports:'Business Reports', audit:'Audit Trail', profile:'My Profile', staff:'Users & Settings', employees:'Staff Management' };
   document.getElementById('pageTitle').textContent = titles[view] || view;
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + view + "'")) n.classList.add('active');
@@ -1203,6 +1200,9 @@ function paymentFieldsFromRow(row) {
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
     addGuests: Number(row.additional_guests) || 0,
+    damageFee: Number(row.damage_fee_amount) || 0,
+    damageFeePaid: Boolean(Number(row.damage_fee_paid)),
+    damageConflictNotes: row.damage_conflict_notes || '',
     paid: String(row.paymentStatus || '').toLowerCase() === 'paid',
     requestType: row.requestType || '',
     requestReason: row.requestReason || '',
@@ -1697,7 +1697,13 @@ async function saveMenu() {
     const url    = editPackageId ? `${API}/packages/${editPackageId}` : `${API}/packages`;
     const method = editPackageId ? 'PUT' : 'POST';
     const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!res.ok) { const e = await res.json(); notify(e.error || 'Error saving', '❌'); return; }
+    const out    = typeof res.json === 'function' ? await res.json().catch(() => ({})) : {};
+    if (!res.ok) { notify(out.error || 'Error saving', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      closeModal('menu-modal');
+      notify(out.message || 'Package request submitted for Administrator approval.', '⏳');
+      return;
+    }
     closeModal('menu-modal');
     renderMenuCards();
     notify(editPackageId ? 'Package updated!' : 'Package added!', '✅');
@@ -2450,6 +2456,8 @@ function showConfirmation(booking) {
       ${booking.gcashRef ? `<div class="confirm-field"><label>GCash Reference</label><p>${auditEscape(booking.gcashRef)}</p></div>` : ''}
       ${booking.addReq ? `<div class="confirm-field" style="grid-column:1/-1"><label>Additional Request</label><p>${auditEscape(booking.addReq)}</p></div>` : ''}
       ${booking.addCost ? `<div class="confirm-field"><label>Additional Cost</label><p>${fmtMoney(booking.addCost)}</p></div>` : ''}
+      ${booking.damageFee > 0 ? `<div class="confirm-field"><label>Damage / Conflict Fee</label><p>${fmtMoney(booking.damageFee)} (${booking.damageFeePaid ? 'Paid & Included in Sales' : 'Unpaid'})</p></div>` : ''}
+      ${booking.damageConflictNotes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Completion Conflict / Asset Return Notes</label><p>${auditEscape(booking.damageConflictNotes)}</p></div>` : ''}
       ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') || (window.NardsUI && !window.NardsUI.can('bookings.manage')) ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}
       ${booking.paymentOption || booking.paymentProof ? `<div class="confirm-field"><label>Payment Status</label><p>${booking.paid ? 'Paid' : booking.paymentProof ? 'Receipt submitted for review' : 'Unpaid'}</p></div>` : ''}
       ${booking.paymentProof ? `<div class="confirm-field"><label>Receipt</label><p><button class="btn btn-primary btn-sm" onclick="openReceiptModal('${auditEscape(booking.paymentProof)}')">View receipt</button></p></div>` : ''}
@@ -2504,7 +2512,7 @@ function showConfirmation(booking) {
   openModal('confirm-modal');
 }
 
-async function applyBookingStatusChange(booking, nextStatus, cancellationReason, employeeIds) {
+async function applyBookingStatusChange(booking, nextStatus, cancellationReason, employeeIds, completionPayload) {
   const labels = { confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled' };
   const label = labels[nextStatus];
   if (booking.id && booking.id.startsWith('DB-')) {
@@ -2513,7 +2521,16 @@ async function applyBookingStatusChange(booking, nextStatus, cancellationReason,
       const res = await fetch(`${API}/bookings/${dbId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus, cancellationReason })
+        body: JSON.stringify({
+          status: nextStatus,
+          cancellationReason,
+          ...(completionPayload ? {
+            damagedAssets: completionPayload.damagedAssets,
+            damageFee: completionPayload.damageFee,
+            damageFeePaid: completionPayload.damageFeePaid,
+            conflictNotes: completionPayload.conflictNotes
+          } : {})
+        })
       });
       const response = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2522,6 +2539,11 @@ async function applyBookingStatusChange(booking, nextStatus, cancellationReason,
           : '';
         notify((response.error || `Failed to mark booking ${label.toLowerCase()}`) + details, '❌');
         return false;
+      }
+      if (completionPayload) {
+        booking.damageFee = Number(response.damageFeeAmount ?? completionPayload.damageFee) || 0;
+        booking.damageFeePaid = Boolean(response.damageFeePaid ?? completionPayload.damageFeePaid);
+        booking.damageConflictNotes = response.conflictNotes || completionPayload.conflictNotes || '';
       }
       if (window.notifyStockShortages) window.notifyStockShortages(response);
       if (nextStatus === 'confirmed' && Array.isArray(employeeIds)) {
@@ -2547,7 +2569,7 @@ async function applyBookingStatusChange(booking, nextStatus, cancellationReason,
     data.clients.push({ id: uid('CL'), name: booking.client, phone: booking.phone || '', email: booking.email || '', address: '' });
   }
   saveData();
-  if (nextStatus === 'confirmed' || nextStatus === 'cancelled') {
+  if (nextStatus === 'confirmed' || nextStatus === 'cancelled' || nextStatus === 'completed') {
     await syncInventoryFromAPI();
     await fetchAssets();
   }
@@ -2571,6 +2593,13 @@ async function finalizeBookingStatus(bookingId, nextStatus) {
       mode: 'confirm',
       onConfirm: (employeeIds) => applyBookingStatusChange(booking, 'confirmed', '', employeeIds)
     });
+    return;
+  }
+
+  if (nextStatus === 'completed' && typeof window.promptCompletionConflicts === 'function') {
+    const comp = await window.promptCompletionConflicts(booking);
+    if (!comp || comp.cancelled) return;
+    await applyBookingStatusChange(booking, 'completed', '', null, comp);
     return;
   }
 
@@ -2700,7 +2729,12 @@ async function deleteMenu(id) {
   })) return;
   try {
     const res = await fetch(`${API}/packages/${id}`, { method: 'DELETE' });
-    if (!res.ok) { notify('Failed to archive package', '❌'); return; }
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Failed to archive package', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      notify(out.message || 'Archive request submitted for Administrator approval.', '⏳');
+      return;
+    }
     renderMenuCards();
     notify('Package archived', '✅');
   } catch(e) {
@@ -2714,7 +2748,12 @@ async function togglePopularPackage(id, popular) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ popular })
     });
-    if (!res.ok) { const error = await res.json().catch(() => ({})); notify(error.error || 'Failed to update popular package', '❌'); return; }
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Failed to update popular package', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      notify(out.message || 'Request submitted for Administrator approval.', '⏳');
+      return;
+    }
     renderMenuCards();
     notify(popular ? 'Package marked as popular' : 'Popular badge removed', '✅');
   } catch(e) { notify('Server not connected', '❌'); }
@@ -2726,7 +2765,12 @@ async function restorePackage(id) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ archived: false })
     });
-    if (!res.ok) { const error = await res.json().catch(() => ({})); notify(error.error || 'Failed to restore package', '❌'); return; }
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Failed to restore package', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      notify(out.message || 'Restore request submitted for Administrator approval.', '⏳');
+      return;
+    }
     renderMenuCards();
     notify('Package restored', '✅');
   } catch(e) { notify('Server not connected', '❌'); }
@@ -3077,7 +3121,13 @@ async function saveDish() {
     const url    = editDishId ? `${API}/dishes/${editDishId}` : `${API}/dishes`;
     const method = editDishId ? 'PUT' : 'POST';
     const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!res.ok) { const e = await res.json(); notify(e.error || 'Error saving', '❌'); return; }
+    const out    = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Error saving', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      closeModal('dish-modal');
+      notify(out.message || 'Dish request submitted for Administrator approval.', '⏳');
+      return;
+    }
     closeModal('dish-modal');
     renderDishes();
     notify(editDishId ? 'Dish updated!' : 'Dish added!', '✅');
@@ -3098,9 +3148,13 @@ async function deleteDish(id) {
     if (res.status === 404) {
       res = await fetch(`${API}/dishes/${id}`, { method: 'DELETE' });
     }
+    const out = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const error = await res.json().catch(() => ({}));
-      notify(error.error || `Could not archive dish (server error ${res.status})`, '❌');
+      notify(out.error || `Could not archive dish (server error ${res.status})`, '❌');
+      return;
+    }
+    if (res.status === 202 || out.pendingApproval) {
+      notify(out.message || 'Archive request submitted for Administrator approval.', '⏳');
       return;
     }
     const dish = dishesList.find(item => Number(item.id) === Number(id));
@@ -3118,7 +3172,12 @@ async function restoreDish(id) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ archived: false })
     });
-    if (!res.ok) { const error = await res.json().catch(() => ({})); notify(error.error || 'Failed to restore dish', '❌'); return; }
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { notify(out.error || 'Failed to restore dish', '❌'); return; }
+    if (res.status === 202 || out.pendingApproval) {
+      notify(out.message || 'Restore request submitted for Administrator approval.', '⏳');
+      return;
+    }
     const dish = dishesList.find(item => Number(item.id) === Number(id));
     if (dish) dish.is_archived = 0;
     renderDishes(false);
@@ -3227,9 +3286,14 @@ async function saveDishIngredients() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ingredients })
     });
+    const err = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
       notify(err.error || 'Failed to save dish ingredients', '❌');
+      return;
+    }
+    if (res.status === 202 || err.pendingApproval) {
+      closeModal('dish-ingredients-modal');
+      notify(err.message || 'Dish ingredients update submitted for Administrator approval.', '⏳');
       return;
     }
 

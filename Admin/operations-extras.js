@@ -1,9 +1,9 @@
 // Shared operational expansions across Admin, Manager, and Staff portals:
 // 1) Real-time Inventory expiration & perishables, disposal, readiness & stock movement log
-// 2) Manager -> Admin approval queue for all inventory & asset mutations
-// 3) Catering Assets Damaged section (report damage, repair, write off)
-// 4) Expanded Business Reports (Sales + Inventory/Expiry/Damaged + Financial Projections)
-// 5) Per-booking Liquidation modal, Printable Event Sheet & Admin Booking Advisory toggle
+// 2) Manager -> Admin approval queue for Inventory, Assets, Packages & Dishes mutations
+// 3) Catering Assets Damaged section & Booking Completion Conflict/Damage Tracker
+// 4) Expanded Business Reports (Sales + Paid Damage Fees + Inventory/Expiry/Damaged + Financial Projections)
+// 5) Grouped Hub Sub-Tabs, Compact Alerts, Printable Event Sheet & Admin Booking Advisory
 (function () {
   'use strict';
 
@@ -54,13 +54,21 @@
     return { key: 'fresh', label: 'Fresh (' + daysLeft + 'd left)', cls: 'badge-success', daysLeft };
   };
 
+  function bookingTotalWithDamages(b) {
+    if (!b) return 0;
+    const base = Number(b.amount) || 0;
+    const dmg = (b.status === 'Completed' && b.damageFeePaid && Number(b.damageFee) > 0) ? Number(b.damageFee) : 0;
+    return base + dmg;
+  }
+  window.bookingTotalWithDamages = bookingTotalWithDamages;
+
   function collectedAmount(b) {
     if (!b || b.status === 'Cancelled') return 0;
-    const total = Number(b.amount) || 0;
+    const total = bookingTotalWithDamages(b);
     if (b.status === 'Completed') return total;
     if (b.paid) {
-      if (b.paymentOption === 'down') return Math.min(total, Number(b.amountDue || b.dp) || 0);
-      return total;
+      if (b.paymentOption === 'down') return Math.min(Number(b.amount) || 0, Number(b.amountDue || b.dp) || 0);
+      return Number(b.amount) || 0;
     }
     return 0;
   }
@@ -85,84 +93,171 @@
     }
   };
 
-  /* --------------------------------------------------- 1. Liquidation Modal */
-  window.openLiquidationModal = async function (bookingId) {
-    const bookings = window.data && Array.isArray(window.data.bookings) ? window.data.bookings : [];
-    const booking = bookings.find(function (b) { return b.id === bookingId; });
-    if (!booking || !String(booking.id).startsWith('DB-')) {
-      if (window.notify) window.notify('Save the booking to the database before recording liquidation.', '⚠️');
-      return;
-    }
-    const dbId = String(booking.id).replace(/^DB-/, '');
-    const currentExpense = Number(booking.expenseAmount) || 0;
-    const currentNotes = String(booking.liquidationNotes || '');
-
-    let expenseValue = currentExpense;
-    let notesValue = currentNotes;
-    if (window.Swal) {
-      const result = await window.Swal.fire({
-        title: 'Event Liquidation & Expenses',
-        html:
-          '<div style="text-align:left">' +
-          '<p style="font-size:13px;color:#666;margin:0 0 10px"><strong>' + esc(booking.client) + '</strong> &mdash; ' + esc(booking.event) + ' (' + esc(booking.date || '') + ')</p>' +
-          '<label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px">Total Event Expenses (&#8369;)</label>' +
-          '<input id="swal-liq-expense" type="number" min="0" step="0.01" value="' + currentExpense + '" style="width:100%;padding:9px 10px;border:1px solid #d5cfc6;border-radius:8px;box-sizing:border-box;margin-bottom:10px">' +
-          '<label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px">Liquidation Breakdown / Notes (optional)</label>' +
-          '<textarea id="swal-liq-notes" rows="3" maxlength="500" placeholder="e.g. Market ingredients ₱18,000, Crew allowance ₱4,500, Vehicle rental ₱2,000" style="width:100%;padding:9px 10px;border:1px solid #d5cfc6;border-radius:8px;box-sizing:border-box">' + esc(currentNotes) + '</textarea>' +
-          '</div>',
-        showCancelButton: true,
-        confirmButtonText: 'Save Liquidation',
-        confirmButtonColor: '#8d6a36',
-        preConfirm: function () {
-          const val = Number(document.getElementById('swal-liq-expense').value);
-          if (!Number.isFinite(val) || val < 0) {
-            window.Swal.showValidationMessage('Enter a valid expense amount (0 or greater).');
-            return false;
-          }
-          return {
-            expense_amount: Math.round(val * 100) / 100,
-            liquidation_notes: document.getElementById('swal-liq-notes').value.trim()
-          };
+  /* -------------------------------- 1. Booking Completion Conflict / Damage Modal */
+  window.promptCompletionConflicts = async function (booking) {
+    if (!booking) return { cancelled: true };
+    let dispatchedAssets = [];
+    if (String(booking.id || '').startsWith('DB-')) {
+      const dbId = String(booking.id).replace(/^DB-/, '');
+      try {
+        const res = await fetch(apiBase() + '/bookings/' + encodeURIComponent(dbId) + '/assets', { cache: 'no-store' });
+        if (res.ok) {
+          const payload = await res.json().catch(function () { return {}; });
+          if (Array.isArray(payload.assets)) dispatchedAssets = payload.assets;
         }
-      });
-      if (!result.isConfirmed || !result.value) return;
-      expenseValue = result.value.expense_amount;
-      notesValue = result.value.liquidation_notes;
-    } else {
-      const raw = window.prompt('Enter total event expenses (PHP):', String(currentExpense));
-      if (raw === null) return;
-      expenseValue = Number(raw);
-      if (!Number.isFinite(expenseValue) || expenseValue < 0) return;
-      notesValue = window.prompt('Liquidation notes (optional):', currentNotes) || '';
+      } catch (e) {}
+    }
+    if (!dispatchedAssets.length && booking.package && Array.isArray(window.packagesList)) {
+      const pkg = window.packagesList.find(function (p) { return p.name === booking.package; });
+      if (pkg && Array.isArray(pkg.assets)) dispatchedAssets = pkg.assets;
     }
 
-    try {
-      const res = await fetch(apiBase() + '/bookings/' + encodeURIComponent(dbId) + '/liquidation', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expense_amount: expenseValue, liquidation_notes: notesValue })
-      });
-      const out = await res.json().catch(function () { return {}; });
-      if (!res.ok) {
-        if (window.notify) window.notify(out.error || 'Could not save liquidation.', '❌');
-        return;
-      }
-      booking.expenseAmount = Number(out.expense_amount) || 0;
-      booking.liquidationNotes = out.liquidation_notes || '';
-      booking.liquidationUpdatedBy = out.liquidation_updated_by || '';
-      if (typeof window.saveData === 'function') window.saveData();
-      if (typeof window.renderSalesAnalytics === 'function') window.renderSalesAnalytics();
-      if (typeof window.renderReports === 'function') window.renderReports();
-      if (typeof window.renderBookings === 'function') window.renderBookings();
-      const modal = document.getElementById('confirm-modal');
-      if (modal && modal.classList.contains('open') && typeof window.showConfirmation === 'function') {
-        window.showConfirmation(booking);
-      }
-      if (window.notify) window.notify('Event liquidation saved.', '✅');
-    } catch (e) {
-      if (window.notify) window.notify('Could not reach the server.', '❌');
+    if (!window.Swal) {
+      const feeRaw = window.prompt('Enter damaged asset fee (PHP, 0 if none):', '0');
+      if (feeRaw === null) return { cancelled: true };
+      const fee = Math.max(0, Number(feeRaw) || 0);
+      return { cancelled: false, damagedAssets: [], damageFee: fee, damageFeePaid: fee > 0, conflictNotes: '' };
     }
+
+    const assetRowsHtml = dispatchedAssets.length
+      ? '<div style="margin:10px 0 12px;border:1px solid #e6dcc8;border-radius:8px;overflow:hidden">' +
+          '<div style="background:#faf6ed;padding:8px 10px;font-size:11.5px;font-weight:700;color:#5a4626;text-transform:uppercase;letter-spacing:.5px">Dispatched Package Assets — Report Any Damaged Items</div>' +
+          dispatchedAssets.map(function (a, i) {
+            const req = Math.max(0, Math.trunc(Number(a.qty_required) || 0));
+            return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-top:1px solid #f2eadb;font-size:13px">' +
+              '<div><strong>' + esc(a.name) + '</strong> <small style="color:#776c5d">(' + req + ' ' + esc(a.unit || 'pcs') + ' used)</small>' +
+              '<div class="dmg-preview-line" data-idx="' + i + '" style="font-size:11px;color:#1e6b34">All ' + req + ' return to inventory</div></div>' +
+              '<div style="display:flex;align-items:center;gap:6px"><label style="font-size:11px;color:#666;margin:0">Damaged:</label>' +
+              '<input type="number" class="swal-dmg-asset-qty" data-asset-id="' + esc(a.asset_id) + '" data-req="' + req + '" data-unit="' + esc(a.unit || 'pcs') + '" data-idx="' + i + '" min="0" max="' + req + '" value="0" style="width:72px;padding:5px 8px;border:1px solid #d5cfc6;border-radius:6px;text-align:center"></div>' +
+            '</div>';
+          }).join('') +
+        '</div>'
+      : '<p style="font-size:12.5px;color:#666;margin:0 0 10px">No package assets linked to this booking. Record any conflict notes or additional damage fees below if applicable.</p>';
+
+    const result = await window.Swal.fire({
+      title: 'Complete Booking & Return Check',
+      width: 560,
+      html:
+        '<div style="text-align:left">' +
+          '<p style="font-size:13px;color:#555;margin:0 0 10px"><strong>' + esc(booking.client) + '</strong> &mdash; ' + esc(booking.event) + ' (' + esc(booking.package || 'No package') + ')</p>' +
+          assetRowsHtml +
+          '<div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-bottom:10px">' +
+            '<div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px">Damage / Conflict Fee (&#8369;)</label>' +
+            '<input id="swal-comp-fee" type="number" min="0" step="0.01" value="0" style="width:100%;padding:8px 10px;border:1px solid #d5cfc6;border-radius:8px;box-sizing:border-box"></div>' +
+            '<label style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:#faf6ed;border:1px solid #e6dcc8;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;margin:0">' +
+            '<input id="swal-comp-paid" type="checkbox" checked> Paid by Client</label>' +
+          '</div>' +
+          '<label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px">Booking Conflict / Asset Return Notes (optional)</label>' +
+          '<textarea id="swal-comp-notes" rows="2" maxlength="500" placeholder="e.g. 5 tables scratched/broken — client settled replacement fee" style="width:100%;padding:8px 10px;border:1px solid #d5cfc6;border-radius:8px;box-sizing:border-box"></textarea>' +
+          '<p style="font-size:11.5px;color:#706454;margin:8px 0 0">Damaged quantities stay out of usable inventory and appear in Damaged Assets. Paid fees are added directly to Sales Monitoring.</p>' +
+        '</div>',
+      showCancelButton: true,
+      confirmButtonText: 'Complete Booking',
+      cancelButtonText: 'Go Back',
+      confirmButtonColor: '#2d7a3a',
+      didOpen: function () {
+        document.querySelectorAll('.swal-dmg-asset-qty').forEach(function (inp) {
+          inp.addEventListener('input', function () {
+            const req = Number(inp.dataset.req) || 0;
+            const dmg = Math.min(req, Math.max(0, Math.trunc(Number(inp.value) || 0)));
+            const ret = Math.max(0, req - dmg);
+            const prev = document.querySelector('.dmg-preview-line[data-idx="' + inp.dataset.idx + '"]');
+            if (prev) {
+              prev.style.color = dmg > 0 ? '#9b1c1c' : '#1e6b34';
+              prev.textContent = dmg > 0
+                ? (ret + ' return to usable stock · ' + dmg + ' marked damaged (excluded)')
+                : ('All ' + req + ' return to inventory');
+            }
+          });
+        });
+      },
+      preConfirm: function () {
+        const feeVal = Number(document.getElementById('swal-comp-fee').value);
+        if (!Number.isFinite(feeVal) || feeVal < 0) {
+          window.Swal.showValidationMessage('Enter a valid damage fee (0 or greater).');
+          return false;
+        }
+        const damagedAssets = [];
+        let badQty = false;
+        document.querySelectorAll('.swal-dmg-asset-qty').forEach(function (inp) {
+          const req = Number(inp.dataset.req) || 0;
+          const val = Math.trunc(Number(inp.value) || 0);
+          if (val < 0 || val > req) badQty = true;
+          if (val > 0) damagedAssets.push({ asset_id: Number(inp.dataset.assetId), damaged_qty: val });
+        });
+        if (badQty) {
+          window.Swal.showValidationMessage('Damaged quantity cannot exceed the dispatched asset count.');
+          return false;
+        }
+        return {
+          damagedAssets: damagedAssets,
+          damageFee: Math.round(feeVal * 100) / 100,
+          damageFeePaid: feeVal > 0 ? Boolean(document.getElementById('swal-comp-paid').checked) : false,
+          conflictNotes: document.getElementById('swal-comp-notes').value.trim()
+        };
+      }
+    });
+    if (!result.isConfirmed || !result.value) return { cancelled: true };
+    return Object.assign({ cancelled: false }, result.value);
   };
+
+  /* -------------------------------- 1b. Grouped Hub Navigation */
+  const HUB_GROUPS = {
+    inventory: [
+      { view: 'inventory', label: 'Ingredients', perm: 'inventory.manage' },
+      { view: 'assets', label: 'Catering Assets', perm: 'assets.manage' },
+      { view: 'menu', label: 'Menu Packages', perm: 'packages.manage' },
+      { view: 'dishes', label: 'Dishes', perm: 'dishes.manage' }
+    ],
+    settings: [
+      { view: 'staff', label: 'Accounts & Settings', perm: 'users.manage' },
+      { view: 'roles', label: 'Roles & Permissions', perm: 'roles.manage' },
+      { view: 'dropdowns', label: 'Dropdown Library', perm: 'dropdowns.manage' },
+      { view: 'audit', label: 'Audit Trail', perm: 'audit.view' },
+      { view: 'logins', label: 'Login Activity', perm: 'audit.view' }
+    ]
+  };
+
+  function ensureCategoryHubs() {
+    Object.entries(HUB_GROUPS).forEach(function ([groupKey, tabs]) {
+      tabs.forEach(function (t) {
+        const viewEl = document.getElementById('view-' + t.view);
+        if (!viewEl) return;
+        let bar = viewEl.querySelector('.category-hub-bar[data-hub="' + groupKey + '"]');
+        const visibleTabs = tabs.filter(function (item) {
+          if (!document.getElementById('view-' + item.view)) return false;
+          if (window.NardsUI && typeof window.NardsUI.can === 'function' && item.perm) {
+            return window.NardsUI.can(item.perm);
+          }
+          return true;
+        });
+        if (visibleTabs.length < 2) {
+          if (bar) bar.style.display = 'none';
+          return;
+        }
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.className = 'category-hub-bar';
+          bar.dataset.hub = groupKey;
+          viewEl.prepend(bar);
+        }
+        bar.style.display = 'flex';
+        bar.innerHTML = visibleTabs.map(function (item) {
+          return '<button type="button" class="category-hub-tab' + (item.view === t.view ? ' active' : '') + '" onclick="navigate(\'' + item.view + '\')">' + esc(item.label) + '</button>';
+        }).join('');
+      });
+    });
+  }
+
+  function highlightGroupedNav(activeView) {
+    const isInvChild = HUB_GROUPS.inventory.some(function (t) { return t.view === activeView; });
+    const isSetChild = HUB_GROUPS.settings.some(function (t) { return t.view === activeView; });
+    document.querySelectorAll('.nav-item').forEach(function (btn) {
+      const oc = btn.getAttribute('onclick') || '';
+      if (isInvChild && oc.includes("'inventory'")) btn.classList.add('active');
+      if (isSetChild && oc.includes("'staff'")) btn.classList.add('active');
+    });
+  }
 
   /* -------------------------------------- 2. Inventory Filter, Expiry & Log */
   let inventoryMode = 'items'; // 'items' | 'log' | 'approvals'
@@ -205,7 +300,7 @@
         } else if (user.role === 'manager') {
           const mgrNote = document.createElement('div');
           mgrNote.className = 'approval-banner';
-          mgrNote.innerHTML = '<div><strong>Manager Approval Policy:</strong> All ingredient and catering asset changes (create, edit, restock, damage, disposal, archive) are queued for Administrator approval.</div>';
+          mgrNote.innerHTML = '<div><strong>Manager Approval Policy:</strong> Operations for Ingredients, Catering Assets, Menu Packages, and Dishes require Administrator approval before taking effect.</div>';
           alertsEl.before(mgrNote);
         }
         const readyDiv = document.createElement('div');
@@ -451,7 +546,7 @@
       const bannerHtml = count > 0
         ? '<div class="approval-banner"><div><strong>&#128276; ' + count + ' Manager Inventory Request' + (count === 1 ? '' : 's') + ' Pending Approval</strong><br><span style="font-size:13px">Review and approve/reject Manager stock changes before they take effect.</span></div><button type="button" class="btn btn-primary btn-sm" data-open-approvals="1">Review Pending Requests</button></div>'
         : '';
-      ['inv-approval-banner', 'assets-approval-banner'].forEach(function (bid) {
+      ['inv-approval-banner', 'assets-approval-banner', 'menu-approval-banner', 'dishes-approval-banner'].forEach(function (bid) {
         const banner = document.getElementById(bid);
         if (!banner) return;
         banner.innerHTML = bannerHtml;
@@ -471,19 +566,20 @@
       const fmtDt = window.NardsUI && window.NardsUI.fmtDateTime
         ? window.NardsUI.fmtDateTime
         : function (v) { return String(v || '-'); };
+      const typeLabelMap = { asset: 'Asset', package: 'Package', dish: 'Dish', ingredient: 'Ingredient' };
       tbody.innerHTML = rows.length ? rows.map(function (r) {
         const stCls = r.status === 'approved' ? 'badge-success' : r.status === 'rejected' ? 'badge-danger' : 'badge-warning';
         return '<tr>' +
           '<td style="font-size:12px;white-space:nowrap">' + esc(fmtDt(r.created_at)) + '</td>' +
           '<td><strong>' + esc(r.requested_by) + '</strong></td>' +
-          '<td><span class="badge badge-gold">' + esc(r.target_type === 'asset' ? 'Asset' : 'Ingredient') + '</span></td>' +
+          '<td><span class="badge badge-gold">' + esc(typeLabelMap[r.target_type] || 'Operation') + '</span></td>' +
           '<td>' + esc(r.summary) + (r.review_notes ? '<br><small style="color:var(--text-muted)">Note: ' + esc(r.review_notes) + '</small>' : '') + '</td>' +
           '<td><span class="badge ' + stCls + '">' + esc(r.status) + '</span></td>' +
           '<td>' + (r.status === 'pending'
             ? '<div class="ops-actions"><button type="button" class="btn btn-success btn-sm" data-app-id="' + r.id + '" data-dec="approved">Approve</button><button type="button" class="btn btn-danger btn-sm" data-app-id="' + r.id + '" data-dec="rejected">Reject</button></div>'
             : '<small style="color:var(--text-muted)">By ' + esc(r.reviewed_by || '-') + '</small>') + '</td>' +
         '</tr>';
-      }).join('') : '<tr><td colspan="6">No inventory approval requests found.</td></tr>';
+      }).join('') : '<tr><td colspan="6">No pending approval requests found.</td></tr>';
 
       tbody.querySelectorAll('[data-app-id]').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -497,7 +593,7 @@
     let notes = '';
     if (window.Swal) {
       const res = await window.Swal.fire({
-        title: (decision === 'approved' ? 'Approve' : 'Reject') + ' this inventory request?',
+        title: (decision === 'approved' ? 'Approve' : 'Reject') + ' this manager request?',
         input: 'text',
         inputLabel: 'Notes (optional)',
         showCancelButton: true,
@@ -523,6 +619,8 @@
       if (typeof window.fetchAssets === 'function') await window.fetchAssets();
       if (typeof window.renderInventory === 'function') window.renderInventory();
       if (typeof window.renderAssets === 'function') window.renderAssets();
+      if (typeof window.renderMenuCards === 'function') window.renderMenuCards();
+      if (typeof window.renderDishes === 'function') window.renderDishes();
       const af = document.getElementById('inv-app-status-filter');
       loadApprovalsList(af ? af.value : 'pending');
     } catch (e) {
@@ -695,20 +793,78 @@
       const res = await fetch(apiBase() + '/inventory/readiness?days=14', { cache: 'no-store' });
       const data = await res.json().catch(function () { return null; });
       if (!res.ok || !data) return;
-      if (!data.upcomingEvents) {
-        box.innerHTML = '<div class="alert" style="background:#f6f1e7;border:1px solid #e5d7be;color:#654f2b"><span class="alert-icon">&#128197;</span><div><strong>Upcoming Event Stock Readiness:</strong> No confirmed events scheduled in the next 14 days.</div></div>';
-        return;
-      }
-      if (data.shortages && data.shortages.length) {
-        const list = data.shortages.slice(0, 6).map(function (s) {
-          return esc(s.name) + ' (need ' + s.required_qty + ', current ' + s.current_stock + ')';
-        }).join(', ');
-        box.innerHTML = '<div class="alert alert-danger"><span class="alert-icon">&#9888;&#65039;</span><div><strong>Stock Forecast Warning (' + data.upcomingEvents + ' upcoming confirmed event' + (data.upcomingEvents === 1 ? '' : 's') + '):</strong> Restock needed for ' + list + '.</div></div>';
-      } else {
-        box.innerHTML = '<div class="alert" style="background:#edf7f0;border:1px solid #bce0c7;color:#1e5c31"><span class="alert-icon">&#9989;</span><div><strong>Upcoming Event Readiness (' + data.upcomingEvents + ' confirmed event' + (data.upcomingEvents === 1 ? '' : 's') + ' in next 14 days):</strong> Current ingredient and asset stocks are sufficient.</div></div>';
-      }
+      window._latestReadinessData = data;
+      renderCompactInventoryNoticeBar();
     } catch (e) {}
   };
+
+  function renderCompactInventoryNoticeBar() {
+    const alertsBox = document.getElementById('inv-alerts');
+    const readyBox = document.getElementById('inv-readiness-banner');
+    if (readyBox) readyBox.innerHTML = '';
+    if (!alertsBox) return;
+
+    const invList = window.data && Array.isArray(window.data.inventory) ? window.data.inventory : [];
+    const activeInventory = invList.filter(function (i) { return !i.archived; });
+    const critical = activeInventory.filter(function (i) { return typeof window.stockStatus === 'function' && window.stockStatus(i).key === 'critical'; });
+    const low = activeInventory.filter(function (i) { return typeof window.stockStatus === 'function' && window.stockStatus(i).key === 'low'; });
+    const expired = activeInventory.filter(function (i) { return window.getExpiryInfo(i).key === 'expired' && Number(i.stock) > 0; });
+    const expiring = activeInventory.filter(function (i) { return window.getExpiryInfo(i).key === 'soon' && Number(i.stock) > 0; });
+    const rData = window._latestReadinessData || null;
+
+    const chips = [];
+    const detailLines = [];
+    if (expired.length) {
+      chips.push('<span class="compact-chip compact-chip-danger">&#9200; ' + expired.length + ' Expired</span>');
+      detailLines.push('<div><strong style="color:#9b1c1c">Expired Perishables:</strong> ' + expired.map(function (i) { return esc(i.name) + ' (' + esc(i.expiryDate) + ')'; }).join(', ') + '</div>');
+    }
+    if (expiring.length) {
+      chips.push('<span class="compact-chip compact-chip-warn">&#9888;&#65039; ' + expiring.length + ' Expiring Soon</span>');
+      detailLines.push('<div><strong style="color:#92400e">Expiring Within 3 Days:</strong> ' + expiring.map(function (i) { return esc(i.name) + ' (' + esc(i.expiryDate) + ')'; }).join(', ') + '</div>');
+    }
+    if (critical.length) {
+      chips.push('<span class="compact-chip compact-chip-danger">&#128680; ' + critical.length + ' Critical Stock</span>');
+      detailLines.push('<div><strong style="color:#9b1c1c">Critical Stock:</strong> ' + critical.map(function (i) { return esc(i.name); }).join(', ') + '</div>');
+    }
+    if (low.length) {
+      chips.push('<span class="compact-chip compact-chip-warn">' + low.length + ' Low Stock</span>');
+      detailLines.push('<div><strong style="color:#92400e">Low Stock:</strong> ' + low.map(function (i) { return esc(i.name); }).join(', ') + '</div>');
+    }
+    if (rData) {
+      if (!rData.upcomingEvents) {
+        chips.push('<span class="compact-chip compact-chip-info">&#128197; No upcoming events (14d)</span>');
+      } else if (rData.shortages && rData.shortages.length) {
+        chips.push('<span class="compact-chip compact-chip-danger">&#9888;&#65039; ' + rData.shortages.length + ' Upcoming Event Shortage</span>');
+        detailLines.push('<div><strong style="color:#9b1c1c">Stock Forecast (' + rData.upcomingEvents + ' event' + (rData.upcomingEvents === 1 ? '' : 's') + '):</strong> ' + rData.shortages.slice(0, 6).map(function (s) { return esc(s.name) + ' (need ' + s.required_qty + ', have ' + s.current_stock + ')'; }).join(', ') + '</div>');
+      } else {
+        chips.push('<span class="compact-chip compact-chip-ok">&#9989; Event Stocks Ready (' + rData.upcomingEvents + ')</span>');
+      }
+    }
+    if (!chips.length) {
+      alertsBox.innerHTML = '';
+      return;
+    }
+
+    const toggleBtn = detailLines.length
+      ? '<button type="button" class="btn btn-outline btn-sm" id="inv-alerts-toggle" style="padding:4px 10px;font-size:11.5px">' + (window._invAlertsExpanded ? 'Hide Details' : 'View Details (' + detailLines.length + ')') + '</button>'
+      : '';
+    alertsBox.innerHTML =
+      '<div class="compact-alert-strip">' +
+        '<div class="compact-alert-row">' +
+          '<div class="compact-alert-chips">' + chips.join('') + '</div>' +
+          toggleBtn +
+        '</div>' +
+        (detailLines.length && window._invAlertsExpanded ? '<div class="compact-alert-details">' + detailLines.join('') + '</div>' : '') +
+      '</div>';
+
+    const tgl = document.getElementById('inv-alerts-toggle');
+    if (tgl) {
+      tgl.addEventListener('click', function () {
+        window._invAlertsExpanded = !window._invAlertsExpanded;
+        renderCompactInventoryNoticeBar();
+      });
+    }
+  }
 
   /* ------------------------------------------ 3. Enhanced Business Reports */
   function ensureReportsSections() {
@@ -719,19 +875,19 @@
       grid.style.gridTemplateColumns = 'repeat(5,1fr)';
       grid.insertAdjacentHTML('beforeend',
         '<div class="stat-card stat-accent"><div class="stat-label">Net Profit (15%)</div><div class="stat-value" id="rep-profit-15">&#8369;0</div></div>' +
-        '<div class="stat-card stat-accent"><div class="stat-label">Event Expenses</div><div class="stat-value" id="rep-expenses">&#8369;0</div></div>'
+        '<div class="stat-card stat-accent"><div class="stat-label">Paid Damage Fees</div><div class="stat-value" id="rep-damage-fees">&#8369;0</div></div>'
       );
     }
-    if (!document.getElementById('rep-liquidation-card')) {
+    if (!document.getElementById('rep-sales-detail-card')) {
       const card = document.createElement('div');
       card.className = 'card';
-      card.id = 'rep-liquidation-card';
+      card.id = 'rep-sales-detail-card';
       card.style.marginTop = '20px';
       card.innerHTML =
-        '<div class="card-title">Sales &amp; Per-Event Liquidation (Completed Events)</div>' +
+        '<div class="card-title">Sales Monitoring (Completed Events &amp; Damage Fees)</div>' +
         '<div class="table-wrap"><table><thead>' +
-          '<tr><th>Booking ID</th><th>Date</th><th>Client &amp; Event</th><th>Gross Sale</th><th>Expenses</th><th>15% Profit</th><th>Actual Net</th><th>Notes</th></tr>' +
-        '</thead><tbody id="rep-liquidation-tbody"></tbody></table></div>';
+          '<tr><th>Booking ID</th><th>Date</th><th>Client &amp; Event</th><th>Package Sale</th><th>Paid Damage Fee</th><th>Total Sale</th><th>15% Net Profit</th><th>Conflict Notes</th></tr>' +
+        '</thead><tbody id="rep-sales-detail-tbody"></tbody></table></div>';
       viewRep.appendChild(card);
 
       const invCard = document.createElement('div');
@@ -768,12 +924,12 @@
     }
 
     const sheet = document.getElementById('reports-print-sheet');
-    if (sheet && !document.getElementById('rep-print-liquidation')) {
+    if (sheet && !document.getElementById('rep-print-sales')) {
       sheet.insertAdjacentHTML('beforeend',
-        '<h2>Completed Event Sales &amp; Liquidation</h2>' +
+        '<h2>Completed Event Sales &amp; Paid Damage Fees</h2>' +
         '<table class="report-print-table"><thead>' +
-          '<tr><th>Booking ID</th><th>Date</th><th>Client</th><th>Event</th><th>Gross Sale</th><th>Expenses</th><th>15% Profit</th><th>Actual Net</th></tr>' +
-        '</thead><tbody id="rep-print-liquidation"></tbody></table>' +
+          '<tr><th>Booking ID</th><th>Date</th><th>Client</th><th>Event</th><th>Package Sale</th><th>Paid Damage Fee</th><th>Total Sale</th><th>15% Profit</th></tr>' +
+        '</thead><tbody id="rep-print-sales"></tbody></table>' +
         '<h2>Financial Projections</h2>' +
         '<table class="report-print-table"><thead>' +
           '<tr><th>Confirmed Pipeline</th><th>Pending Pipeline</th><th>Next-Month Projected Sales</th><th>Projected 15% Profit</th></tr>' +
@@ -816,8 +972,10 @@
       }).catch(function () {});
 
     document.getElementById('adv-save-btn').addEventListener('click', async function () {
+      const btn = this;
       const title = document.getElementById('adv-title').value.trim();
       const message = document.getElementById('adv-message').value.trim();
+      btn.disabled = true;
       try {
         const res = await fetch(apiBase() + '/settings/booking-advisory', {
           method: 'PUT',
@@ -825,9 +983,15 @@
           body: JSON.stringify({ active: false, title, message })
         });
         const out = await res.json().catch(function () { return {}; });
+        if (res.ok) {
+          if (out.title) document.getElementById('adv-title').value = out.title;
+          if (out.advisoryMessage) document.getElementById('adv-message').value = out.advisoryMessage;
+        }
         if (window.notify) window.notify(res.ok ? (out.message || 'Advisory updated.') : (out.error || 'Could not save advisory.'), res.ok ? '✅' : '❌');
       } catch (e) {
         if (window.notify) window.notify('Could not reach the server.', '❌');
+      } finally {
+        btn.disabled = false;
       }
     });
   }
@@ -838,11 +1002,10 @@
     const pkgs = Array.isArray(window.packagesList) ? window.packagesList : [];
     const pkg = pkgs.find(function (p) { return p.name === booking.package; });
     const team = Array.isArray(booking.assignedEmployees) ? booking.assignedEmployees : [];
-    const total = Number(booking.amount) || 0;
-    const dp = Number(booking.dp) || Math.round(total * 0.2);
-    const expenses = Number(booking.expenseAmount) || 0;
-    const profit15 = Number((total * 0.15).toFixed(2));
-    const actualNet = Number((total - expenses).toFixed(2));
+    const baseTotal = Number(booking.amount) || 0;
+    const dmgFee = (booking.status === 'Completed' && booking.damageFeePaid && Number(booking.damageFee) > 0) ? Number(booking.damageFee) : 0;
+    const total = baseTotal + dmgFee;
+    const dp = Number(booking.dp) || Math.round(baseTotal * 0.2);
     const dishesHtml = pkg && Array.isArray(pkg.dishes) && pkg.dishes.length
       ? pkg.dishes.map(function (d) { return '<li>' + esc(d.name) + ' <small>(' + esc(d.category) + ')</small></li>'; }).join('')
       : '<li>See package configuration</li>';
@@ -872,7 +1035,7 @@
       'ul{margin:0;padding-left:18px;font-size:13px}li{margin:2px 0}' +
       'table{width:100%;border-collapse:collapse;font-size:13px}td,th{border:1px solid #ddd;padding:6px 8px;text-align:left}' +
       '@media print{button{display:none!important}}</style></head><body>' +
-      '<div class="hdr"><div><div class="brand">Nard\'s Catering &amp; Setup</div><div>Event Operations &amp; Liquidation Sheet</div></div>' +
+      '<div class="hdr"><div><div class="brand">Nard\'s Catering &amp; Setup</div><div>Event Details &amp; Dispatch Sheet</div></div>' +
       '<div class="meta"><strong>' + esc(booking.id) + '</strong><br>Status: ' + esc(booking.status) + '<br>Printed: ' + esc(new Date().toLocaleString('en-PH')) + '</div></div>' +
       '<div class="grid">' +
         '<div><strong>Client:</strong> ' + esc(booking.client) + '</div>' +
@@ -889,13 +1052,13 @@
         '<div class="box"><h3>Freebies / Inclusions</h3><ul>' + freebiesHtml + '</ul></div>' +
         '<div class="box"><h3>Assigned Crew (' + team.length + ')</h3><ul>' + teamHtml + '</ul></div>' +
       '</div>' +
-      (booking.addReq || booking.notes ? '<div class="box"><h3>Special Requests &amp; Notes</h3>' +
+      (booking.addReq || booking.notes || booking.damageConflictNotes ? '<div class="box"><h3>Special Requests &amp; Conflict Notes</h3>' +
         (booking.addReq ? '<div><strong>Additional Request:</strong> ' + esc(booking.addReq) + '</div>' : '') +
-        (booking.notes ? '<div><strong>Notes:</strong> ' + esc(booking.notes) + '</div>' : '') + '</div>' : '') +
-      '<div class="box"><h3>Financial &amp; Liquidation Summary</h3><table><thead><tr><th>Total Contract</th><th>20% Down Payment</th><th>Recorded Expenses</th><th>Est. 15% Profit</th><th>Actual Net (After Expenses)</th></tr></thead>' +
-      '<tbody><tr><td>' + esc(money(total)) + '</td><td>' + esc(money(dp)) + '</td><td>' + esc(money(expenses)) + '</td><td>' + esc(money(profit15)) + '</td><td><strong>' + esc(money(actualNet)) + '</strong></td></tr></tbody></table>' +
-      (booking.liquidationNotes ? '<p style="font-size:12px;margin:8px 0 0"><strong>Liquidation Notes:</strong> ' + esc(booking.liquidationNotes) + '</p>' : '') +
-      '</div>' +
+        (booking.notes ? '<div><strong>Notes:</strong> ' + esc(booking.notes) + '</div>' : '') +
+        (booking.damageConflictNotes ? '<div><strong>Conflict / Return Notes:</strong> ' + esc(booking.damageConflictNotes) + '</div>' : '') +
+      '</div>' : '') +
+      '<div class="box"><h3>Payment Summary</h3><table><thead><tr><th>Package Contract</th><th>20% Down Payment</th><th>Paid Damage Fee</th><th>Total Collected / Due</th></tr></thead>' +
+      '<tbody><tr><td>' + esc(money(baseTotal)) + '</td><td>' + esc(money(dp)) + '</td><td>' + esc(money(dmgFee)) + '</td><td><strong>' + esc(money(total)) + '</strong></td></tr></tbody></table></div>' +
       '<div style="text-align:right;margin-top:16px"><button onclick="window.print()" style="padding:8px 16px;background:#8d6a36;color:#fff;border:0;border-radius:6px;cursor:pointer">Print Event Sheet</button></div>' +
       '</body></html>'
     );
@@ -905,8 +1068,20 @@
   /* ------------------------------------------- 6. Hook existing portal APIs */
   function installHooks() {
     ensureInventoryEnhancements();
+    ensureCategoryHubs();
     ensureReportsSections();
     ensureAdvisoryCard();
+
+    if (typeof window.navigate === 'function' && !window.navigate._wrappedOps) {
+      const origNav = window.navigate;
+      window.navigate = function (view) {
+        const res = origNav.apply(this, arguments);
+        ensureCategoryHubs();
+        highlightGroupedNav(view);
+        return res;
+      };
+      window.navigate._wrappedOps = true;
+    }
 
     if (typeof window.setInventoryArchiveView === 'function' && !window.setInventoryArchiveView._wrappedOps) {
       const origArch = window.setInventoryArchiveView;
@@ -987,18 +1162,8 @@
       if (activeBtn) activeBtn.className = 'btn ' + (!arch && inventoryMode === 'items' ? 'btn-primary' : 'btn-outline');
       if (archBtn) archBtn.className = 'btn ' + (arch && inventoryMode === 'items' ? 'btn-primary' : 'btn-outline');
 
-      const activeInventory = invList.filter(function (i) { return !i.archived; });
-      const critical = activeInventory.filter(function (i) { return typeof window.stockStatus === 'function' && window.stockStatus(i).key === 'critical'; });
-      const low = activeInventory.filter(function (i) { return typeof window.stockStatus === 'function' && window.stockStatus(i).key === 'low'; });
-      const expired = activeInventory.filter(function (i) { return window.getExpiryInfo(i).key === 'expired' && Number(i.stock) > 0; });
-      const expiring = activeInventory.filter(function (i) { return window.getExpiryInfo(i).key === 'soon' && Number(i.stock) > 0; });
-      let html = '';
-      if (expired.length) html += '<div class="alert alert-danger"><span class="alert-icon">&#9200;</span><div><strong>Expired Perishables!</strong> ' + expired.map(function (i) { return esc(i.name) + ' (' + esc(i.expiryDate) + ')'; }).join(', ') + ' — dispose or replace before event prep.</div></div>';
-      if (expiring.length) html += '<div class="alert alert-warning"><span class="alert-icon">&#9888;&#65039;</span><div><strong>Expiring Soon (within 3 days):</strong> ' + expiring.map(function (i) { return esc(i.name) + ' (' + esc(i.expiryDate) + ')'; }).join(', ') + '.</div></div>';
-      if (critical.length) html += '<div class="alert alert-danger"><span class="alert-icon">&#128680;</span><div><strong>Critical Stock!</strong> ' + critical.map(function (i) { return esc(i.name); }).join(', ') + ' — needs immediate restocking.</div></div>';
-      if (low.length) html += '<div class="alert alert-warning"><span class="alert-icon">&#9888;&#65039;</span><div><strong>Low Stock Warning:</strong> ' + low.map(function (i) { return esc(i.name); }).join(', ') + ' are running low.</div></div>';
       const alertsBox = document.getElementById('inv-alerts');
-      if (alertsBox) alertsBox.innerHTML = html;
+      if (alertsBox) renderCompactInventoryNoticeBar();
 
       window.loadInventoryReadiness();
       loadApprovalsList('pending');
@@ -1083,8 +1248,8 @@
         const confirmedBookings = bookings.filter(function (b) { return b.status === 'Confirmed' && !b.archived; });
         const pendingBookings = bookings.filter(function (b) { return b.status === 'Pending' && !b.archived; });
 
-        const totalRev = completedBookings.reduce(function (s, b) { return s + (Number(b.amount) || 0); }, 0);
-        const totalExp = completedBookings.reduce(function (s, b) { return s + (Number(b.expenseAmount) || 0); }, 0);
+        const totalRev = completedBookings.reduce(function (s, b) { return s + bookingTotalWithDamages(b); }, 0);
+        const totalDamageFees = completedBookings.reduce(function (s, b) { return s + (b.damageFeePaid && Number(b.damageFee) > 0 ? Number(b.damageFee) : 0); }, 0);
         const profit15 = Number((totalRev * 0.15).toFixed(2));
         const completedCount = completedBookings.length;
         const avg = completedCount ? Math.round(totalRev / completedCount) : 0;
@@ -1094,7 +1259,7 @@
         setTxt('rep-completed', String(completedCount));
         setTxt('rep-avg', money(avg));
         setTxt('rep-profit-15', money(profit15));
-        setTxt('rep-expenses', money(totalExp));
+        setTxt('rep-damage-fees', money(totalDamageFees));
         setTxt('rep-print-total-rev', money(totalRev));
         setTxt('rep-print-completed', String(completedCount));
         setTxt('rep-print-avg', money(avg));
@@ -1130,7 +1295,7 @@
           const d = new Date(now.getFullYear(), now.getMonth() - m, 1);
           recentMonths.add(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
         }
-        const trailingAvg = Math.round(completedBookings.filter(function (b) { return recentMonths.has(String(b.date || '').slice(0, 7)); }).reduce(function (s, b) { return s + (Number(b.amount) || 0); }, 0) / 3);
+        const trailingAvg = Math.round(completedBookings.filter(function (b) { return recentMonths.has(String(b.date || '').slice(0, 7)); }).reduce(function (s, b) { return s + bookingTotalWithDamages(b); }, 0) / 3);
         const projectedNextSales = nextMonthConfirmed + Math.round(pendingPipeline * 0.5) + (nextMonthConfirmed ? 0 : trailingAvg);
         const projected15Profit = Number((projectedNextSales * 0.15).toFixed(2));
 
@@ -1145,34 +1310,34 @@
           printProj.innerHTML = '<tr><td>' + esc(money(confirmedPipeline)) + '</td><td>' + esc(money(pendingPipeline)) + '</td><td>' + esc(money(projectedNextSales)) + '</td><td>' + esc(money(projected15Profit)) + '</td></tr>';
         }
 
-        const liqBody = document.getElementById('rep-liquidation-tbody');
-        const printLiq = document.getElementById('rep-print-liquidation');
+        const salesBody = document.getElementById('rep-sales-detail-tbody');
+        const printSales = document.getElementById('rep-print-sales');
         const sorted = completedBookings.slice().sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
-        if (liqBody) {
-          liqBody.innerHTML = sorted.length ? sorted.map(function (b) {
-            const amt = Number(b.amount) || 0;
-            const exp = Number(b.expenseAmount) || 0;
-            const p15 = Number((amt * 0.15).toFixed(2));
-            const net = Number((amt - exp).toFixed(2));
+        if (salesBody) {
+          salesBody.innerHTML = sorted.length ? sorted.map(function (b) {
+            const pkgAmt = Number(b.amount) || 0;
+            const dmgAmt = (b.damageFeePaid && Number(b.damageFee) > 0) ? Number(b.damageFee) : 0;
+            const totAmt = pkgAmt + dmgAmt;
+            const p15 = Number((totAmt * 0.15).toFixed(2));
             return '<tr>' +
               '<td><span class="badge badge-gold">' + esc(b.id) + '</span></td>' +
               '<td>' + esc(b.date || '-') + '</td>' +
               '<td><strong>' + esc(b.client) + '</strong><br><span style="font-size:12px;color:var(--text-muted)">' + esc(b.event) + '</span></td>' +
-              '<td>' + esc(money(amt)) + '</td>' +
-              '<td>' + esc(money(exp)) + '</td>' +
+              '<td>' + esc(money(pkgAmt)) + '</td>' +
+              '<td>' + (dmgAmt > 0 ? '<span class="badge badge-warning">' + esc(money(dmgAmt)) + '</span>' : '-') + '</td>' +
+              '<td><strong>' + esc(money(totAmt)) + '</strong></td>' +
               '<td>' + esc(money(p15)) + '</td>' +
-              '<td><strong>' + esc(money(net)) + '</strong></td>' +
-              '<td style="font-size:12px">' + esc(b.liquidationNotes || '-') + '</td>' +
+              '<td style="font-size:12px">' + esc(b.damageConflictNotes || '-') + '</td>' +
             '</tr>';
           }).join('') : '<tr><td colspan="8">No completed events recorded yet.</td></tr>';
         }
-        if (printLiq) {
-          printLiq.innerHTML = sorted.length ? sorted.map(function (b) {
-            const amt = Number(b.amount) || 0;
-            const exp = Number(b.expenseAmount) || 0;
-            const p15 = Number((amt * 0.15).toFixed(2));
-            const net = Number((amt - exp).toFixed(2));
-            return '<tr><td>' + esc(b.id) + '</td><td>' + esc(b.date || '-') + '</td><td>' + esc(b.client) + '</td><td>' + esc(b.event) + '</td><td>' + esc(money(amt)) + '</td><td>' + esc(money(exp)) + '</td><td>' + esc(money(p15)) + '</td><td>' + esc(money(net)) + '</td></tr>';
+        if (printSales) {
+          printSales.innerHTML = sorted.length ? sorted.map(function (b) {
+            const pkgAmt = Number(b.amount) || 0;
+            const dmgAmt = (b.damageFeePaid && Number(b.damageFee) > 0) ? Number(b.damageFee) : 0;
+            const totAmt = pkgAmt + dmgAmt;
+            const p15 = Number((totAmt * 0.15).toFixed(2));
+            return '<tr><td>' + esc(b.id) + '</td><td>' + esc(b.date || '-') + '</td><td>' + esc(b.client) + '</td><td>' + esc(b.event) + '</td><td>' + esc(money(pkgAmt)) + '</td><td>' + esc(money(dmgAmt)) + '</td><td>' + esc(money(totAmt)) + '</td><td>' + esc(money(p15)) + '</td></tr>';
           }).join('') : '<tr><td colspan="8">No completed events recorded yet.</td></tr>';
         }
       };
@@ -1194,19 +1359,6 @@
           btnSheet.textContent = 'Print Event Sheet';
           btnSheet.addEventListener('click', function () { window.printBookingEventSheet(booking); });
           actions.appendChild(btnSheet);
-
-          const oldLiq = actions.querySelector('[data-op="liquidation"]');
-          if (oldLiq) oldLiq.remove();
-          const canLiq = !window.NardsUI || window.NardsUI.can('bookings.manage') || window.NardsUI.can('reports.view') || window.NardsUI.can('sales.view');
-          if (canLiq && String(booking.id || '').startsWith('DB-') && ['Confirmed', 'Completed'].includes(booking.status)) {
-            const btnLiq = document.createElement('button');
-            btnLiq.type = 'button';
-            btnLiq.className = 'btn btn-outline';
-            btnLiq.dataset.op = 'liquidation';
-            btnLiq.textContent = 'Event Liquidation';
-            btnLiq.addEventListener('click', function () { window.openLiquidationModal(booking.id); });
-            actions.appendChild(btnLiq);
-          }
         }
         return res;
       };

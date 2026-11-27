@@ -140,6 +140,19 @@ async function ensureExtraSchema() {
   if (!(await columnExists('Bookings', 'additional_guests'))) {
     await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS additional_guests integer NOT NULL DEFAULT 0');
   }
+  if (!(await columnExists('Bookings', 'damage_fee_amount'))) {
+    await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS damage_fee_amount numeric(10, 2) NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS damage_fee_paid smallint NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS damage_conflict_notes varchar(500)');
+  }
+  try {
+    const [svCols] = await pool.query(
+      "SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'settings' AND column_name = 'settingvalue' LIMIT 1"
+    );
+    if (svCols.length && svCols[0].data_type && svCols[0].data_type.toLowerCase() !== 'text') {
+      await pool.query('ALTER TABLE "Settings" ALTER COLUMN "settingValue" TYPE text');
+    }
+  } catch (err) {}
   if (!(await columnExists('StaffUsers', 'job_role'))) {
     await pool.query('ALTER TABLE StaffUsers ADD COLUMN IF NOT EXISTS job_role varchar(60)');
   }

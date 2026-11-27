@@ -600,6 +600,33 @@ exports.getBookingById = async (req, res) => {
   }
 };
 
+exports.getBookingAssets = async (req, res) => {
+  try {
+    const [bRows] = await pool.query('SELECT id, package, status FROM Bookings WHERE id = ? LIMIT 1', [req.params.id]);
+    if (!bRows.length) return res.status(404).json({ error: 'Booking not found' });
+    const b = bRows[0];
+    let assets = [];
+    if (b.package) {
+      const [pkgRows] = await pool.query('SELECT id FROM Packages WHERE name = ? ORDER BY id DESC LIMIT 1', [b.package]);
+      if (pkgRows.length) {
+        const [aRows] = await pool.query(
+          `SELECT pa.asset_id, a.name, a.unit, a.quantity AS current_stock, COALESCE(a.damaged_qty, 0) AS damaged_qty,
+                  CAST(SUM(pa.qty_required) AS SIGNED) AS qty_required
+           FROM PackageAssets pa
+           JOIN CateringAssets a ON a.id = pa.asset_id
+           WHERE pa.package_id = ?
+           GROUP BY pa.asset_id, a.name, a.unit, a.quantity, a.damaged_qty`,
+          [pkgRows[0].id]
+        );
+        assets = aRows;
+      }
+    }
+    res.json({ bookingId: b.id, package: b.package, status: b.status, assets });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.updateBookingStatus = async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -632,7 +659,22 @@ exports.updateBookingStatus = async (req, res) => {
     const booking = bookingRows[0];
     const isTransitionToConfirmed = status === 'confirmed' && booking.status !== 'confirmed';
     const isConfirmedCancelled = booking.status === 'confirmed' && status === 'cancelled';
+    const isTransitionToCompleted = status === 'completed' && booking.status !== 'completed';
     let stockShortages = [];
+    let returnedAssetsSummary = [];
+
+    const damageFeeAmount = Math.max(0, Math.round((Number(req.body.damageFee) || 0) * 100) / 100);
+    const damageFeePaid = Boolean(req.body.damageFeePaid);
+    const conflictNotes = typeof req.body.conflictNotes === 'string'
+      ? req.body.conflictNotes.trim().slice(0, 500)
+      : '';
+    const damagedInput = Array.isArray(req.body.damagedAssets) ? req.body.damagedAssets : [];
+    const dmgByAssetId = new Map();
+    damagedInput.forEach((d) => {
+      const aid = Number(d?.asset_id);
+      const qty = Math.max(0, Math.trunc(Number(d?.damaged_qty) || 0));
+      if (aid > 0) dmgByAssetId.set(aid, qty);
+    });
 
     if (isTransitionToConfirmed) {
       const [dayCountRows] = await conn.query(
@@ -657,12 +699,75 @@ exports.updateBookingStatus = async (req, res) => {
       stockShortages = check.shortages || [];
     } else if (isConfirmedCancelled) {
       await adjustPackageStocks(conn, booking.package, +1, booking.id, req.user?.username || 'system');
+    } else if (isTransitionToCompleted) {
+      // Return undamaged package assets back to CateringAssets; damaged ones stay out of usable inventory.
+      const wasConfirmed = booking.status === 'confirmed';
+      const [pkgRows] = await conn.query(
+        'SELECT id FROM Packages WHERE name = ? ORDER BY id DESC LIMIT 1',
+        [booking.package || '']
+      );
+      if (pkgRows.length) {
+        const [pkgAssetRows] = await conn.query(
+          `SELECT pa.asset_id, a.name, a.quantity AS current_stock, COALESCE(a.damaged_qty, 0) AS damaged_qty,
+                  CAST(SUM(pa.qty_required) AS SIGNED) AS required_qty
+           FROM PackageAssets pa
+           JOIN CateringAssets a ON a.id = pa.asset_id
+           WHERE pa.package_id = ?
+           GROUP BY pa.asset_id, a.name, a.quantity, a.damaged_qty`,
+          [pkgRows[0].id]
+        );
+        for (const a of pkgAssetRows) {
+          const usedQty = Math.max(0, Math.trunc(Number(a.required_qty) || 0));
+          if (!usedQty) continue;
+          const prevUsable = Math.trunc(Number(a.current_stock) || 0);
+          const prevDmg = Math.trunc(Number(a.damaged_qty) || 0);
+          const dmgQty = Math.min(usedQty, dmgByAssetId.get(Number(a.asset_id)) || 0);
+          const returnedUsable = wasConfirmed ? Math.max(0, usedQty - dmgQty) : 0;
+          const directDeduct = !wasConfirmed && dmgQty > 0 ? Math.min(prevUsable, dmgQty) : 0;
+          const newUsable = prevUsable + returnedUsable - directDeduct;
+          const newDmg = prevDmg + dmgQty;
+          const noteSuffix = dmgQty > 0
+            ? `Booking #${booking.id}: ${dmgQty} damaged${damageFeePaid ? ` (Paid ₱${damageFeeAmount.toLocaleString('en-PH')})` : ' (Unpaid)'}${conflictNotes ? ' - ' + conflictNotes : ''}`.slice(0, 300)
+            : null;
+          if (dmgQty > 0) {
+            await conn.query(
+              'UPDATE CateringAssets SET quantity = ?, damaged_qty = ?, damage_notes = ? WHERE id = ?',
+              [newUsable, newDmg, noteSuffix, a.asset_id]
+            );
+          } else if (returnedUsable > 0) {
+            await conn.query('UPDATE CateringAssets SET quantity = ? WHERE id = ?', [newUsable, a.asset_id]);
+          }
+          if (newUsable !== prevUsable) {
+            await recordBookingStockMovement(conn, {
+              itemType: 'asset',
+              itemId: a.asset_id,
+              itemName: a.name,
+              changeQty: newUsable - prevUsable,
+              previousQty: prevUsable,
+              newQty: newUsable,
+              reason: dmgQty > 0
+                ? `Completed Booking #${booking.id}: returned ${returnedUsable}/${usedQty}, ${dmgQty} damaged${damageFeePaid ? ' (paid)' : ''}`
+                : `Completed Booking #${booking.id}: all ${returnedUsable} assets returned undamaged`,
+              bookingId: booking.id,
+              actor: req.user?.username || 'system'
+            });
+          }
+          returnedAssetsSummary.push({ asset_id: a.asset_id, name: a.name, used: usedQty, returned: returnedUsable, damaged: dmgQty });
+        }
+      }
     }
 
-    await conn.query(
-      "UPDATE Bookings SET status = ?, cancellationReason = ? WHERE id = ?",
-      [status, status === 'cancelled' ? cancellationReason : null, req.params.id]
-    );
+    if (isTransitionToCompleted) {
+      await conn.query(
+        "UPDATE Bookings SET status = ?, cancellationReason = NULL, damage_fee_amount = ?, damage_fee_paid = ?, damage_conflict_notes = ? WHERE id = ?",
+        [status, damageFeeAmount, damageFeePaid ? 1 : 0, conflictNotes || null, req.params.id]
+      );
+    } else {
+      await conn.query(
+        "UPDATE Bookings SET status = ?, cancellationReason = ? WHERE id = ?",
+        [status, status === 'cancelled' ? cancellationReason : null, req.params.id]
+      );
+    }
 
     await conn.commit();
     await notify('status', 'Booking status updated', `Booking #${req.params.id} is now ${status} (by ${req.user?.username || 'system'}).`, ['admin', 'manager', 'staff'], 'bookings');
@@ -679,7 +784,11 @@ exports.updateBookingStatus = async (req, res) => {
       message: "Booking status updated",
       inventoryDeducted: isTransitionToConfirmed,
       stockRestored: isConfirmedCancelled,
-      stockShortages
+      stockShortages,
+      returnedAssetsSummary,
+      damageFeeAmount,
+      damageFeePaid,
+      conflictNotes
     });
   } catch (err) {
     await conn.rollback();

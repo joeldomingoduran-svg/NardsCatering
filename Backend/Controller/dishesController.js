@@ -1,4 +1,6 @@
 const pool = require('../Model/db');
+const { notify } = require('../Model/notifications');
+const { createApprovalRequest } = require('../Model/stockMovements');
 
 exports.getAllDishes = async (req, res) => {
   try {
@@ -18,6 +20,18 @@ exports.createDish = async (req, res) => {
       [name]
     );
     if (existing.length) return res.status(409).json({ error: 'A dish with this name already exists' });
+    if (req.user?.role === 'manager') {
+      const requestId = await createApprovalRequest({
+        actionType: 'dish_create',
+        targetType: 'dish',
+        itemName: name,
+        payload: { name, category: category || 'Main Course' },
+        summary: `Add dish "${name}" (${category || 'Main Course'})`,
+        user: req.user
+      });
+      await notify('approval', 'Dish Approval Required', `${req.user.username} requested to add dish "${name}".`, ['admin'], 'dishes');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Dish submitted for Administrator approval.' });
+    }
     const [result] = await pool.query(
       'INSERT INTO Dishes (name, category) VALUES (?, ?)',
       [name, category || 'Main Course']
@@ -32,11 +46,26 @@ exports.updateDish = async (req, res) => {
   try {
     const { name, category } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
+    const [curRows] = await pool.query('SELECT id FROM Dishes WHERE id=? LIMIT 1', [req.params.id]);
+    if (!curRows.length) return res.status(404).json({ error: 'Dish not found' });
     const [existing] = await pool.query(
       'SELECT id FROM Dishes WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) AND id<>? LIMIT 1',
       [name, req.params.id]
     );
     if (existing.length) return res.status(409).json({ error: 'A dish with this name already exists' });
+    if (req.user?.role === 'manager') {
+      const requestId = await createApprovalRequest({
+        actionType: 'dish_update',
+        targetType: 'dish',
+        targetId: curRows[0].id,
+        itemName: name,
+        payload: { name, category: category || 'Main Course' },
+        summary: `Update dish "${name}" (${category || 'Main Course'})`,
+        user: req.user
+      });
+      await notify('approval', 'Dish Approval Required', `${req.user.username} requested to update dish "${name}".`, ['admin'], 'dishes');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Dish update submitted for Administrator approval.' });
+    }
     const [result] = await pool.query(
       'UPDATE Dishes SET name=?, category=? WHERE id=?',
       [name, category || 'Main Course', req.params.id]
@@ -50,6 +79,21 @@ exports.updateDish = async (req, res) => {
 
 exports.deleteDish = async (req, res) => {
   try {
+    const [rows] = await pool.query('SELECT id, name FROM Dishes WHERE id=? AND is_archived=0 LIMIT 1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Dish not found' });
+    if (req.user?.role === 'manager') {
+      const requestId = await createApprovalRequest({
+        actionType: 'dish_archive',
+        targetType: 'dish',
+        targetId: rows[0].id,
+        itemName: rows[0].name,
+        payload: { archived: true },
+        summary: `Archive dish "${rows[0].name}"`,
+        user: req.user
+      });
+      await notify('approval', 'Dish Approval Required', `${req.user.username} requested to archive dish "${rows[0].name}".`, ['admin'], 'dishes');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Dish archive submitted for Administrator approval.' });
+    }
     const [result] = await pool.query('UPDATE Dishes SET is_archived=1 WHERE id=? AND is_archived=0', [req.params.id]);
     if (!result.affectedRows) return res.status(404).json({ error: 'Dish not found' });
     res.json({ message: 'Dish archived' });
@@ -61,14 +105,27 @@ exports.deleteDish = async (req, res) => {
 exports.archiveDish = async (req, res) => {
   try {
     const archived = req.body.archived === true;
+    const [current] = await pool.query('SELECT id, name FROM Dishes WHERE id=?', [req.params.id]);
+    if (!current.length) return res.status(404).json({ error: 'Dish not found' });
     if (!archived) {
-      const [current] = await pool.query('SELECT name FROM Dishes WHERE id=?', [req.params.id]);
-      if (!current.length) return res.status(404).json({ error: 'Dish not found' });
       const [existing] = await pool.query(
         'SELECT id FROM Dishes WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) AND id<>? LIMIT 1',
         [current[0].name, req.params.id]
       );
       if (existing.length) return res.status(409).json({ error: 'Another dish with this name already exists' });
+    }
+    if (req.user?.role === 'manager') {
+      const requestId = await createApprovalRequest({
+        actionType: archived ? 'dish_archive' : 'dish_restore',
+        targetType: 'dish',
+        targetId: current[0].id,
+        itemName: current[0].name,
+        payload: { archived },
+        summary: `${archived ? 'Archive' : 'Restore'} dish "${current[0].name}"`,
+        user: req.user
+      });
+      await notify('approval', 'Dish Approval Required', `${req.user.username} requested to ${archived ? 'archive' : 'restore'} dish "${current[0].name}".`, ['admin'], 'dishes');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Submitted for Administrator approval.' });
     }
     const [result] = await pool.query(
       'UPDATE Dishes SET is_archived=? WHERE id=?',
@@ -112,7 +169,7 @@ exports.replaceDishIngredients = async (req, res) => {
       return res.status(400).json({ error: 'ingredients must be an array' });
     }
 
-    const [dishRows] = await conn.query('SELECT id FROM Dishes WHERE id=?', [req.params.id]);
+    const [dishRows] = await conn.query('SELECT id, name FROM Dishes WHERE id=?', [req.params.id]);
     if (!dishRows.length) return res.status(404).json({ error: 'Dish not found' });
 
     const normalized = ingredients
@@ -142,6 +199,20 @@ exports.replaceDishIngredients = async (req, res) => {
       if (existing.length !== merged.length) {
         return res.status(400).json({ error: 'One or more ingredients do not exist in inventory' });
       }
+    }
+
+    if (req.user?.role === 'manager') {
+      const requestId = await createApprovalRequest({
+        actionType: 'dish_ingredients',
+        targetType: 'dish',
+        targetId: dishRows[0].id,
+        itemName: dishRows[0].name,
+        payload: { ingredients: merged },
+        summary: `Update ingredients (${merged.length} item${merged.length === 1 ? '' : 's'}) for dish "${dishRows[0].name}"`,
+        user: req.user
+      });
+      await notify('approval', 'Dish Ingredients Approval Required', `${req.user.username} requested ingredient updates for "${dishRows[0].name}".`, ['admin'], 'dishes');
+      return res.status(202).json({ pendingApproval: true, requestId, message: 'Dish ingredients update submitted for Administrator approval.' });
     }
 
     await conn.beginTransaction();

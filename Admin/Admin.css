@@ -747,6 +747,32 @@ input.invalid, select.invalid { border-color: var(--danger) !important; }
 .filter-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
 .filter-pill { border: 1px solid var(--border); background: #fff; color: var(--dark); padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .filter-pill.active { background: var(--gold-dark); color: #fff; border-color: var(--gold-dark); }
-.approval-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 18px; border-radius: 12px; background: #fff7e6; border: 1px solid #e6c687; color: #5b3f0b; margin-bottom: 16px; }
+.approval-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; background: #fffaf0; border: 1px solid #e6cfa3; color: #5b3f0b; font-size: 13px; margin-bottom: 14px; }
 .reports-section-heading { margin: 26px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--border); font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--dark); }
 @media print { #view-reports .reports-section-heading, #view-reports #rep-inv-detail-card, #view-reports #rep-proj-card { display: none !important; } }
+
+/* Grouped category sub-tabs */
+.category-hub-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; padding: 6px; background: #F5EFE2; border: 1px solid #E5D9C3; border-radius: 12px; }
+.category-hub-tab { border: 0; background: transparent; color: var(--text-muted); font: 600 13px 'Jost', sans-serif; padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.category-hub-tab:hover { color: var(--dark); background: rgba(255,255,255,0.6); }
+.category-hub-tab.active { background: var(--brown); color: #FFF8ED; box-shadow: 0 2px 6px rgba(58,45,26,0.16); }
+
+/* Clean slim alert strip (replaces stacked banner walls) */
+.compact-alert-strip { background: #FFFDF8; border: 1px solid #E5D9C3; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
+.compact-alert-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.compact-alert-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12.5px; }
+.compact-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 12px; }
+.compact-chip-danger { background: #FDF2F2; color: #9B1C1C; border: 1px solid #F8D3D3; }
+.compact-chip-warn { background: #FFF9EB; color: #92400E; border: 1px solid #F6DC9D; }
+.compact-chip-ok { background: #EFFAF3; color: #1E5C31; border: 1px solid #BDE3C9; }
+.compact-chip-info { background: #F6F1E7; color: #5D4927; border: 1px solid #E2D2B4; }
+.compact-alert-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid #EFE6D5; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--dark); }
+
+/* Compact Dropdown Library controls */
+#view-dropdowns .dd-compact-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+#view-dropdowns .dd-compact-bar .form-group { margin: 0; flex: 0 1 210px; min-width: 150px; }
+#view-dropdowns .dd-compact-bar label { font-size: 11.5px; margin-bottom: 3px; }
+#view-dropdowns .dd-compact-bar select,
+#view-dropdowns .dd-compact-bar input { padding: 6px 10px; font-size: 13px; height: 34px; }
+#view-dropdowns .dd-add-btn { padding: 5px 12px; font-size: 12px; height: 34px; line-height: 1; white-space: nowrap; }
+#view-dropdowns #dd-tbody .btn-sm { padding: 3px 8px; font-size: 11px; }

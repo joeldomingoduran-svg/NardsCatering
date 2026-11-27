@@ -434,6 +434,61 @@ exports.reviewApproval = async (req, res) => {
         } else if (reqRow.action_type === 'asset_archive' || reqRow.action_type === 'asset_restore') {
           await conn.query('UPDATE CateringAssets SET is_archived=? WHERE id=?', [reqRow.action_type === 'asset_archive' ? 1 : 0, reqRow.target_id]);
         }
+      } else if (reqRow.target_type === 'package') {
+        if (reqRow.action_type === 'package_create') {
+          const [dupe] = await conn.query('SELECT id FROM Packages WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) LIMIT 1', [payload.name]);
+          if (dupe.length) { await conn.rollback(); return res.status(409).json({ error: 'A package with this name already exists.' }); }
+          const [ins] = await conn.query(
+            'INSERT INTO Packages (name, price, min_guests, max_guests) VALUES (?, ?, ?, ?)',
+            [payload.name, payload.price, payload.min_guests || 0, payload.max_guests || 0]
+          );
+          const pkgId = ins.insertId;
+          for (const a of payload.assets || []) {
+            await conn.query('INSERT INTO PackageAssets (package_id, asset_id, qty_required) VALUES (?, ?, ?)', [pkgId, a.asset_id, a.qty_required || 1]);
+          }
+          for (const d of payload.dishes || []) {
+            await conn.query('INSERT INTO PackageDishes (package_id, dish_id) VALUES (?, ?)', [pkgId, d.dish_id]);
+          }
+          for (const f of payload.freebies || []) {
+            await conn.query('INSERT INTO PackageFreebies (package_id, name) VALUES (?, ?)', [pkgId, f.name]);
+          }
+        } else if (reqRow.action_type === 'package_update') {
+          const [cur] = await conn.query('SELECT id FROM Packages WHERE id=? LIMIT 1', [reqRow.target_id]);
+          if (!cur.length) { await conn.rollback(); return res.status(404).json({ error: 'Target package no longer exists.' }); }
+          await conn.query('UPDATE Packages SET name=?, price=?, min_guests=?, max_guests=? WHERE id=?', [payload.name, payload.price, payload.min_guests || 0, payload.max_guests || 0, reqRow.target_id]);
+          await conn.query('DELETE FROM PackageAssets WHERE package_id=?', [reqRow.target_id]);
+          for (const a of payload.assets || []) {
+            await conn.query('INSERT INTO PackageAssets (package_id, asset_id, qty_required) VALUES (?, ?, ?)', [reqRow.target_id, a.asset_id, a.qty_required || 1]);
+          }
+          await conn.query('DELETE FROM PackageDishes WHERE package_id=?', [reqRow.target_id]);
+          for (const d of payload.dishes || []) {
+            await conn.query('INSERT INTO PackageDishes (package_id, dish_id) VALUES (?, ?)', [reqRow.target_id, d.dish_id]);
+          }
+          await conn.query('DELETE FROM PackageFreebies WHERE package_id=?', [reqRow.target_id]);
+          for (const f of payload.freebies || []) {
+            await conn.query('INSERT INTO PackageFreebies (package_id, name) VALUES (?, ?)', [reqRow.target_id, f.name]);
+          }
+        } else if (reqRow.action_type === 'package_archive' || reqRow.action_type === 'package_restore') {
+          await conn.query('UPDATE Packages SET is_archived=? WHERE id=?', [reqRow.action_type === 'package_archive' ? 1 : 0, reqRow.target_id]);
+        } else if (reqRow.action_type === 'package_popular') {
+          if (payload.popular) await conn.query('UPDATE Packages SET is_popular=0 WHERE is_popular=1');
+          await conn.query('UPDATE Packages SET is_popular=? WHERE id=?', [payload.popular ? 1 : 0, reqRow.target_id]);
+        }
+      } else if (reqRow.target_type === 'dish') {
+        if (reqRow.action_type === 'dish_create') {
+          const [dupe] = await conn.query('SELECT id FROM Dishes WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) LIMIT 1', [payload.name]);
+          if (dupe.length) { await conn.rollback(); return res.status(409).json({ error: 'A dish with this name already exists.' }); }
+          await conn.query('INSERT INTO Dishes (name, category) VALUES (?, ?)', [payload.name, payload.category || 'Main Course']);
+        } else if (reqRow.action_type === 'dish_update') {
+          await conn.query('UPDATE Dishes SET name=?, category=? WHERE id=?', [payload.name, payload.category || 'Main Course', reqRow.target_id]);
+        } else if (reqRow.action_type === 'dish_archive' || reqRow.action_type === 'dish_restore') {
+          await conn.query('UPDATE Dishes SET is_archived=? WHERE id=?', [reqRow.action_type === 'dish_archive' ? 1 : 0, reqRow.target_id]);
+        } else if (reqRow.action_type === 'dish_ingredients') {
+          await conn.query('DELETE FROM DishIngredients WHERE dish_id=?', [reqRow.target_id]);
+          for (const item of payload.ingredients || []) {
+            await conn.query('INSERT INTO DishIngredients (dish_id, inventory_id, qty_required) VALUES (?, ?, ?)', [reqRow.target_id, item.inventory_id, item.qty_required]);
+          }
+        }
       }
     }
 
@@ -443,7 +498,8 @@ exports.reviewApproval = async (req, res) => {
     );
     await conn.commit();
     await writeAudit(req.user, `Inventory request ${decision}`, 'inventory', req.params.id, reqRow.summary);
-    await notify('approval', `Inventory Request ${decision}`, `Administrator ${req.user.username} ${decision}: ${reqRow.summary}`, ['manager'], reqRow.target_type === 'asset' ? 'assets' : 'inventory');
+    const notifView = reqRow.target_type === 'asset' ? 'assets' : reqRow.target_type === 'package' ? 'menu' : reqRow.target_type === 'dish' ? 'dishes' : 'inventory';
+    await notify('approval', `Request ${decision}`, `Administrator ${req.user.username} ${decision}: ${reqRow.summary}`, ['manager'], notifView);
     res.json({ message: `Request ${decision}.` });
   } catch (err) {
     await conn.rollback();

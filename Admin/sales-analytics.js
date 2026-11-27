@@ -58,25 +58,47 @@ function salesBarChart(buckets, values, formatter, extraClass) {
     </div>`).join('');
 }
 
+function bookingRevenue(b) {
+  const base = Number(b && b.amount) || 0;
+  const dmg = (b && b.status === 'Completed' && b.damageFeePaid && Number(b.damageFee) > 0) ? Number(b.damageFee) : 0;
+  return base + dmg;
+}
+
 function renderSalesAnalytics() {
   const period = document.getElementById('sales-period').value;
   document.getElementById('sales-year').style.display = period === 'monthly' ? '' : 'none';
   document.getElementById('sales-week').style.display = period === 'weekly' ? '' : 'none';
 
   const { buckets, keyOf, inRange, range, unit } = salesBuckets(period);
-  // Only completed bookings count as sales.
+  // Only completed bookings count as sales (including any paid damage fees).
   const sold = inRange.filter(b => b.status === 'Completed');
   const indexByKey = new Map(buckets.map((b, i) => [b.key, i]));
   const revenue = new Array(buckets.length).fill(0);
   const counts = new Array(buckets.length).fill(0);
   inRange.forEach(b => { const i = indexByKey.get(keyOf(b)); if (i !== undefined) counts[i]++; });
-  sold.forEach(b => { const i = indexByKey.get(keyOf(b)); if (i !== undefined) revenue[i] += Number(b.amount) || 0; });
+  sold.forEach(b => { const i = indexByKey.get(keyOf(b)); if (i !== undefined) revenue[i] += bookingRevenue(b); });
 
+  const totalDamageFees = sold.reduce((s, b) => s + (b.damageFeePaid && Number(b.damageFee) > 0 ? Number(b.damageFee) : 0), 0);
   const totalRevenue = revenue.reduce((s, n) => s + n, 0);
   const netProfit = Number((totalRevenue * 0.15).toFixed(2));
   const best = revenue.indexOf(Math.max(...revenue));
   document.getElementById('sales-range').textContent = range;
-  document.getElementById('sales-total').textContent = fmtMoney(totalRevenue);
+  const totalEl = document.getElementById('sales-total');
+  totalEl.textContent = fmtMoney(totalRevenue);
+  if (totalEl && totalEl.parentElement) {
+    let dmgSub = totalEl.parentElement.querySelector('#sales-damage-sub');
+    if (totalDamageFees > 0) {
+      if (!dmgSub) {
+        dmgSub = document.createElement('div');
+        dmgSub.id = 'sales-damage-sub';
+        dmgSub.style.cssText = 'font-size:11px;color:var(--text-muted);margin-top:3px';
+        totalEl.parentElement.appendChild(dmgSub);
+      }
+      dmgSub.textContent = 'Incl. ' + fmtMoney(totalDamageFees) + ' paid damage fees';
+    } else if (dmgSub) {
+      dmgSub.textContent = '';
+    }
+  }
   const profitEl = document.getElementById('sales-profit');
   if (profitEl) profitEl.textContent = fmtMoney(netProfit);
   document.getElementById('sales-bookings').textContent = inRange.length;
@@ -105,7 +127,7 @@ function renderSalesAnalytics() {
     const key = b.event || 'Other';
     byType[key] = byType[key] || { count: 0, amount: 0 };
     byType[key].count++;
-    byType[key].amount += Number(b.amount) || 0;
+    byType[key].amount += bookingRevenue(b);
   });
   const rows = Object.entries(byType).sort((a, b) => b[1].amount - a[1].amount);
   document.getElementById('sales-by-type').innerHTML = rows.length
@@ -123,7 +145,7 @@ function exportSalesData(format) {
     const i = idx.get(keyOf(b));
     if (i === undefined) return;
     counts[i]++;
-    if (b.status === 'Completed') revenue[i] += Number(b.amount) || 0;
+    if (b.status === 'Completed') revenue[i] += bookingRevenue(b);
   });
   const rows = [[unit, 'Bookings', 'Sales (Completed)', 'Net Profits (15%)']]
     .concat(buckets.map((b, i) => [b.label, counts[i], revenue[i], Number((revenue[i] * 0.15).toFixed(2))]))

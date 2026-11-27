@@ -19,6 +19,7 @@ router.post('/', upload.receipt('paymentProof'), bookingsController.createBookin
 router.post('/:id/payment', upload.receipt('paymentProof'), bookingsController.submitPaymentProof);
 router.post('/:id/request', bookingsController.requestChange);
 router.patch('/:id/request/resolve', ...canManage, bookingsController.resolveRequest);
+router.get('/:id/assets', requireInternalUser, bookingsController.getBookingAssets);
 router.get('/:id', bookingsController.getBookingById);
 router.patch('/:id/status', ...canManage, bookingsController.updateBookingStatus);
 router.patch('/:id/archive', ...canManage, bookingsController.archiveBooking);

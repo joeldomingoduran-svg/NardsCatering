@@ -21,16 +21,9 @@
     <button class="nav-item" onclick="navigate('calendar')">Calendar</button>
     <button class="nav-item" onclick="navigate('clients')">Clients</button>
     <button class="nav-item" onclick="navigate('inventory')">Inventory</button>
-    <button class="nav-item" onclick="navigate('menu')">Menu Packages</button>
-    <button class="nav-item" onclick="navigate('assets')">Catering Assets</button>
-    <button class="nav-item" onclick="navigate('dishes')">Dishes</button>
     <button class="nav-item" onclick="navigate('reports')">Reports</button>
-    <button class="nav-item" onclick="navigate('audit')">Audit Trail</button>
-    <button class="nav-item" onclick="navigate('logins')">Login Activity</button>
-    <button class="nav-item" onclick="navigate('staff')">Users &amp; Settings</button>
     <button class="nav-item" onclick="navigate('employees')">Staff Management</button>
-    <button class="nav-item" onclick="navigate('roles')">Roles &amp; Permissions</button>
-    <button class="nav-item" onclick="navigate('dropdowns')">Dropdown Library</button>
+    <button class="nav-item" onclick="navigate('staff')">Users &amp; Settings</button>
   </nav>
   <div class="topnav-actions">
     <button class="btn-notif-bell" id="notif-bell-btn" onclick="openEventNotifications()" title="Event notifications">
@@ -157,6 +150,7 @@
           <button class="btn btn-primary" onclick="openMenuModal()">+ Add Package</button>
         </div>
       </div>
+      <div id="menu-approval-banner"></div>
       <div id="menu-cards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;"></div>
     </div>
 
@@ -201,6 +195,7 @@
           <button class="btn btn-primary" onclick="openDishModal()">+ Add Dish</button>
         </div>
       </div>
+      <div id="dishes-approval-banner"></div>
       <div class="search-bar">
         <input type="text" id="dish-search" placeholder="Search dishes..." oninput="renderDishes()">
       </div>
@@ -392,10 +387,10 @@
       <div class="card" style="padding:18px">
         <h3 style="margin-top:0">Dropdown Library</h3>
         <p style="margin:0 0 14px;color:var(--text-muted)">Manage the choices shown in dropdown lists across the system. Deactivate an option to hide it without deleting it.</p>
-        <div class="inline-form">
+        <div class="dd-compact-bar">
           <div class="form-group"><label for="dd-category">List</label><select id="dd-category" onchange="renderDropdowns()"></select></div>
           <div class="form-group"><label for="dd-label">New option</label><input id="dd-label" type="text" maxlength="100" placeholder="Option label" onkeydown="if(event.key==='Enter')addDropdownOption()"></div>
-          <button class="btn btn-primary" onclick="addDropdownOption()">+ Add option</button>
+          <button class="btn btn-primary dd-add-btn" onclick="addDropdownOption()">+ Add option</button>
         </div>
         <div class="table-wrap"><table>
           <thead><tr><th>Option</th><th>Status</th><th>Actions</th></tr></thead>
@@ -1383,6 +1378,9 @@ function paymentFieldsFromRow(row) {
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
     addGuests: Number(row.additional_guests) || 0,
+    damageFee: Number(row.damage_fee_amount) || 0,
+    damageFeePaid: Boolean(Number(row.damage_fee_paid)),
+    damageConflictNotes: row.damage_conflict_notes || '',
     paid: String(row.paymentStatus || '').toLowerCase() === 'paid'
   };
 }
@@ -1657,8 +1655,17 @@ async function saveBooking() {
   const previousStatus = String(previousBooking?.status || '').toLowerCase();
   const nextStatus = booking.status.toLowerCase();
   const statusChanged = previousBooking ? previousStatus !== nextStatus : nextStatus !== 'pending';
-  const cancellationReason = await confirmAdminBookingStatus(booking, previousBooking, statusChanged);
-  if (cancellationReason === null) return;
+  let completionPayload = null;
+  let cancellationReason = '';
+  if (statusChanged && nextStatus === 'completed' && typeof window.promptCompletionConflicts === 'function') {
+    const comp = await window.promptCompletionConflicts(booking);
+    if (!comp || comp.cancelled) return;
+    completionPayload = comp;
+    cancellationReason = '';
+  } else {
+    cancellationReason = await confirmAdminBookingStatus(booking, previousBooking, statusChanged);
+    if (cancellationReason === null) return;
+  }
   booking.cancellationReason = cancellationReason;
 
   
@@ -1702,7 +1709,16 @@ async function saveBooking() {
         const statusRes = await fetch(`${API}/bookings/${dbId}/status`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: nextStatus, cancellationReason })
+          body: JSON.stringify({
+            status: nextStatus,
+            cancellationReason,
+            ...(completionPayload ? {
+              damagedAssets: completionPayload.damagedAssets,
+              damageFee: completionPayload.damageFee,
+              damageFeePaid: completionPayload.damageFeePaid,
+              conflictNotes: completionPayload.conflictNotes
+            } : {})
+          })
         });
         const statusOut = await statusRes.json().catch(() => ({}));
         if (!statusRes.ok) {
@@ -1716,9 +1732,15 @@ async function saveBooking() {
           notify('Booking details were saved, but the status was not updated. ' + (statusOut.error || '') + details, '⚠️');
           return;
         }
+        if (completionPayload) {
+          booking.damageFee = Number(statusOut.damageFeeAmount ?? completionPayload.damageFee) || 0;
+          booking.damageFeePaid = Boolean(statusOut.damageFeePaid ?? completionPayload.damageFeePaid);
+          booking.damageConflictNotes = statusOut.conflictNotes || completionPayload.conflictNotes || '';
+        }
         if (window.notifyStockShortages) window.notifyStockShortages(statusOut);
       }
       await syncInventoryFromAPI();
+      if (typeof fetchAssets === 'function') await fetchAssets();
     } catch(e) {
       notify(savedOnServer
         ? 'Booking details were saved, but the final status could not be verified. Refresh bookings before retrying.'
@@ -2410,6 +2432,8 @@ function showConfirmation(booking) {
       ${booking.paymentProof ? `<div class="confirm-field"><label>Receipt</label><p><a class="btn btn-primary btn-sm" href="${auditEscape(booking.paymentProof)}" target="_blank" rel="noopener" style="text-decoration:none">View receipt</a></p></div>` : ''}
       ${booking.addReq ? `<div class="confirm-field" style="grid-column:1/-1"><label>Additional Request</label><p>${auditEscape(booking.addReq)}</p></div>` : ''}
       ${booking.addCost ? `<div class="confirm-field"><label>Additional Cost</label><p>${fmtMoney(booking.addCost)}</p></div>` : ''}
+      ${booking.damageFee > 0 ? `<div class="confirm-field"><label>Damage / Conflict Fee</label><p>${fmtMoney(booking.damageFee)} (${booking.damageFeePaid ? 'Paid & Included in Sales' : 'Unpaid'})</p></div>` : ''}
+      ${booking.damageConflictNotes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Completion Conflict / Asset Return Notes</label><p>${auditEscape(booking.damageConflictNotes)}</p></div>` : ''}
       ${booking.notes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Special Notes</label><p>${auditEscape(booking.notes)}</p></div>` : ''}
     </div>
     <div class="confirm-total">
@@ -3246,7 +3270,12 @@ function calSelectDay(dateStr) {
 async function calMarkDone(idx) {
   const booking = data.bookings[idx];
   if (!booking) return;
-  if (!await confirmAction(`Mark "${booking.client}" booking as Completed?`, {
+  let completionPayload = null;
+  if (typeof window.promptCompletionConflicts === 'function') {
+    const comp = await window.promptCompletionConflicts(booking);
+    if (!comp || comp.cancelled) return;
+    completionPayload = comp;
+  } else if (!await confirmAction(`Mark "${booking.client}" booking as Completed?`, {
     icon: 'question',
     confirmButtonText: 'Mark Completed',
     confirmButtonColor: '#0f766e'
@@ -3259,9 +3288,23 @@ async function calMarkDone(idx) {
       const res = await fetch(`${API}/bookings/${dbId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed' })
+        body: JSON.stringify({
+          status: 'completed',
+          ...(completionPayload ? {
+            damagedAssets: completionPayload.damagedAssets,
+            damageFee: completionPayload.damageFee,
+            damageFeePaid: completionPayload.damageFeePaid,
+            conflictNotes: completionPayload.conflictNotes
+          } : {})
+        })
       });
-      if (!res.ok) { notify('Failed to update on server', '❌'); return; }
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) { notify(out.error || 'Failed to update on server', '❌'); return; }
+      if (completionPayload) {
+        data.bookings[idx].damageFee = Number(out.damageFeeAmount ?? completionPayload.damageFee) || 0;
+        data.bookings[idx].damageFeePaid = Boolean(out.damageFeePaid ?? completionPayload.damageFeePaid);
+        data.bookings[idx].damageConflictNotes = out.conflictNotes || completionPayload.conflictNotes || '';
+      }
     } catch(e) {
       notify('Server not connected', '❌'); return;
     }
@@ -3274,7 +3317,9 @@ async function calMarkDone(idx) {
     data.clients.push({ id: uid('CL'), name: bk.client, phone: bk.phone||'', email: bk.email||'', address: '' });
   }
   saveData();
-  notify(`${booking.client}'s booking moved to Client Records`, '\u2705');
+  if (typeof fetchAssets === 'function') await fetchAssets();
+  if (typeof renderSalesAnalytics === 'function') renderSalesAnalytics();
+  notify(`${booking.client}'s booking completed and asset returns recorded.`, '\u2705');
 
   
   renderCalendar();

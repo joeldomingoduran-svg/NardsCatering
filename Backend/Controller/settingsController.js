@@ -121,14 +121,23 @@ exports.getGcashQr = async (req, res) => {
   }
 };
 
+async function upsertSetting(key, value) {
+  const [existing] = await pool.query(
+    'SELECT settingKey FROM Settings WHERE settingKey = ? LIMIT 1',
+    [key]
+  );
+  if (existing.length) {
+    await pool.query('UPDATE Settings SET settingValue = ? WHERE settingKey = ?', [value, key]);
+  } else {
+    await pool.query('INSERT INTO Settings (settingKey, settingValue) VALUES (?, ?)', [key, value]);
+  }
+}
+
 exports.setGcashQr = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Please choose an image.' });
     const url = req.file.url;
-    await pool.query(
-      "INSERT INTO Settings (settingKey, settingValue) VALUES ('gcashQr', ?) ON DUPLICATE KEY UPDATE settingValue = VALUES(settingValue)",
-      [url]
-    );
+    await upsertSetting('gcashQr', url);
     res.json({ message: 'GCash QR updated.', url });
   } catch (err) {
     res.status(500).json({ error: 'Could not save GCash QR.' });
@@ -146,12 +155,16 @@ exports.setBookingAdvisory = async (req, res) => {
     const title = String(req.body?.title || DEFAULT_ADVISORY.title).trim().slice(0, 140) || DEFAULT_ADVISORY.title;
     const message = String(req.body?.message || DEFAULT_ADVISORY.message).trim().slice(0, 1500) || DEFAULT_ADVISORY.message;
     const value = JSON.stringify({ active, title, message, updatedAt: new Date().toISOString() });
-    await pool.query(
-      "INSERT INTO Settings (settingKey, settingValue) VALUES ('bookingAdvisory', ?) ON DUPLICATE KEY UPDATE settingValue = VALUES(settingValue)",
-      [value]
-    );
-    res.json({ message: 'Booking availability advisory updated.', active, title, advisoryMessage: message });
+    await upsertSetting('bookingAdvisory', value);
+    const current = await exports.readBookingAdvisory();
+    res.json({
+      message: 'Booking availability advisory updated.',
+      active: current.active,
+      title: current.title,
+      advisoryMessage: current.message
+    });
   } catch (err) {
+    console.error('setBookingAdvisory error:', err);
     res.status(500).json({ error: 'Could not save booking advisory.' });
   }
 };
