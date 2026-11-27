@@ -953,11 +953,17 @@ async function loadPackages() {
 
 function updatePackageAvailabilityNotice() {
   const box = document.getElementById('package-availability-msg');
+  const submitBtn = document.getElementById('submit-btn');
+  const btnText = submitBtn ? submitBtn.querySelector('.btn-text') : null;
   if (!box) return;
   const opt = packageSelect.options[packageSelect.selectedIndex];
   if (!opt || !opt.value || opt.dataset.available !== '0') {
     box.style.display = 'none';
     box.innerHTML = '';
+    if (submitBtn && !window._globalBookingUnavailable) {
+      submitBtn.disabled = false;
+      if (btnText) btnText.textContent = '\u2709 Send Booking Request';
+    }
     return;
   }
   let missing = [];
@@ -965,8 +971,12 @@ function updatePackageAvailabilityNotice() {
   const detailText = missing.length
     ? missing.map(m => `${escHtml(m.name)} (${m.available}${m.unit ? ' ' + escHtml(m.unit) : ''} available / needs ${m.required}${m.unit ? ' ' + escHtml(m.unit) : ''})`).join(', ')
     : 'Required inventory items are currently out of stock.';
-  box.innerHTML = `<strong>&#9888;&#65039; Not Available:</strong> Some items included in <strong>${escHtml(opt.value)}</strong> are currently unavailable in inventory (${detailText}).`;
+  box.innerHTML = `<strong>&#9888;&#65039; Not Available:</strong> Some items included in <strong>${escHtml(opt.value)}</strong> are currently unavailable in inventory (${detailText}). Please select another available package.`;
   box.style.display = 'block';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    if (btnText) btnText.textContent = 'Selected Package Not Available';
+  }
 }
 
 
@@ -1386,6 +1396,7 @@ async function loadBookingAdvisory() {
   try {
     const res = await fetch('/settings/booking-advisory', { cache: 'no-store' });
     const adv = await res.json();
+    window._globalBookingUnavailable = Boolean(adv && adv.active);
     if (adv && adv.active) {
       if (pillEl) { pillEl.textContent = 'Booking Advisory · Temporarily Unavailable'; pillEl.style.background = '#fde8e8'; pillEl.style.color = '#9b1c1c'; }
       if (titleEl) titleEl.textContent = adv.title || 'Online Reservation Notice — Temporarily Unavailable';
@@ -1408,6 +1419,7 @@ async function loadBookingAdvisory() {
         const txt = submitBtn.querySelector('.btn-text');
         if (txt) txt.textContent = '\u2709 Send Booking Request';
       }
+      updatePackageAvailabilityNotice();
     }
     if (updEl && adv?.updatedAt) {
       updEl.textContent = 'Updated ' + new Date(adv.updatedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });

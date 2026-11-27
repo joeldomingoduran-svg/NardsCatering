@@ -263,8 +263,46 @@ exports.createBooking = async (req, res) => {
       if (hasRef && !/^[A-Za-z0-9]{8,20}$/.test(String(gcashRef).trim())) {
         return res.status(400).json({ error: 'Enter a valid GCash reference number.' });
       }
-      const [pkgRows] = await pool.query("SELECT price, min_guests, max_guests FROM Packages WHERE name = ? LIMIT 1", [eventPackage]);
+      const [pkgRows] = await pool.query("SELECT id, name, price, min_guests, max_guests FROM Packages WHERE name = ? LIMIT 1", [eventPackage]);
       if (!pkgRows.length) return res.status(400).json({ error: 'Selected package not found.' });
+
+      try {
+        const missingPkgItems = [];
+        const [pkgIngRows] = await pool.query(
+          `SELECT i.name, i.quantity AS available_qty, COALESCE(i.is_archived, 0) AS is_archived, CAST(SUM(di.qty_required) AS SIGNED) AS required_qty
+           FROM (SELECT DISTINCT dish_id FROM PackageDishes WHERE package_id = ?) pd
+           JOIN DishIngredients di ON di.dish_id = pd.dish_id
+           JOIN Inventory i ON i.id = di.inventory_id
+           GROUP BY i.id, i.name, i.quantity, i.is_archived`,
+          [pkgRows[0].id]
+        );
+        for (const r of pkgIngRows || []) {
+          const avail = Number(r.available_qty) || 0;
+          const reqQty = Number(r.required_qty) || 0;
+          if (Number(r.is_archived) === 1 || avail <= 0 || avail < reqQty) {
+            missingPkgItems.push(`${r.name} (available: ${avail}, needs ${reqQty})`);
+          }
+        }
+        const [pkgAssetRows] = await pool.query(
+          `SELECT ca.name, ca.quantity AS available_qty, COALESCE(ca.is_archived, 0) AS is_archived, pa.qty_required
+           FROM PackageAssets pa
+           JOIN CateringAssets ca ON ca.id = pa.asset_id
+           WHERE pa.package_id = ?`,
+          [pkgRows[0].id]
+        );
+        for (const a of pkgAssetRows || []) {
+          const avail = Number(a.available_qty) || 0;
+          const reqQty = Number(a.qty_required) || 0;
+          if (Number(a.is_archived) === 1 || avail <= 0 || avail < reqQty) {
+            missingPkgItems.push(`${a.name} (available: ${avail}, needs ${reqQty})`);
+          }
+        }
+        if (missingPkgItems.length) {
+          return res.status(400).json({
+            error: `${pkgRows[0].name} is currently not available because some included inventory items are out of stock or insufficient: ${missingPkgItems.join(', ')}. Please choose an available package.`
+          });
+        }
+      } catch (pkgCheckErr) {}
       const basePax = Number(pkgRows[0].max_guests) || Number(pkgRows[0].min_guests) || 0;
       totalGuestsToStore = basePax > 0 ? (basePax + addGuestsCount) : (Number(guests) || addGuestsCount);
       const price = Number(pkgRows[0].price) + (addGuestsCount * ADDITIONAL_GUEST_RATE);
