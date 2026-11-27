@@ -33,6 +33,11 @@ exports.sendBookingFollowUpEmail = async (to, details, otpCode) => {
   const payLine = details.paymentOption
     ? `${details.paymentOption === 'down' ? '20% Down Payment' : 'Full Payment'}${details.amountDue != null ? ` (₱${Number(details.amountDue).toLocaleString('en-PH')})` : ''}`
     : 'To be coordinated';
+  const transportAmt = Number(details.transportFee || 0);
+  const distKm = Number(details.distanceKm || 0);
+  const transportLine = transportAmt > 0
+    ? `₱${transportAmt.toLocaleString('en-PH')} (${distKm > 30 ? `${distKm} km from Cainta — ₱500 base (30 km) + ${Math.ceil(distKm - 30)} km × ₱40` : `${distKm ? distKm + ' km from Cainta — ' : ''}within 30 km Cainta base`})`
+    : '₱500 (Cainta up to 30 km base)';
   const textBody = [
     `Nard's Catering & Setup — Booking Follow-Up Notification`,
     ``,
@@ -46,6 +51,7 @@ exports.sendBookingFollowUpEmail = async (to, details, otpCode) => {
     `Guests: ${details.guests || 0} pax`,
     `Event Date & Time: ${details.eventDate}${details.eventTime ? ' at ' + details.eventTime : ''}`,
     `Venue: ${details.address}`,
+    `Transport Fee: ${transportLine}`,
     `Payment Option: ${payLine}`,
     `Status: Pending Verification`,
     ``,
@@ -76,6 +82,7 @@ exports.sendBookingFollowUpEmail = async (to, details, otpCode) => {
           <tr><td style="padding:6px 0;color:#70685e">Guests</td><td style="padding:6px 0">${esc(details.guests || 0)} pax</td></tr>
           <tr><td style="padding:6px 0;color:#70685e">Date &amp; Time</td><td style="padding:6px 0">${esc(details.eventDate)}${details.eventTime ? ' at ' + esc(details.eventTime) : ''}</td></tr>
           <tr><td style="padding:6px 0;color:#70685e">Venue</td><td style="padding:6px 0">${esc(details.address)}</td></tr>
+          <tr><td style="padding:6px 0;color:#70685e">Transport Fee</td><td style="padding:6px 0">${esc(transportLine)}</td></tr>
           <tr><td style="padding:6px 0;color:#70685e">Payment</td><td style="padding:6px 0">${esc(payLine)}</td></tr>
           <tr><td style="padding:6px 0;color:#70685e">Current Status</td><td style="padding:6px 0"><strong>Pending Verification</strong></td></tr>
         </table>

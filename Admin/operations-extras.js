@@ -1044,6 +1044,7 @@
         '<div><strong>Date &amp; Time:</strong> ' + esc(booking.date) + ' ' + esc(booking.time || '') + '</div>' +
         '<div style="grid-column:1/-1"><strong>Venue / Address:</strong> ' + esc(booking.venue || 'TBD') + '</div>' +
         '<div><strong>Package:</strong> ' + esc(booking.package || 'TBD') + '</div>' +
+        '<div><strong>Transport Fee:</strong> ' + (Number(booking.transportFee) > 0 ? esc(money(booking.transportFee)) + (Number(booking.distanceKm) > 0 ? ' (' + esc(booking.distanceKm) + ' km from Cainta)' : ' (30 km base)') : 'Included (₱500 base)') + '</div>' +
         '<div><strong>Payment:</strong> ' + (booking.paid ? 'Paid' : booking.paymentProof ? 'Receipt Submitted' : 'Unpaid') + (booking.gcashRef ? ' (Ref: ' + esc(booking.gcashRef) + ')' : '') + '</div>' +
       '</div>' +
       '<div class="grid">' +
@@ -1323,7 +1324,7 @@
               '<td><span class="badge badge-gold">' + esc(b.id) + '</span></td>' +
               '<td>' + esc(b.date || '-') + '</td>' +
               '<td><strong>' + esc(b.client) + '</strong><br><span style="font-size:12px;color:var(--text-muted)">' + esc(b.event) + '</span></td>' +
-              '<td>' + esc(money(pkgAmt)) + '</td>' +
+              '<td>' + esc(money(pkgAmt)) + (Number(b.transportFee) > 0 ? '<br><span style="font-size:11px;color:var(--text-muted)">incl. ' + esc(money(b.transportFee)) + ' transport</span>' : '') + '</td>' +
               '<td>' + (dmgAmt > 0 ? '<span class="badge badge-warning">' + esc(money(dmgAmt)) + '</span>' : '-') + '</td>' +
               '<td><strong>' + esc(money(totAmt)) + '</strong></td>' +
               '<td>' + esc(money(p15)) + '</td>' +

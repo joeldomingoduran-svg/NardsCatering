@@ -152,6 +152,10 @@ async function ensureExtraSchema() {
     await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS damage_fee_paid smallint NOT NULL DEFAULT 0');
     await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS damage_conflict_notes varchar(500)');
   }
+  if (!(await columnExists('Bookings', 'transport_fee'))) {
+    await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS distance_km numeric(8, 2) NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS transport_fee numeric(10, 2) NOT NULL DEFAULT 500');
+  }
   try {
     const [svCols] = await pool.query(
       "SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'settings' AND column_name = 'settingvalue' LIMIT 1"

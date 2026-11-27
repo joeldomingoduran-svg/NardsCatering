@@ -15,6 +15,7 @@
       notes: booking.notes, additionalRequest: booking.addReq, additionalCost: booking.addCost
     };
     if (booking.addGuests !== undefined) payload.additionalGuests = booking.addGuests;
+    if (booking.distanceKm !== undefined) payload.distanceKm = booking.distanceKm;
     var response;
     try {
       response = await fetch('/bookings/internal', {
@@ -205,6 +206,12 @@
   }
 
   /* --------------------------------------------------------------- Pricing */
+  function computeTransportFee(kmRaw) {
+    var km = Math.max(0, Number(kmRaw) || 0);
+    var excessKm = Math.max(0, Math.ceil(km - 30));
+    return 500 + (excessKm * 40);
+  }
+
   function recalc() {
     var priceEl = $('bk-pkgprice'), totalEl = $('bk-amount');
     if (!priceEl || !totalEl) return;
@@ -218,9 +225,12 @@
     }
     var guestExtraFee = addGuests * 350;
     var extra = Math.max(0, Number($('bk-addcost') && $('bk-addcost').value) || 0);
+    var distEl = $('bk-distance');
+    var transportFee = distEl ? computeTransportFee(distEl.value) : 0;
+    if ($('bk-transportfee')) $('bk-transportfee').value = pkg ? transportFee : (distEl ? transportFee : '');
     var adjustedPkgPrice = pkg ? (price + guestExtraFee) : '';
     priceEl.value = adjustedPkgPrice;
-    var total = pkg ? (adjustedPkgPrice + extra) : '';
+    var total = pkg ? (adjustedPkgPrice + extra + transportFee) : '';
     totalEl.value = total;
     // Down payment follows the customer rule: 20% of the total.
     if ($('bk-dp')) $('bk-dp').value = total === '' ? '' : Math.round(total * 0.2);
@@ -255,11 +265,27 @@
     var map = { 'bk-date': ['change', function () { checkDate(true); checkTime(false); }], 'bk-time': ['blur', function () { checkTime(true); }],
       'bk-addguests': ['input', function () { checkGuests(true); recalc(); }],
       'bk-guests': ['input', function () { checkGuests(true); }], 'bk-email': ['blur', function () { checkEmail(true); }],
-      'bk-package': ['change', onPackageChange], 'bk-addcost': ['input', recalc] };
+      'bk-package': ['change', onPackageChange], 'bk-addcost': ['input', recalc], 'bk-distance': ['input', recalc] };
     Object.keys(map).forEach(function (id) { if ($(id)) $(id).addEventListener(map[id][0], map[id][1]); });
+    if ($('bk-venue') && $('bk-distance') && typeof fetch === 'function') {
+      $('bk-venue').addEventListener('blur', function () {
+        var addr = $('bk-venue').value.trim();
+        if (!addr) return;
+        fetch('/bookings/validate-address', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: addr })
+        }).then(function (r) { return r.json(); }).then(function (out) {
+          if (out && out.valid && typeof out.distanceKm === 'number' && $('bk-distance')) {
+            $('bk-distance').value = out.distanceKm;
+            recalc();
+          }
+        }).catch(function () {});
+      });
+    }
     if ($('bk-email')) $('bk-email').addEventListener('input', function () { if (this.classList.contains('invalid')) checkEmail(true); });
     if ($('bk-time')) $('bk-time').addEventListener('input', function () { if (this.classList.contains('invalid')) checkTime(false); });
-    ['bk-amount', 'bk-dp', 'bk-pkgprice'].forEach(function (id) { if ($(id)) $(id).readOnly = true; });
+    ['bk-amount', 'bk-dp', 'bk-pkgprice', 'bk-transportfee'].forEach(function (id) { if ($(id)) $(id).readOnly = true; });
   }
 
   var originalOpen = window.openBookingModal;
@@ -272,9 +298,12 @@
         if ($('bk-addguests')) $('bk-addguests').value = b.addGuests || '';
         if ($('bk-addreq')) $('bk-addreq').value = b.addReq || '';
         if ($('bk-addcost')) $('bk-addcost').value = b.addCost || '';
+        if ($('bk-distance')) $('bk-distance').value = b.distanceKm || 0;
         recalc();
-      } else if ($('bk-addguests')) {
-        $('bk-addguests').value = '';
+      } else {
+        if ($('bk-addguests')) $('bk-addguests').value = '';
+        if ($('bk-distance')) $('bk-distance').value = '';
+        recalc();
       }
       return result;
     };

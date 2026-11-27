@@ -2,12 +2,32 @@ const pool = require('../Model/db');
 const { writeAudit } = require('../Model/audit');
 const { isRealName, isValidEmail, isWithinBusinessHours, parseBusinessTime, isElevenDigitPhone } = require('../Model/validators');
 const { notify } = require('../Model/notifications');
-const { validatePhilippineAddress } = require('../Model/address');
+const addressModel = require('../Model/address');
+const validatePhilippineAddress = addressModel.validatePhilippineAddress;
+const calculateTransportFeeFromAddress = addressModel.calculateTransportFeeFromAddress;
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_missing_key');
 
 const TERMS_VERSION = '2026-10-15';
 const MAX_EVENTS_PER_DAY = 2;
 const ADDITIONAL_GUEST_RATE = 350;
+const CAINTA_BASE_TRANSPORT_FEE = 500;
+const CAINTA_FREE_DISTANCE_KM = 30;
+const TRANSPORT_EXCESS_RATE = 40;
+
+function resolveTransportMeta(address, rawDistanceKm, enforceFloor = true) {
+  const hasExplicit = rawDistanceKm !== undefined && rawDistanceKm !== null && String(rawDistanceKm).trim() !== '';
+  if (typeof calculateTransportFeeFromAddress === 'function') {
+    return calculateTransportFeeFromAddress(address, rawDistanceKm, { enforceFloor });
+  }
+  if (hasExplicit) {
+    const num = Number(rawDistanceKm);
+    const km = Number.isFinite(num) && num >= 0 ? Math.round(num * 10) / 10 : 0;
+    const excessKm = Math.max(0, Math.ceil(km - CAINTA_FREE_DISTANCE_KM));
+    const excessFee = excessKm * TRANSPORT_EXCESS_RATE;
+    return { distanceKm: km, excessKm, excessFee, transportFee: CAINTA_BASE_TRANSPORT_FEE + excessFee };
+  }
+  return null;
+}
 
 async function recordBookingStockMovement(conn, entry) {
   try {
@@ -155,7 +175,10 @@ function validTime(value) {
 }
 
 exports.validateAddress = (req, res) => {
-  res.json(validatePhilippineAddress(req.body?.address));
+  const check = validatePhilippineAddress(req.body?.address);
+  if (!check || !check.valid) return res.json(check);
+  const feeMeta = resolveTransportMeta(req.body?.address, req.body?.distanceKm, true);
+  res.json(feeMeta ? { ...check, ...feeMeta } : check);
 };
 
 exports.getAllBookings = async (req, res) => {
@@ -187,7 +210,7 @@ exports.getAllBookings = async (req, res) => {
 
 exports.createBooking = async (req, res) => {
   try {
-    const { clientName, address, eventType, package: eventPackage, eventDate, eventTime, phone, email, guests, additionalGuests, selectedMenus, notes, paymentOption, gcashRef, additionalRequest, additionalCost } = req.body;
+    const { clientName, address, eventType, package: eventPackage, eventDate, eventTime, phone, email, guests, additionalGuests, selectedMenus, notes, paymentOption, gcashRef, additionalRequest, additionalCost, distanceKm } = req.body;
     if (!clientName || !address || !eventType || !eventPackage || !eventDate || !phone) {
       return res.status(400).json({ error: "All fields are required" });
     }
@@ -196,6 +219,10 @@ exports.createBooking = async (req, res) => {
     }
     if (typeof isElevenDigitPhone === 'function' && !isElevenDigitPhone(phone)) {
       return res.status(400).json({ error: 'Phone number must start with 09, be 11 digits, and be a real mobile number.' });
+    }
+    const rawDist = distanceKm !== undefined && distanceKm !== null ? String(distanceKm).trim() : '';
+    if (rawDist !== '' && (!Number.isFinite(Number(rawDist)) || Number(rawDist) < 0)) {
+      return res.status(400).json({ error: 'Enter a valid non-negative distance in kilometers.' });
     }
     const addressCheck = validatePhilippineAddress(address);
     if (!addressCheck.valid) return res.status(400).json({ error: addressCheck.message });
@@ -336,15 +363,18 @@ exports.createBooking = async (req, res) => {
         }
       } catch (e) {}
 
+      const transportMeta = resolveTransportMeta(address, distanceKm, !req.internalBooking);
+      const transportFee = transportMeta ? transportMeta.transportFee : 0;
       const basePax = Number(pkgRows[0].max_guests) || Number(pkgRows[0].min_guests) || 0;
       totalGuestsToStore = basePax > 0 ? (basePax + addGuestsCount) : (Number(guests) || addGuestsCount);
-      const price = Number(pkgRows[0].price) + (addGuestsCount * ADDITIONAL_GUEST_RATE) + extraMenuCost;
+      const price = Number(pkgRows[0].price) + (addGuestsCount * ADDITIONAL_GUEST_RATE) + extraMenuCost + transportFee;
       amountDue = paymentOption === 'down' ? Math.round(price * 20) / 100 : price;
       optionValue = paymentOption;
       refValue = hasRef ? String(gcashRef).trim() : null;
       proofPath = req.file ? req.file.url : null;
     }
 
+    const transportMeta = resolveTransportMeta(address, distanceKm, !req.internalBooking);
     const awaitingPayment = Boolean(optionValue) && !proofPath;
     const deadlineSql = awaitingPayment ? 'DATE_ADD(NOW(), INTERVAL 24 HOUR)' : 'NULL';
     const [result] = await pool.query(
@@ -358,6 +388,9 @@ exports.createBooking = async (req, res) => {
     if (selectedMenusText) {
       try { await pool.query('UPDATE Bookings SET selected_menus = ? WHERE id = ?', [selectedMenusText, result.insertId]); } catch (e) {}
     }
+    if (transportMeta) {
+      try { await pool.query('UPDATE Bookings SET distance_km = ?, transport_fee = ? WHERE id = ?', [transportMeta.distanceKm, transportMeta.transportFee, result.insertId]); } catch (e) {}
+    }
     if (optionValue) {
       await writeAudit({ username: email || clientName, role: 'customer' }, 'Submitted booking', 'bookings', result.insertId, `${eventType} on ${eventDate}, GCash ${optionValue} payment${awaitingPayment ? ' (awaiting payment, 24h)' : ''}`);
     }
@@ -370,7 +403,9 @@ exports.createBooking = async (req, res) => {
       eventTime: validTime(eventTime) ? String(eventTime).slice(0, 5) : '',
       guests: guests || 0,
       paymentOption: optionValue,
-      amountDue
+      amountDue,
+      distanceKm: transportMeta ? transportMeta.distanceKm : 0,
+      transportFee: transportMeta ? transportMeta.transportFee : 0
     }, result.insertId, awaitingPayment);
     await notify('booking', 'New booking request', `${clientName} booked ${eventType} on ${eventDate}.`, ['admin', 'manager', 'staff'], 'bookings');
     res.status(201).json({
@@ -378,6 +413,8 @@ exports.createBooking = async (req, res) => {
       bookingId: result.insertId,
       awaitingPayment,
       amountDue,
+      distanceKm: transportMeta ? transportMeta.distanceKm : 0,
+      transportFee: transportMeta ? transportMeta.transportFee : 0,
       followUpOtpSent: followUp.sent
     });
   } catch (err) {
@@ -854,7 +891,7 @@ exports.updateBookingStatus = async (req, res) => {
 
 exports.updateBooking = async (req, res) => {
   try {
-    const { clientName, address, eventType, package: eventPackage, eventDate, eventTime, phone, email, guests, additionalGuests, notes, additionalRequest, additionalCost } = req.body;
+    const { clientName, address, eventType, package: eventPackage, eventDate, eventTime, phone, email, guests, additionalGuests, notes, additionalRequest, additionalCost, distanceKm } = req.body;
     if (!clientName || !address || !eventType || !eventPackage || !eventDate || !phone) {
       return res.status(400).json({ error: "All fields are required" });
     }
@@ -893,6 +930,10 @@ exports.updateBooking = async (req, res) => {
     if (result.affectedRows === 0) return res.status(404).json({ error: "Booking not found" });
     if (hasExplicitAdditionalGuests) {
       try { await pool.query('UPDATE Bookings SET additional_guests = ? WHERE id = ?', [addGuestsCount, req.params.id]); } catch (e) {}
+    }
+    const transportMeta = resolveTransportMeta(address, distanceKm, false);
+    if (transportMeta) {
+      try { await pool.query('UPDATE Bookings SET distance_km = ?, transport_fee = ? WHERE id = ?', [transportMeta.distanceKm, transportMeta.transportFee, req.params.id]); } catch (e) {}
     }
     res.json({ message: "Booking updated" });
   } catch (err) {

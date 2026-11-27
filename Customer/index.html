@@ -642,6 +642,12 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
             <small id="additional-guests-hint" style="color:var(--muted);display:block;margin-top:4px">Included package capacity is covered. Enter only extra guests beyond the package.</small>
             <small id="guests-msg" style="display:none;color:#c0392b"></small>
           </div>
+          <div class="form-group">
+            <label for="distance-km">Distance from Cainta (km) <small style="font-weight:400;color:var(--muted)">(&#8369;500 up to 30 km + &#8369;40/km)</small></label>
+            <input type="number" id="distance-km" name="distanceKm" min="0" step="0.5" placeholder="0 (auto-estimated from address)">
+            <small id="transport-preview" style="color:#5a4a33;display:block;margin-top:4px">Transport Fee: &#8369;500 (covers up to 30 km from Cainta, Rizal).</small>
+            <small id="distance-msg" style="display:none;color:#c0392b"></small>
+          </div>
         </div>
 
         <div id="customer-menu-picker" class="menu-picker-box" style="display:none"></div>
@@ -1166,6 +1172,45 @@ function fieldMsg(inputId, msgId, text) {
   return !text;
 }
 const ADDITIONAL_GUEST_RATE = 350;
+const CAINTA_BASE_FEE = 500;
+const CAINTA_FREE_KM = 30;
+const TRANSPORT_EXCESS_RATE = 40;
+window._estimatedDistanceKm = 0;
+window._custManualDistance = false;
+
+function getTransportDetails() {
+  const distInput = document.getElementById('distance-km');
+  const raw = distInput ? String(distInput.value || '').trim() : '';
+  const parsed = raw !== '' ? Number(raw) : Number(window._estimatedDistanceKm || 0);
+  const km = Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed * 10) / 10 : 0;
+  const excessKm = Math.max(0, Math.ceil(km - CAINTA_FREE_KM));
+  const excessFee = excessKm * TRANSPORT_EXCESS_RATE;
+  const transportFee = CAINTA_BASE_FEE + excessFee;
+  return { distanceKm: km, excessKm, excessFee, transportFee };
+}
+
+function updateTransportPreview() {
+  const el = document.getElementById('transport-preview');
+  if (!el) return;
+  const t = getTransportDetails();
+  if (t.excessKm > 0) {
+    el.textContent = `Transport Fee: \u20b1${t.transportFee.toLocaleString('en-PH')} (${t.distanceKm} km from Cainta: \u20b1500 base + ${t.excessKm} excess km \u00d7 \u20b140)`;
+  } else {
+    el.textContent = `Transport Fee: \u20b1${CAINTA_BASE_FEE} (${t.distanceKm > 0 ? t.distanceKm + ' km — ' : ''}within 30 km Cainta base)`;
+  }
+}
+
+function checkDistanceField() {
+  const input = document.getElementById('distance-km');
+  if (!input) return true;
+  const raw = String(input.value || '').trim();
+  const v = Number(raw);
+  let text = '';
+  if (raw !== '' && (!Number.isFinite(v) || v < 0)) text = 'Enter 0 or a valid distance in km.';
+  updateTransportPreview();
+  return fieldMsg('distance-km', 'distance-msg', text);
+}
+
 function getSelectedPackageDetails() {
   const opt = packageSelect.options[packageSelect.selectedIndex];
   const basePrice = parseFloat(opt?.dataset?.price || 0);
@@ -1175,8 +1220,23 @@ function getSelectedPackageDetails() {
   const chosenMainDishes = getSelectedMainDishes();
   const extraMenus = menuLimit > 0 ? Math.max(0, chosenMainDishes.length - menuLimit) : 0;
   const extraMenuCost = extraMenus * EXTRA_MENU_RATE;
-  const adjustedPrice = basePrice ? basePrice + (addGuests * ADDITIONAL_GUEST_RATE) + extraMenuCost : 0;
-  return { name: opt?.value || '', basePrice, basePax, menuLimit, addGuests, chosenMainDishes, extraMenus, extraMenuCost, adjustedPrice };
+  const t = getTransportDetails();
+  const adjustedPrice = basePrice ? basePrice + (addGuests * ADDITIONAL_GUEST_RATE) + extraMenuCost + t.transportFee : 0;
+  return {
+    name: opt?.value || '',
+    basePrice,
+    basePax,
+    menuLimit,
+    addGuests,
+    chosenMainDishes,
+    extraMenus,
+    extraMenuCost,
+    distanceKm: t.distanceKm,
+    excessKm: t.excessKm,
+    excessFee: t.excessFee,
+    transportFee: t.transportFee,
+    adjustedPrice
+  };
 }
 function checkGuests() {
   const input = document.getElementById('additional-guests');
@@ -1239,6 +1299,7 @@ function checkEventDate() {
   return fieldMsg('event-date', 'date-msg', v && v < custCalTodayStr() ? 'Past dates cannot be selected.' : '');
 }
 function updateCustomerPricing() {
+  updateTransportPreview();
   const info = getSelectedPackageDetails();
   updateAmountToPay();
   if (!info.basePrice) {
@@ -1246,14 +1307,19 @@ function updateCustomerPricing() {
     return;
   }
   payInfoBox.style.display = 'flex';
-  const notes = [];
-  if (info.addGuests > 0) notes.push(`${info.addGuests} extra guests × ₱350`);
-  if (info.extraMenus > 0) notes.push(`${info.extraMenus} extra menu(s) × ₱2,000`);
-  const extraLabel = notes.length ? ` (Base ₱${info.basePrice.toLocaleString('en-PH')} + ${notes.join(' + ')})` : '';
+  const notes = [`Transport \u20b1${info.transportFee.toLocaleString('en-PH')}`];
+  if (info.addGuests > 0) notes.push(`${info.addGuests} extra guests \u00d7 \u20b1350`);
+  if (info.extraMenus > 0) notes.push(`${info.extraMenus} extra menu(s) \u00d7 \u20b12,000`);
+  const extraLabel = ` (Base \u20b1${info.basePrice.toLocaleString('en-PH')} + ${notes.join(' + ')})`;
   totalPriceEl.textContent = 'Total Price: \u20b1' + info.adjustedPrice.toLocaleString('en-PH') + extraLabel;
   downPayEl.textContent    = 'Down Payment (20%): \u20b1' + Math.round(info.adjustedPrice * 0.2).toLocaleString('en-PH');
 }
 document.getElementById('additional-guests').addEventListener('input', () => { checkGuests(); updateCustomerPricing(); });
+document.getElementById('distance-km').addEventListener('input', () => {
+  window._custManualDistance = true;
+  checkDistanceField();
+  updateCustomerPricing();
+});
 document.getElementById('email').addEventListener('blur', checkEmailField);
 document.getElementById('email').addEventListener('input', () => { if (document.getElementById('email-msg').style.display === 'block') checkEmailField(); });
 document.getElementById('event-time').addEventListener('input', () => checkEventTime(false));
@@ -1338,16 +1404,26 @@ function escHtml(value) {
 async function checkAddress() {
   const input = document.getElementById('address');
   const msg = document.getElementById('address-msg');
+  const distInput = document.getElementById('distance-km');
+  const payload = { address: input.value };
+  if (window._custManualDistance && distInput && distInput.value.trim() !== '') {
+    payload.distanceKm = distInput.value.trim();
+  }
   try {
     const res = await fetch('/bookings/validate-address', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address: input.value })
+      body: JSON.stringify(payload)
     });
     const result = await res.json();
     msg.textContent = result.valid ? '' : result.message;
     msg.style.display = result.valid ? 'none' : 'block';
     input.setCustomValidity(result.valid ? '' : result.message);
+    if (result.valid && typeof result.distanceKm === 'number') {
+      window._estimatedDistanceKm = Number(result.estimatedDistanceKm ?? result.distanceKm) || 0;
+      if (distInput) distInput.value = result.distanceKm;
+      updateCustomerPricing();
+    }
     return result.valid;
   } catch (e) {
     return true;
@@ -1361,6 +1437,7 @@ document.getElementById('address').addEventListener('blur', () => { if (document
 document.getElementById('address').addEventListener('input', () => {
   document.getElementById('address').setCustomValidity('');
   document.getElementById('address-msg').style.display = 'none';
+  window._custManualDistance = false;
 });
 
 function formatTimeLeft(seconds) {
@@ -1828,6 +1905,7 @@ async function renderCustomerBookings() {
             <div><strong>Guests:</strong> ${booking.guests || 0}</div>
             <div><strong>Phone:</strong> ${booking.phone || 'N/A'}</div>
             <div><strong>Address:</strong> ${escHtml(booking.address || 'N/A')}</div>
+            <div><strong>Transport Fee:</strong> &#8369;${Number(booking.transport_fee != null ? booking.transport_fee : 500).toLocaleString('en-PH')}${Number(booking.distance_km) > 0 ? ` (${Number(booking.distance_km)} km from Cainta)` : ' (Cainta 30 km base)'}</div>
             ${booking.selected_menus ? `<div style="grid-column:1/-1;margin-top:4px">${formatCustSelectedMenus(booking.selected_menus)}</div>` : ''}
           </div>
           ${paymentSectionHtml(booking)}
@@ -2353,7 +2431,7 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
     notes:      document.getElementById('notes').value
   };
 
-  if (![checkEmailField(), checkGuests(), checkEventTime(true), checkEventDate()].every(Boolean) || !parsedTime) {
+  if (![checkEmailField(), checkGuests(), checkDistanceField(), checkEventTime(true), checkEventDate()].every(Boolean) || !parsedTime) {
     document.getElementById('form-message').className = 'form-message error';
     document.getElementById('form-message').textContent = 'Please fix the highlighted fields.';
     btn.disabled = false;
@@ -2412,19 +2490,24 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
     return;
   }
 
-  const pkgPrice = pkgInfo.adjustedPrice;
+  const finalPkgInfo = getSelectedPackageDetails();
+  const pkgPrice = finalPkgInfo.adjustedPrice;
   const amountToPay = paymentOption === 'down' ? Math.round(pkgPrice * 0.2) : pkgPrice;
-  const menuSummaryLine = pkgInfo.menuLimit === 0
+  const menuSummaryLine = finalPkgInfo.menuLimit === 0
     ? 'All Main Courses & All Desserts Included'
-    : `${pkgInfo.chosenMainDishes.join(', ')} + All Desserts${pkgInfo.extraMenus > 0 ? ` (+${pkgInfo.extraMenus} extra × ₱2,000)` : ''}`;
+    : `${finalPkgInfo.chosenMainDishes.join(', ')} + All Desserts${finalPkgInfo.extraMenus > 0 ? ` (+${finalPkgInfo.extraMenus} extra × ₱2,000)` : ''}`;
+  const transportConfirmNote = finalPkgInfo.excessKm > 0
+    ? `\u20b1${finalPkgInfo.transportFee.toLocaleString('en-PH')} (${finalPkgInfo.distanceKm} km from Cainta — \u20b1500 base + ${finalPkgInfo.excessKm} km \u00d7 \u20b140)`
+    : `\u20b1${finalPkgInfo.transportFee.toLocaleString('en-PH')} (${finalPkgInfo.distanceKm > 0 ? finalPkgInfo.distanceKm + ' km from Cainta — ' : ''}within 30 km Cainta base)`;
   const confirmation = await Swal.fire({
     title: 'Confirm your booking',
     html: `<div style="text-align:left;line-height:1.9">
       <div><strong>Name:</strong> ${escHtml(data.clientName)}</div>
       <div><strong>Event:</strong> ${escHtml(data.eventType)}</div>
-      <div><strong>Package:</strong> ${escHtml(data.package)}${pkgInfo.addGuests > 0 ? ` (+${pkgInfo.addGuests} additional guests)` : ''}</div>
+      <div><strong>Package:</strong> ${escHtml(data.package)}${finalPkgInfo.addGuests > 0 ? ` (+${finalPkgInfo.addGuests} additional guests)` : ''}</div>
       <div><strong>Selected Menu:</strong> ${escHtml(menuSummaryLine)}</div>
-      <div><strong>Total Package Price:</strong> \u20b1${pkgPrice.toLocaleString('en-PH')}</div>
+      <div><strong>Transport Fee:</strong> ${escHtml(transportConfirmNote)}</div>
+      <div><strong>Total Amount (incl. Transport):</strong> \u20b1${pkgPrice.toLocaleString('en-PH')}</div>
       <div><strong>Date:</strong> ${escHtml(data.eventDate)}${parsedTime ? ' at ' + escHtml(parsedTime.display) : ''}</div>
       <div><strong>Venue:</strong> ${escHtml(data.address)}</div>
       <div><strong>Payment:</strong> ${paymentOption === 'down' ? 'Down payment (20%)' : 'Full payment'} \u2014 \u20b1${amountToPay.toLocaleString('en-PH')}<br><small>Pay within 24 hours so staff can confirm your booking, or it will be cancelled.</small></div>
@@ -2442,7 +2525,8 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
   }
   const formData = new FormData();
   Object.entries(data).forEach(([k, v]) => formData.append(k, v));
-  formData.append('selectedMenus', JSON.stringify(pkgInfo.chosenMainDishes));
+  formData.append('distanceKm', String(finalPkgInfo.distanceKm));
+  formData.append('selectedMenus', JSON.stringify(finalPkgInfo.chosenMainDishes));
   formData.append('paymentOption', paymentOption);
   formData.append('termsAccepted', document.getElementById('termsAccepted').checked ? 'true' : 'false');
   const receiptInput = document.getElementById('receipt-file');
@@ -2464,6 +2548,9 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
         ? '\u2713 Booking submitted as Pending. Please pay within 24 hours.'
         : '\u2713 Booking submitted successfully! Staff will verify your payment.';
       e.target.reset();
+      window._estimatedDistanceKm = 0;
+      window._custManualDistance = false;
+      updateTransportPreview();
       clearReceiptPreview();
       renderCustomerMenuPicker();
       updateAmountToPay();

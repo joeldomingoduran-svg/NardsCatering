@@ -332,3 +332,49 @@ test('booking creation persists submitted fields and limits extra charges to int
   await module.exports.updateBooking({ body: { ...body, additionalRequest: 'x'.repeat(501) }, params: { id: 42 } }, tooLongUpdate);
   assert.equal(tooLongUpdate.statusCode, 400);
 });
+
+test('transport fee charges P500 up to 30 km from Cainta plus P40 per exceeding km and feeds sales total', async () => {
+  const { validatePhilippineAddress, calculateTransportFeeFromAddress } = require(path.join(root, 'Backend/Model/address.js'));
+  const cainta = validatePhilippineAddress('123 Bonifacio Ave, Brgy. Sto. Domingo, Cainta, Rizal');
+  assert.equal(cainta.valid, true);
+  assert.equal(cainta.distanceKm, 0);
+  assert.equal(cainta.transportFee, 500);
+
+  const exactLimit = calculateTransportFeeFromAddress('123 Rizal St., Brgy. San Jose, Tanay, Rizal');
+  assert.equal(exactLimit.distanceKm, 30);
+  assert.equal(exactLimit.excessKm, 0);
+  assert.equal(exactLimit.transportFee, 500);
+
+  const exceeding = calculateTransportFeeFromAddress('45 Aguinaldo Highway, Brgy. Maharlika, Tagaytay, Cavite');
+  assert.equal(exceeding.distanceKm, 65);
+  assert.equal(exceeding.excessKm, 35);
+  assert.equal(exceeding.transportFee, 500 + (35 * 40));
+
+  const manual = calculateTransportFeeFromAddress('123 Bonifacio Ave, Brgy. Sto. Domingo, Cainta, Rizal', 45, { enforceFloor: true });
+  assert.equal(manual.distanceKm, 45);
+  assert.equal(manual.excessKm, 15);
+  assert.equal(manual.transportFee, 1100);
+
+  // Verify customer booking total + sales sync includes transport_fee.
+  const html = read('Admin/Admin.html');
+  const existing = { id: 'DB-9', client: 'Maria Santos', guests: 100, date: '2030-05-01', venue: 'Tagaytay' };
+  const context = {
+    API: '', packagesList: [{ name: 'Package A', price: 25000 }],
+    data: { bookings: [existing], deletedBookingIds: [] },
+    fetch: async () => ({
+      ok: true,
+      json: async () => [{
+        id: 9, clientName: 'Maria Santos', phone: '09171234567', email: 'maria@example.com',
+        eventType: 'Wedding', eventDate: '2030-05-01', eventTime: '10:00:00',
+        guests: 100, package: 'Package A', address: '45 Aguinaldo Hwy, Tagaytay', status: 'completed',
+        distance_km: 65, transport_fee: 1900, additional_cost: 0, additional_guests: 0, paymentStatus: 'paid'
+      }]
+    }),
+    saveData() {}
+  };
+  vm.runInNewContext(extract(html, 'function paymentFieldsFromRow(row)') + '\n' + extract(html, 'async function syncFromAPI()'), context);
+  await context.syncFromAPI();
+  assert.equal(existing.distanceKm, 65);
+  assert.equal(existing.transportFee, 1900);
+  assert.equal(existing.amount, 26900);
+});

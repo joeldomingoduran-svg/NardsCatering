@@ -500,6 +500,8 @@
       <div class="form-group"><label>Package Price (₱)</label><input id="bk-pkgprice" type="number" readonly placeholder="Auto-filled from package"></div>
       <div class="form-group"><label>Additional Request</label><input id="bk-addreq" type="text" maxlength="500" placeholder="e.g. Extra dessert station"></div>
       <div class="form-group"><label>Additional Cost (₱)</label><input id="bk-addcost" type="number" min="0" placeholder="0"></div>
+      <div class="form-group"><label>Distance from Cainta (km)</label><input id="bk-distance" type="number" min="0" step="0.5" placeholder="0 (30 km base)"></div>
+      <div class="form-group"><label>Transport Fee (&#8369;) <small>(&#8369;500 up to 30km + &#8369;40/km)</small></label><input id="bk-transportfee" type="number" readonly value="500"></div>
       <div class="form-group"><label>Total Amount (₱) *</label><input id="bk-amount" type="number" min="0" readonly placeholder="Auto-computed"></div>
       <div class="form-group"><label>Down Payment (₱) <small>(20%)</small></label><input id="bk-dp" type="number" min="0" readonly placeholder="Auto-computed"></div>
       <div class="form-group full"><label>Special Notes</label><textarea id="bk-notes" placeholder="Dietary restrictions, special requests, etc."></textarea></div>
@@ -1037,7 +1039,7 @@ async function syncFromAPI() {
         if (Object.keys(pay).some(key => existing[key] !== pay[key])) {
           Object.assign(existing, pay); changed = true;
         }
-        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost + pay.transportFee;
         if (Number(existing.amount) !== total) { existing.amount = total; changed = true; }
         if (Number(existing.dp) !== Math.round(total * 0.2)) { existing.dp = Math.round(total * 0.2); changed = true; }
         const freshTeam = Array.isArray(row.assignedEmployees) ? row.assignedEmployees : [];
@@ -1046,7 +1048,7 @@ async function syncFromAPI() {
         }
       } else {
         const pay = paymentFieldsFromRow(row);
-        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost + pay.transportFee;
         data.bookings.push({
           id:      apiId,
           client:  row.clientName  || '',
@@ -1203,6 +1205,8 @@ function paymentFieldsFromRow(row) {
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
     addGuests: Number(row.additional_guests) || 0,
+    distanceKm: Number(row.distance_km) || 0,
+    transportFee: row.transport_fee != null ? Number(row.transport_fee) : 0,
     damageFee: Number(row.damage_fee_amount) || 0,
     damageFeePaid: Boolean(Number(row.damage_fee_paid)),
     damageConflictNotes: row.damage_conflict_notes || '',
@@ -1478,6 +1482,9 @@ async function saveBooking() {
   if (!/^\d{11}$/.test(document.getElementById('bk-phone').value.trim())) { notify('Contact number must be exactly 11 digits.', '⚠️'); return; }
 
   const originalBooking = editIdx.booking >= 0 ? data.bookings[editIdx.booking] : null;
+  const distEl = document.getElementById('bk-distance');
+  const transportFeeEl = document.getElementById('bk-transportfee');
+  const rawDistVal = distEl && distEl.value !== undefined && String(distEl.value).trim() !== '' ? distEl.value.trim() : '';
   const booking = {
     ...(originalBooking || {}),
     id:      originalBooking?.id || uid('BK'),
@@ -1488,6 +1495,7 @@ async function saveBooking() {
     time:    document.getElementById('bk-time').value,
     guests:  parseInt(guests, 10) || addGuests || 1,
     ...(addGuestsEl ? { addGuests } : {}),
+    ...(rawDistVal !== '' ? { distanceKm: Math.max(0, Number(rawDistVal) || 0), transportFee: Math.max(0, Number(transportFeeEl?.value) || 0) } : {}),
     package: document.getElementById('bk-package').value,
     venue:   document.getElementById('bk-venue').value.trim(),
     amount:  parseFloat(amount),
@@ -1515,6 +1523,7 @@ async function saveBooking() {
           email: booking.email,
           guests: booking.guests,
           ...(addGuestsEl ? { additionalGuests: addGuests } : {}),
+          ...(rawDistVal !== '' ? { distanceKm: booking.distanceKm } : {}),
           additionalRequest: booking.addReq,
           additionalCost: booking.addCost,
           notes: booking.notes
@@ -2477,6 +2486,7 @@ function showConfirmation(booking) {
       ${booking.gcashRef ? `<div class="confirm-field"><label>GCash Reference</label><p>${auditEscape(booking.gcashRef)}</p></div>` : ''}
       ${booking.addReq ? `<div class="confirm-field" style="grid-column:1/-1"><label>Additional Request</label><p>${auditEscape(booking.addReq)}</p></div>` : ''}
       ${booking.addCost ? `<div class="confirm-field"><label>Additional Cost</label><p>${fmtMoney(booking.addCost)}</p></div>` : ''}
+      ${booking.transportFee > 0 ? `<div class="confirm-field"><label>Transport Fee</label><p>${fmtMoney(booking.transportFee)}${booking.distanceKm > 0 ? ` (${auditEscape(booking.distanceKm)} km from Cainta)` : ' (Cainta 30 km base)'}</p></div>` : ''}
       ${booking.damageFee > 0 ? `<div class="confirm-field"><label>Damage / Conflict Fee</label><p>${fmtMoney(booking.damageFee)} (${booking.damageFeePaid ? 'Paid & Included in Sales' : 'Unpaid'})</p></div>` : ''}
       ${booking.damageConflictNotes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Completion Conflict / Asset Return Notes</label><p>${auditEscape(booking.damageConflictNotes)}</p></div>` : ''}
       ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Your reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}${booking.requestHandled || !String(booking.id).startsWith('DB-') || (window.NardsUI && !window.NardsUI.can('bookings.manage')) ? '' : `<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-success btn-sm" onclick="resolveRequest('${booking.id}', 'approved')">${booking.requestType === 'cancel' ? 'Approve cancellation' : 'Approve'}</button>${booking.requestType === 'cancel' ? '' : `<button class="btn btn-danger btn-sm" onclick="resolveRequest('${booking.id}', 'declined')">Decline</button>`}</div><small style="color:var(--text-muted)">The customer is notified of your decision.</small>`}</div>` : ''}

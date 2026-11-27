@@ -1023,7 +1023,7 @@ async function syncFromAPI() {
         if (Object.keys(pay).some(key => existing[key] !== pay[key])) {
           Object.assign(existing, pay); changed = true;
         }
-        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost + pay.transportFee;
         if (Number(existing.amount) !== total) { existing.amount = total; changed = true; }
         if (Number(existing.dp) !== Math.round(total * 0.2)) { existing.dp = Math.round(total * 0.2); changed = true; }
         const freshTeam = Array.isArray(row.assignedEmployees) ? row.assignedEmployees : [];
@@ -1032,7 +1032,7 @@ async function syncFromAPI() {
         }
       } else {
         const pay = paymentFieldsFromRow(row);
-        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost;
+        const total = price + ((Number(row.additional_guests) || 0) * 350) + pay.addCost + pay.transportFee;
         data.bookings.push({
           id:      apiId,
           client:  row.clientName  || '',
@@ -1189,6 +1189,8 @@ function paymentFieldsFromRow(row) {
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
     addGuests: Number(row.additional_guests) || 0,
+    distanceKm: Number(row.distance_km) || 0,
+    transportFee: row.transport_fee != null ? Number(row.transport_fee) : 0,
     damageFee: Number(row.damage_fee_amount) || 0,
     damageFeePaid: Boolean(Number(row.damage_fee_paid)),
     damageConflictNotes: row.damage_conflict_notes || '',
@@ -2439,6 +2441,7 @@ function showConfirmation(booking) {
       ${booking.gcashRef ? `<div class="confirm-field"><label>GCash Reference</label><p>${auditEscape(booking.gcashRef)}</p></div>` : ''}
       ${booking.addReq ? `<div class="confirm-field" style="grid-column:1/-1"><label>Additional Request</label><p>${auditEscape(booking.addReq)}</p></div>` : ''}
       ${booking.addCost ? `<div class="confirm-field"><label>Additional Cost</label><p>${fmtMoney(booking.addCost)}</p></div>` : ''}
+      ${booking.transportFee > 0 ? `<div class="confirm-field"><label>Transport Fee</label><p>${fmtMoney(booking.transportFee)}${booking.distanceKm > 0 ? ` (${auditEscape(booking.distanceKm)} km from Cainta)` : ' (Cainta 30 km base)'}</p></div>` : ''}
       ${booking.damageFee > 0 ? `<div class="confirm-field"><label>Damage / Conflict Fee</label><p>${fmtMoney(booking.damageFee)} (${booking.damageFeePaid ? 'Paid' : 'Unpaid'})</p></div>` : ''}
       ${booking.damageConflictNotes ? `<div class="confirm-field" style="grid-column:1/-1"><label>Conflict / Asset Return Notes</label><p>${auditEscape(booking.damageConflictNotes)}</p></div>` : ''}
       ${booking.requestType ? `<div class="confirm-field" style="grid-column:1/-1"><label>${booking.requestType === 'cancel' ? 'Customer Cancellation Request' : 'Customer Reschedule Request'} ${booking.requestHandled ? '(' + (booking.requestDecision || 'handled') + ')' : '(pending)'}</label><p>${booking.requestNewDate ? 'Preferred new date &amp; time: ' + auditEscape(fmtDate(booking.requestNewDate)) + (booking.requestNewTime ? ' at ' + auditEscape(fmtTime(booking.requestNewTime)) : '') + '<br>' : ''}${auditEscape(booking.requestReason)}</p>${booking.requestResponse ? '<p><em>Reply: ' + auditEscape(booking.requestResponse) + '</em></p>' : ''}</div>` : ''}
