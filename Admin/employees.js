@@ -34,7 +34,23 @@
     openModal('employee-modal');
   };
   window.saveEmployee = async function () {
-    const body = { name: $('employee-name').value, age: Number($('employee-age').value), address: $('employee-address').value, jobRole: $('employee-job-role').value };
+    const name = ($('employee-name').value || '').trim();
+    const age = Number($('employee-age').value);
+    const address = ($('employee-address').value || '').trim();
+    const jobRole = ($('employee-job-role').value || '').trim();
+    if (typeof window.isRealName === 'function' && !window.isRealName(name)) {
+      return notify('Enter a real full name (first and last name). Random text is not allowed.', '⚠️');
+    }
+    if (!Number.isInteger(age) || age < 15 || age > 100) {
+      return notify('Age must be a whole number between 15 and 100.', '⚠️');
+    }
+    if (address.length < 5 || !/[A-Za-z]/.test(address) || /(.)\1{4,}/.test(address)) {
+      return notify('Enter a valid complete address.', '⚠️');
+    }
+    if (jobRole.length < 2 || /\d/.test(jobRole) || /(.)\1{3,}/.test(jobRole)) {
+      return notify('Enter a valid job role (letters only, e.g. Cook, Server, Driver).', '⚠️');
+    }
+    const body = { name, age, address, jobRole };
     const res = await fetch(editingId ? `/employees/${editingId}` : '/employees', { method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) return notify(out.error || 'Could not save employee.', '❌');
@@ -75,8 +91,11 @@
   window.openBookingTeamModal = async function (booking, options = {}) {
     if (!booking) return;
     ensureTeamModal();
-    const mode = options.mode === 'confirm' ? 'confirm' : 'view';
-    const canEdit = Boolean(options.canEdit);
+    let userRole = '';
+    try { userRole = String((JSON.parse(sessionStorage.getItem('nards_internal_user') || 'null') || {}).role || '').toLowerCase(); } catch (e) {}
+    const isStaffViewer = userRole === 'staff';
+    const mode = !isStaffViewer && options.mode === 'confirm' ? 'confirm' : 'view';
+    const canEdit = !isStaffViewer && Boolean(options.canEdit);
     const dbId = String(booking.id || '').replace(/^DB-/, '');
     const titleEl = $('bt-modal-title');
     const subEl = $('bt-modal-sub');

@@ -776,3 +776,17 @@ input.invalid, select.invalid { border-color: var(--danger) !important; }
 #view-dropdowns .dd-compact-bar input { padding: 6px 10px; font-size: 13px; height: 34px; }
 #view-dropdowns .dd-add-btn { padding: 5px 12px; font-size: 12px; height: 34px; line-height: 1; white-space: nowrap; }
 #view-dropdowns #dd-tbody .btn-sm { padding: 3px 8px; font-size: 11px; }
+
+/* Clear interactive clickable affordances across all portals */
+button, .btn, a, select, input[type="checkbox"], input[type="radio"],
+[onclick], .cal-cell, .stat-today, .stat-upcoming-card, .booking-team-chip,
+.recent-item[onclick], .compact-alert-toggle, label:has(input[type="checkbox"]) {
+  cursor: pointer;
+}
+.cal-cell { border: 1px solid #ECE2CE; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease; }
+.cal-cell:hover { transform: translateY(-1px); border-color: var(--gold); box-shadow: 0 3px 10px rgba(58,45,26,0.12); }
+.stat-today::after, .stat-upcoming-card::after { content: 'View Calendar \2192'; display: block; font-size: 11px; font-weight: 700; margin-top: 6px; letter-spacing: .3px; opacity: .85; }
+.badge[onclick], button.badge, a.badge { cursor: pointer; text-decoration: none; border: 1px solid currentColor; transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease; }
+.badge[onclick]:hover, button.badge:hover, a.badge:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.12); opacity: 0.92; }
+.booking-team-chip { border: 1px solid #DFC48C; cursor: pointer; transition: background .15s ease, transform .12s ease; }
+.booking-team-chip:hover { background: #F1DFB6; transform: translateY(-1px); }

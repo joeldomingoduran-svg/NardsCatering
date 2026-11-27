@@ -1184,6 +1184,8 @@ function paymentFieldsFromRow(row) {
     amountDue: row.amountDue != null ? Number(row.amountDue) : null,
     gcashRef: row.gcashRef || '',
     paymentProof: row.paymentProof || '',
+    refundReceipt: row.refund_receipt || '',
+    selectedMenus: row.selected_menus || '',
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
     addGuests: Number(row.additional_guests) || 0,
@@ -1890,11 +1892,9 @@ async function resolveRequest(id, decision) {
 function openAssignedEmployeesModal(idx) {
   const b = data.bookings[idx];
   if (!b || !window.openBookingTeamModal) return;
-  const canEdit = (!window.NardsUI || window.NardsUI.can('bookings.manage')) && !b.archived && b.status !== 'Cancelled';
   window.openBookingTeamModal(b, {
     mode: 'view',
-    canEdit,
-    onSaved: () => { saveData(); renderBookings(); if (document.getElementById('confirm-modal').classList.contains('open')) showConfirmation(b); }
+    canEdit: false
   });
 }
 let bookingStatusFilter = 'all';

@@ -116,11 +116,12 @@ exports.createPackage = async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { name, price, min_guests, max_guests, assets, dishes, freebies } = req.body;
+    const { name, price, min_guests, max_guests, main_course_limit, assets, dishes, freebies } = req.body;
     if (!name || price == null) {
       await conn.rollback();
       return res.status(400).json({ error: 'Name and price are required' });
     }
+    const courseLimit = Math.max(0, Math.trunc(Number(main_course_limit) || 0));
     if (Number(max_guests) > 0 && Number(max_guests) < Number(min_guests || 0)) {
       await conn.rollback();
       return res.status(400).json({ error: 'Maximum guests cannot be less than minimum guests.' });
@@ -139,7 +140,7 @@ exports.createPackage = async (req, res) => {
         actionType: 'package_create',
         targetType: 'package',
         itemName: name,
-        payload: { name, price, min_guests: min_guests || 0, max_guests: max_guests || 0, assets: assets || [], dishes: dishes || [], freebies: freebies || [] },
+        payload: { name, price, min_guests: min_guests || 0, max_guests: max_guests || 0, main_course_limit: courseLimit, assets: assets || [], dishes: dishes || [], freebies: freebies || [] },
         summary: `Add menu package "${name}" (₱${Number(price).toLocaleString('en-PH')})`,
         user: req.user
       });
@@ -147,8 +148,8 @@ exports.createPackage = async (req, res) => {
       return res.status(202).json({ pendingApproval: true, requestId, message: 'Package request submitted for Administrator approval.' });
     }
     const [result] = await conn.query(
-      'INSERT INTO Packages (name, price, min_guests, max_guests) VALUES (?, ?, ?, ?)',
-      [name, price, min_guests || 0, max_guests || 0]
+      'INSERT INTO Packages (name, price, min_guests, max_guests, main_course_limit) VALUES (?, ?, ?, ?, ?)',
+      [name, price, min_guests || 0, max_guests || 0, courseLimit]
     );
     const packageId = result.insertId;
     if (Array.isArray(assets) && assets.length) {
@@ -190,11 +191,12 @@ exports.updatePackage = async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { name, price, min_guests, max_guests, assets, dishes, freebies } = req.body;
+    const { name, price, min_guests, max_guests, main_course_limit, assets, dishes, freebies } = req.body;
     if (!name || price == null) {
       await conn.rollback();
       return res.status(400).json({ error: 'Name and price are required' });
     }
+    const courseLimit = Math.max(0, Math.trunc(Number(main_course_limit) || 0));
     if (Number(max_guests) > 0 && Number(max_guests) < Number(min_guests || 0)) {
       await conn.rollback();
       return res.status(400).json({ error: 'Maximum guests cannot be less than minimum guests.' });
@@ -216,7 +218,7 @@ exports.updatePackage = async (req, res) => {
         targetType: 'package',
         targetId: req.params.id,
         itemName: name,
-        payload: { name, price, min_guests: min_guests || 0, max_guests: max_guests || 0, assets: assets || [], dishes: dishes || [], freebies: freebies || [] },
+        payload: { name, price, min_guests: min_guests || 0, max_guests: max_guests || 0, main_course_limit: courseLimit, assets: assets || [], dishes: dishes || [], freebies: freebies || [] },
         summary: `Update menu package "${name}" (₱${Number(price).toLocaleString('en-PH')})`,
         user: req.user
       });
@@ -224,8 +226,8 @@ exports.updatePackage = async (req, res) => {
       return res.status(202).json({ pendingApproval: true, requestId, message: 'Package update submitted for Administrator approval.' });
     }
     const [result] = await conn.query(
-      'UPDATE Packages SET name=?, price=?, min_guests=?, max_guests=? WHERE id=?',
-      [name, price, min_guests || 0, max_guests || 0, req.params.id]
+      'UPDATE Packages SET name=?, price=?, min_guests=?, max_guests=?, main_course_limit=? WHERE id=?',
+      [name, price, min_guests || 0, max_guests || 0, courseLimit, req.params.id]
     );
     if (!result.affectedRows) {
       await conn.rollback();

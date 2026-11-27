@@ -1,6 +1,6 @@
 const pool = require('../Model/db');
 const { writeAudit } = require('../Model/audit');
-const { isRealName, isValidEmail, isWithinBusinessHours, parseBusinessTime } = require('../Model/validators');
+const { isRealName, isValidEmail, isWithinBusinessHours, parseBusinessTime, isElevenDigitPhone } = require('../Model/validators');
 const { notify } = require('../Model/notifications');
 const { validatePhilippineAddress } = require('../Model/address');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_missing_key');
@@ -187,9 +187,15 @@ exports.getAllBookings = async (req, res) => {
 
 exports.createBooking = async (req, res) => {
   try {
-    const { clientName, address, eventType, package: eventPackage, eventDate, eventTime, phone, email, guests, additionalGuests, notes, paymentOption, gcashRef, additionalRequest, additionalCost } = req.body;
+    const { clientName, address, eventType, package: eventPackage, eventDate, eventTime, phone, email, guests, additionalGuests, selectedMenus, notes, paymentOption, gcashRef, additionalRequest, additionalCost } = req.body;
     if (!clientName || !address || !eventType || !eventPackage || !eventDate || !phone) {
       return res.status(400).json({ error: "All fields are required" });
+    }
+    if (!isRealName(clientName)) {
+      return res.status(400).json({ error: 'Enter a real full name (first and last name).' });
+    }
+    if (typeof isElevenDigitPhone === 'function' && !isElevenDigitPhone(phone)) {
+      return res.status(400).json({ error: 'Phone number must start with 09, be 11 digits, and be a real mobile number.' });
     }
     const addressCheck = validatePhilippineAddress(address);
     if (!addressCheck.valid) return res.status(400).json({ error: addressCheck.message });
@@ -216,6 +222,8 @@ exports.createBooking = async (req, res) => {
     // Multipart requests come from the customer form; admin JSON requests skip payment.
     let amountDue = null, proofPath = null, refValue = null, optionValue = null;
     let totalGuestsToStore = Number(guests) || addGuestsCount || 0;
+    let extraMenuCost = 0;
+    let selectedMenusText = null;
     if (req.is('multipart/form-data')) {
       const advisory = await readAdvisoryFlag();
       if (advisory.active) {
@@ -252,9 +260,6 @@ exports.createBooking = async (req, res) => {
       if (!isRealName(clientName)) {
         return res.status(400).json({ error: 'Please enter your real full name.' });
       }
-      if (!/^\d{11}$/.test(String(phone).trim())) {
-        return res.status(400).json({ error: 'Phone number must be exactly 11 digits.' });
-      }
       if (!['full', 'down'].includes(paymentOption)) {
         return res.status(400).json({ error: 'Please choose Full payment or Down payment.' });
       }
@@ -263,7 +268,7 @@ exports.createBooking = async (req, res) => {
       if (hasRef && !/^[A-Za-z0-9]{8,20}$/.test(String(gcashRef).trim())) {
         return res.status(400).json({ error: 'Enter a valid GCash reference number.' });
       }
-      const [pkgRows] = await pool.query("SELECT id, name, price, min_guests, max_guests FROM Packages WHERE name = ? LIMIT 1", [eventPackage]);
+      const [pkgRows] = await pool.query("SELECT id, name, price, min_guests, max_guests, COALESCE(main_course_limit, 0) AS main_course_limit FROM Packages WHERE name = ? LIMIT 1", [eventPackage]);
       if (!pkgRows.length) return res.status(400).json({ error: 'Selected package not found.' });
 
       try {
@@ -293,7 +298,7 @@ exports.createBooking = async (req, res) => {
         for (const a of pkgAssetRows || []) {
           const avail = Number(a.available_qty) || 0;
           const reqQty = Number(a.qty_required) || 0;
-          if (Number(a.is_archived) === 1 || avail <= 0 || avail < reqQty) {
+          if (Number(a.asset_archived) === 1 || avail <= 0 || avail < reqQty) {
             missingPkgItems.push(`${a.name} (available: ${avail}, needs ${reqQty})`);
           }
         }
@@ -303,9 +308,37 @@ exports.createBooking = async (req, res) => {
           });
         }
       } catch (pkgCheckErr) {}
+
+      // Validate customer menu selections (+₱2,000 per extra main course beyond package allowance).
+      const mainLimit = Math.max(0, Number(pkgRows[0].main_course_limit) || 0);
+      let parsedMenus = [];
+      if (typeof selectedMenus === 'string' && selectedMenus.trim()) {
+        try { const arr = JSON.parse(selectedMenus); if (Array.isArray(arr)) parsedMenus = arr; } catch (e) {
+          parsedMenus = selectedMenus.split(',').map((s) => s.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(selectedMenus)) {
+        parsedMenus = selectedMenus;
+      }
+      try {
+        const [dishRows] = await pool.query("SELECT name, category FROM Dishes WHERE COALESCE(is_archived, 0) = 0 ORDER BY category ASC, name ASC");
+        const validMainNames = new Set(dishRows.filter((d) => String(d.category || '').toLowerCase() !== 'dessert').map((d) => d.name));
+        const dessertNames = dishRows.filter((d) => String(d.category || '').toLowerCase() === 'dessert').map((d) => d.name);
+        const chosenMains = [...new Set(parsedMenus.map((s) => String(s || '').trim()).filter((n) => validMainNames.has(n)))];
+        if (mainLimit > 0 && validMainNames.size > 0) {
+          if (chosenMains.length < Math.min(mainLimit, validMainNames.size)) {
+            return res.status(400).json({ error: `Please select at least ${mainLimit} preferred main course(s) for ${pkgRows[0].name}.` });
+          }
+          const extraDishesCount = Math.max(0, chosenMains.length - mainLimit);
+          extraMenuCost = extraDishesCount * 2000;
+          selectedMenusText = JSON.stringify({ main: chosenMains, desserts: dessertNames, extraCount: extraDishesCount, extraCost: extraMenuCost });
+        } else if (mainLimit === 0 && validMainNames.size > 0) {
+          selectedMenusText = JSON.stringify({ main: Array.from(validMainNames), desserts: dessertNames, extraCount: 0, extraCost: 0 });
+        }
+      } catch (e) {}
+
       const basePax = Number(pkgRows[0].max_guests) || Number(pkgRows[0].min_guests) || 0;
       totalGuestsToStore = basePax > 0 ? (basePax + addGuestsCount) : (Number(guests) || addGuestsCount);
-      const price = Number(pkgRows[0].price) + (addGuestsCount * ADDITIONAL_GUEST_RATE);
+      const price = Number(pkgRows[0].price) + (addGuestsCount * ADDITIONAL_GUEST_RATE) + extraMenuCost;
       amountDue = paymentOption === 'down' ? Math.round(price * 20) / 100 : price;
       optionValue = paymentOption;
       refValue = hasRef ? String(gcashRef).trim() : null;
@@ -317,10 +350,13 @@ exports.createBooking = async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO Bookings (clientName, address, eventType, package, eventDate, eventTime, phone, email, guests, status, notes, paymentOption, amountDue, gcashRef, paymentProof, paymentDeadline, termsAcceptedAt, termsVersion, additional_request, additional_cost)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${deadlineSql}, ?, ?, ?, ?)`,
-      [clientName, address, eventType, eventPackage, eventDate, validTime(eventTime), phone, email || null, totalGuestsToStore, "pending", notes || null, optionValue, amountDue, refValue, proofPath, optionValue ? new Date() : null, optionValue ? TERMS_VERSION : null, req.internalBooking ? String(additionalRequest || '') || null : null, req.internalBooking ? Number(additionalCost || 0) : 0]
+      [clientName, address, eventType, eventPackage, eventDate, validTime(eventTime), phone, email || null, totalGuestsToStore, "pending", notes || null, optionValue, amountDue, refValue, proofPath, optionValue ? new Date() : null, optionValue ? TERMS_VERSION : null, req.internalBooking ? String(additionalRequest || '') || null : (extraMenuCost > 0 ? `Extra menu selections (+₱${extraMenuCost.toLocaleString('en-PH')})` : null), req.internalBooking ? Number(additionalCost || 0) : extraMenuCost]
     );
     if (addGuestsCount > 0) {
       try { await pool.query('UPDATE Bookings SET additional_guests = ? WHERE id = ?', [addGuestsCount, result.insertId]); } catch (e) {}
+    }
+    if (selectedMenusText) {
+      try { await pool.query('UPDATE Bookings SET selected_menus = ? WHERE id = ?', [selectedMenusText, result.insertId]); } catch (e) {}
     }
     if (optionValue) {
       await writeAudit({ username: email || clientName, role: 'customer' }, 'Submitted booking', 'bookings', result.insertId, `${eventType} on ${eventDate}, GCash ${optionValue} payment${awaitingPayment ? ' (awaiting payment, 24h)' : ''}`);
@@ -382,6 +418,24 @@ exports.submitPaymentProof = async (req, res) => {
     await writeAudit({ username: booking.email, role: 'customer' }, 'Submitted payment receipt', 'bookings', booking.id, ref ? `GCash ref ${ref}` : 'Receipt attached');
     await notify('payment', 'Payment receipt submitted', `Booking #${booking.id} (${booking.clientName}) sent a payment receipt for review.`, ['admin', 'manager', 'staff'], 'bookings');
     res.json({ message: 'Payment proof submitted. Our staff will verify it shortly.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.uploadRefundReceipt = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Please attach the refund receipt image.' });
+    const [rows] = await pool.query('SELECT id, clientName, status, email FROM Bookings WHERE id = ? LIMIT 1', [req.params.id]);
+    const booking = rows[0];
+    if (!booking) return res.status(404).json({ error: 'Booking not found.' });
+    if (String(booking.status || '').toLowerCase() !== 'cancelled') {
+      return res.status(400).json({ error: 'Refund receipts can only be uploaded for cancelled bookings.' });
+    }
+    await pool.query('UPDATE Bookings SET refund_receipt = ? WHERE id = ?', [req.file.url, booking.id]);
+    await writeAudit(req.user, 'Uploaded refund receipt', 'bookings', booking.id, `Refund receipt uploaded for ${booking.clientName}`);
+    await notify('payment', 'Refund receipt uploaded', `Refund receipt uploaded for cancelled booking #${booking.id} (${booking.clientName}).`, ['admin', 'manager', 'staff'], 'bookings');
+    res.json({ message: 'Refund receipt uploaded and shared on the customer portal.', refund_receipt: req.file.url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -803,6 +857,12 @@ exports.updateBooking = async (req, res) => {
     const { clientName, address, eventType, package: eventPackage, eventDate, eventTime, phone, email, guests, additionalGuests, notes, additionalRequest, additionalCost } = req.body;
     if (!clientName || !address || !eventType || !eventPackage || !eventDate || !phone) {
       return res.status(400).json({ error: "All fields are required" });
+    }
+    if (!isRealName(clientName)) {
+      return res.status(400).json({ error: 'Enter a real full name (first and last name).' });
+    }
+    if (typeof isElevenDigitPhone === 'function' && !isElevenDigitPhone(phone)) {
+      return res.status(400).json({ error: 'Phone number must start with 09, be 11 digits, and be a real mobile number.' });
     }
     const addGuestsCount = Math.max(0, Math.trunc(Number(additionalGuests) || 0));
     const hasExplicitAdditionalGuests = additionalGuests !== undefined && additionalGuests !== null;

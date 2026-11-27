@@ -1,7 +1,7 @@
 const pool = require('../Model/db');
 const { createAuthToken } = require('../Middleware/authMiddleware');
 const { writeAudit } = require('../Model/audit');
-const { isRealName } = require('../Model/validators');
+const { isRealName, isValidHumanText } = require('../Model/validators');
 const { hashPassword, verifyPassword } = require('../Model/passwordUtils');
 
 function publicUser(user) {
@@ -136,9 +136,13 @@ exports.createUser = async (req, res) => {
     const { name, username, password, role = 'staff', jobRole } = req.body;
     const cleanJobRole = String(jobRole || '').trim().slice(0, 60);
     if (!name || !username || !password) return res.status(400).json({ error: 'Name, username, and password are required.' });
+    if (!/^[A-Za-z0-9._-]{3,40}$/.test(String(username).trim())) return res.status(400).json({ error: 'Username must be 3-40 characters (letters, numbers, dot, underscore, or hyphen).' });
     const [roleRows] = await pool.query('SELECT role FROM role_definitions WHERE role = ? AND is_active = 1 LIMIT 1', [role]);
     if (!roleRows.length || role === 'admin') return res.status(400).json({ error: 'Choose an active non-administrator role.' });
     if (!isRealName(name)) return res.status(400).json({ error: 'Enter the staff member\'s real full name.' });
+    if (cleanJobRole && (!isValidHumanText(cleanJobRole, 2) || /\d/.test(cleanJobRole))) {
+      return res.status(400).json({ error: 'Enter a valid staff designation (letters only, e.g. Cook, Server, Driver).' });
+    }
     if (String(password).length < 10) return res.status(400).json({ error: 'Password must be at least 10 characters long and include uppercase, lowercase, numbers, and special characters.' });
     if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
       return res.status(400).json({ error: 'Password must include uppercase, lowercase, numbers, and special characters.' });

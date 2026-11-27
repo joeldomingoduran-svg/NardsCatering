@@ -551,3 +551,26 @@ body:has(#main-nav) .scroll-top:focus-visible{
   outline:2px solid var(--gold-dark);
   outline-offset:3px;
 }
+
+/* Clear clickable interactive cues across Customer Portal */
+button, .btn, a, select, input[type="checkbox"], input[type="radio"],
+.cust-cal-cell, .promo-package[data-selectable="1"], .pay-open-btn, .req-actions button, .cust-receipt-btn {
+  cursor: pointer;
+}
+.cust-cal-cell { border: 1px solid rgba(201,150,58,0.22); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.cust-cal-cell:hover { transform: translateY(-2px); border-color: var(--gold); box-shadow: 0 4px 12px rgba(58,45,26,0.14); }
+.promo-package { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.promo-package:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(58,45,26,0.14); }
+.cust-pkg-pick-btn { display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:8px 16px;border-radius:8px;border:1px solid #8d6a36;background:#3A2D1A;color:#FFF8ED;font-family:'Jost',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;transition:transform .15s ease,background .15s ease; }
+.cust-pkg-pick-btn:hover { background:#59401f;transform:translateY(-1px); }
+.cust-receipt-btn { display:inline-flex;align-items:center;gap:6px;margin-top:8px;margin-right:6px;padding:7px 14px;border-radius:8px;border:1px solid #1e6b34;background:#e6f4ea;color:#155e34;font-weight:700;font-size:12.5px;cursor:pointer;transition:all .15s ease; }
+.cust-receipt-btn:hover { background:#1e6b34;color:#fff;transform:translateY(-1px); }
+.menu-picker-box { margin: 14px 0 18px; padding: 16px; border: 1.5px solid #d9c39a; border-radius: 12px; background: #fffdf8; }
+.menu-picker-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.menu-picker-desserts { padding: 8px 12px; border-radius: 8px; background: #f4efe3; border: 1px solid #e4d5b7; font-size: 13px; color: #4c3b20; margin-bottom: 12px; }
+.menu-picker-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 720px) { .menu-picker-groups { grid-template-columns: 1fr; } }
+.menu-picker-cat { background: #fff; border: 1px solid #ebe1ce; border-radius: 10px; padding: 10px 12px; }
+.menu-picker-cat h5 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .7px; color: #76501c; border-bottom: 1px solid #f2eadb; padding-bottom: 4px; }
+.menu-picker-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 2px; color: #2b1a0e; cursor: pointer; }
+.menu-picker-item input { width: 15px; height: 15px; accent-color: #8d6a36; }

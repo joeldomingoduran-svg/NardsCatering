@@ -439,8 +439,8 @@ exports.reviewApproval = async (req, res) => {
           const [dupe] = await conn.query('SELECT id FROM Packages WHERE LOWER(TRIM(name))=LOWER(TRIM(?)) LIMIT 1', [payload.name]);
           if (dupe.length) { await conn.rollback(); return res.status(409).json({ error: 'A package with this name already exists.' }); }
           const [ins] = await conn.query(
-            'INSERT INTO Packages (name, price, min_guests, max_guests) VALUES (?, ?, ?, ?)',
-            [payload.name, payload.price, payload.min_guests || 0, payload.max_guests || 0]
+            'INSERT INTO Packages (name, price, min_guests, max_guests, main_course_limit) VALUES (?, ?, ?, ?, ?)',
+            [payload.name, payload.price, payload.min_guests || 0, payload.max_guests || 0, Math.max(0, Math.trunc(Number(payload.main_course_limit) || 0))]
           );
           const pkgId = ins.insertId;
           for (const a of payload.assets || []) {
@@ -455,7 +455,7 @@ exports.reviewApproval = async (req, res) => {
         } else if (reqRow.action_type === 'package_update') {
           const [cur] = await conn.query('SELECT id FROM Packages WHERE id=? LIMIT 1', [reqRow.target_id]);
           if (!cur.length) { await conn.rollback(); return res.status(404).json({ error: 'Target package no longer exists.' }); }
-          await conn.query('UPDATE Packages SET name=?, price=?, min_guests=?, max_guests=? WHERE id=?', [payload.name, payload.price, payload.min_guests || 0, payload.max_guests || 0, reqRow.target_id]);
+          await conn.query('UPDATE Packages SET name=?, price=?, min_guests=?, max_guests=?, main_course_limit=? WHERE id=?', [payload.name, payload.price, payload.min_guests || 0, payload.max_guests || 0, Math.max(0, Math.trunc(Number(payload.main_course_limit) || 0)), reqRow.target_id]);
           await conn.query('DELETE FROM PackageAssets WHERE package_id=?', [reqRow.target_id]);
           for (const a of payload.assets || []) {
             await conn.query('INSERT INTO PackageAssets (package_id, asset_id, qty_required) VALUES (?, ?, ?)', [reqRow.target_id, a.asset_id, a.qty_required || 1]);

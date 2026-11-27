@@ -17,6 +17,7 @@ router.get('/', bookingsController.getAllBookings);
 router.post('/internal', ...canManage, (req, res, next) => { req.internalBooking = true; next(); }, bookingsController.createBooking);
 router.post('/', upload.receipt('paymentProof'), bookingsController.createBooking);
 router.post('/:id/payment', upload.receipt('paymentProof'), bookingsController.submitPaymentProof);
+router.post('/:id/refund-receipt', ...canManage, upload.receipt('refundReceipt'), bookingsController.uploadRefundReceipt);
 router.post('/:id/request', bookingsController.requestChange);
 router.patch('/:id/request/resolve', ...canManage, bookingsController.resolveRequest);
 router.get('/:id/assets', requireInternalUser, bookingsController.getBookingAssets);

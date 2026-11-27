@@ -1,4 +1,5 @@
 const pool = require('../Model/db');
+const { isRealName, isValidHumanText } = require('../Model/validators');
 
 function clean(value, max) {
   return String(value || '').trim().slice(0, max);
@@ -21,8 +22,17 @@ exports.create = async (req, res) => {
     const age = Number(req.body.age);
     const address = clean(req.body.address, 255);
     const jobRole = clean(req.body.jobRole, 60);
-    if (!name || !Number.isInteger(age) || age < 15 || age > 100 || !address || !jobRole) {
-      return res.status(400).json({ error: 'Name, age (15-100), address and job role are required.' });
+    if (!isRealName(name)) {
+      return res.status(400).json({ error: 'Enter the staff member\'s real full name (first and last name).' });
+    }
+    if (!Number.isInteger(age) || age < 15 || age > 100) {
+      return res.status(400).json({ error: 'Age must be a whole number between 15 and 100.' });
+    }
+    if (!isValidHumanText(address, 5)) {
+      return res.status(400).json({ error: 'Enter a valid complete address (at least 5 characters).' });
+    }
+    if (!isValidHumanText(jobRole, 2) || /\d/.test(jobRole)) {
+      return res.status(400).json({ error: 'Enter a valid job role (letters only, e.g. Cook, Server, Driver).' });
     }
     const [result] = await pool.query(
       'INSERT INTO employees (name, age, address, job_role, is_active) VALUES (?, ?, ?, ?, 1) RETURNING id',
@@ -40,8 +50,17 @@ exports.update = async (req, res) => {
     const age = Number(req.body.age);
     const address = clean(req.body.address, 255);
     const jobRole = clean(req.body.jobRole, 60);
-    if (!name || !Number.isInteger(age) || age < 15 || age > 100 || !address || !jobRole) {
-      return res.status(400).json({ error: 'Name, age (15-100), address and job role are required.' });
+    if (!isRealName(name)) {
+      return res.status(400).json({ error: 'Enter the staff member\'s real full name (first and last name).' });
+    }
+    if (!Number.isInteger(age) || age < 15 || age > 100) {
+      return res.status(400).json({ error: 'Age must be a whole number between 15 and 100.' });
+    }
+    if (!isValidHumanText(address, 5)) {
+      return res.status(400).json({ error: 'Enter a valid complete address (at least 5 characters).' });
+    }
+    if (!isValidHumanText(jobRole, 2) || /\d/.test(jobRole)) {
+      return res.status(400).json({ error: 'Enter a valid job role (letters only, e.g. Cook, Server, Driver).' });
     }
     const [result] = await pool.query(
       'UPDATE employees SET name = ?, age = ?, address = ?, job_role = ?, updated_at = NOW() WHERE id = ?',
@@ -80,6 +99,9 @@ exports.getTeam = async (req, res) => {
 
 exports.setTeam = async (req, res) => {
   try {
+    if (String(req.user?.role || '').toLowerCase() === 'staff') {
+      return res.status(403).json({ error: 'Staff accounts have view-only access to assigned bookings.' });
+    }
     const ids = Array.isArray(req.body.employeeIds) ? [...new Set(req.body.employeeIds.map(Number).filter(Number.isInteger))] : [];
     await pool.query('DELETE FROM booking_employee_assignments WHERE booking_id = ?', [req.params.id]);
     for (const employeeId of ids) {

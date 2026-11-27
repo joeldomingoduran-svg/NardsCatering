@@ -99,6 +99,17 @@
   window.isValidEmail = function (value) {
     return /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(String(value || '').trim());
   };
+  window.isValidPhone = function (value) {
+    var s = String(value || '').trim();
+    return /^09\d{9}$/.test(s) && !/^09(\d)\1{8}$/.test(s) && !/^09(012345678|987654321)$/.test(s);
+  };
+  window.isValidHumanText = function (value, minLen) {
+    var s = String(value || '').trim();
+    if (s.length < (minLen || 2)) return false;
+    if (!/[A-Za-z\u00C0-\u00FF]/.test(s)) return false;
+    if (/(.)\1{4,}/.test(s)) return false;
+    return ['na', 'n/a', 'none', 'asdf', 'qwerty', 'zxcv', 'xxxx', 'test'].indexOf(s.toLowerCase()) === -1;
+  };
 
   function checkEmail(show) {
     var input = $('bk-email');
@@ -279,6 +290,18 @@
       }
       // Run every check so each problem is flagged, then stop on the first failure.
       var results = [checkEmail(true), checkDate(true), checkTime(true), checkGuests(true, false)];
+      if ($('bk-client') && typeof window.isRealName === 'function' && !window.isRealName($('bk-client').value)) {
+        setError($('bk-client'), 'Enter a real full name (first and last name).');
+        results.push(false);
+      } else if ($('bk-client')) setError($('bk-client'), '');
+      if ($('bk-phone') && !window.isValidPhone($('bk-phone').value)) {
+        setError($('bk-phone'), 'Phone must start with 09, have 11 digits, and be a valid mobile number.');
+        results.push(false);
+      } else if ($('bk-phone')) setError($('bk-phone'), '');
+      if ($('bk-venue') && $('bk-venue').value.trim() && !window.isValidHumanText($('bk-venue').value, 5)) {
+        setError($('bk-venue'), 'Enter a valid complete venue address.');
+        results.push(false);
+      } else if ($('bk-venue')) setError($('bk-venue'), '');
       if (!selectedPackage() && $('bk-package')) {
         setError($('bk-package'), 'Select a package.');
         results.push(false);

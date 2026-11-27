@@ -1348,6 +1348,35 @@
       const origShow = window.showConfirmation;
       window.showConfirmation = function (booking) {
         const res = origShow.apply(this, arguments);
+        const grid = document.querySelector('#confirm-box-content .confirm-grid');
+        if (grid && booking) {
+          if (booking.selectedMenus && !grid.querySelector('[data-op="selected-menus"]')) {
+            let formatted = esc(booking.selectedMenus);
+            try {
+              const p = typeof booking.selectedMenus === 'string' ? JSON.parse(booking.selectedMenus) : booking.selectedMenus;
+              if (p && (Array.isArray(p.main) || Array.isArray(p.desserts))) {
+                const lines = [];
+                if (Array.isArray(p.main) && p.main.length) lines.push('<strong>Main:</strong> ' + p.main.map(esc).join(', '));
+                if (Array.isArray(p.desserts) && p.desserts.length) lines.push('<strong>Desserts:</strong> ' + p.desserts.map(esc).join(', '));
+                formatted = lines.join('<br>');
+              }
+            } catch (e) {}
+            const div = document.createElement('div');
+            div.className = 'confirm-field';
+            div.dataset.op = 'selected-menus';
+            div.style.gridColumn = '1/-1';
+            div.innerHTML = '<label>Customer Selected Menus</label><p>' + formatted + '</p>';
+            grid.appendChild(div);
+          }
+          if (booking.refundReceipt && !grid.querySelector('[data-op="refund-receipt-field"]')) {
+            const safeUrl = esc(booking.refundReceipt).replace(/'/g, '&#39;');
+            const div = document.createElement('div');
+            div.className = 'confirm-field';
+            div.dataset.op = 'refund-receipt-field';
+            div.innerHTML = '<label>Cancellation Refund Receipt</label><p><button type="button" class="btn btn-success btn-sm" onclick="window.open(\'' + safeUrl + '\', \'_blank\', \'noopener\')">View Refund Receipt</button></p>';
+            grid.appendChild(div);
+          }
+        }
         const actions = document.querySelector('#confirm-modal .modal-actions');
         if (actions && booking) {
           const oldSheet = actions.querySelector('[data-op="event-sheet"]');
@@ -1359,12 +1388,83 @@
           btnSheet.textContent = 'Print Event Sheet';
           btnSheet.addEventListener('click', function () { window.printBookingEventSheet(booking); });
           actions.appendChild(btnSheet);
+
+          const oldRef = actions.querySelector('[data-op="refund-receipt"]');
+          if (oldRef) oldRef.remove();
+          const u = currentUser();
+          const canUploadRefund = (u.role === 'admin' || u.role === 'manager')
+            && String(booking.id || '').startsWith('DB-')
+            && String(booking.status || '').toLowerCase() === 'cancelled'
+            && (booking.paid || booking.paymentProof || booking.paymentOption);
+          if (canUploadRefund) {
+            const btnRef = document.createElement('button');
+            btnRef.type = 'button';
+            btnRef.className = 'btn btn-primary';
+            btnRef.dataset.op = 'refund-receipt';
+            btnRef.textContent = booking.refundReceipt ? 'Update Refund Receipt' : 'Upload Refund Receipt';
+            btnRef.addEventListener('click', function () { window.openRefundReceiptModal(booking.id); });
+            actions.appendChild(btnRef);
+          }
         }
         return res;
       };
       window.showConfirmation._wrappedOps = true;
     }
   }
+
+  window.openRefundReceiptModal = async function (bookingId) {
+    const bookings = window.data && Array.isArray(window.data.bookings) ? window.data.bookings : [];
+    const booking = bookings.find(function (b) { return b.id === bookingId; });
+    if (!booking || !String(booking.id).startsWith('DB-')) return;
+    if (!window.Swal) {
+      if (window.notify) window.notify('Upload dialog requires SweetAlert2.', '⚠️');
+      return;
+    }
+    const dbId = String(booking.id).replace(/^DB-/, '');
+    const res = await window.Swal.fire({
+      title: 'Upload Cancellation Refund Receipt',
+      html:
+        '<div style="text-align:left">' +
+          '<p style="font-size:13px;color:#555;margin:0 0 10px"><strong>' + esc(booking.client) + '</strong> &mdash; ' + esc(booking.event) + ' (' + esc(booking.package || '') + ')</p>' +
+          '<p style="font-size:12px;color:#666;margin:0 0 10px">The uploaded refund receipt will appear directly on the customer\'s My Bookings dashboard so they can view it.</p>' +
+          '<input id="swal-refund-file" type="file" accept="image/png,image/jpeg" style="width:100%;padding:8px;border:1px solid #d5cfc6;border-radius:8px;box-sizing:border-box">' +
+        '</div>',
+      showCancelButton: true,
+      confirmButtonText: 'Upload & Share Receipt',
+      confirmButtonColor: '#2d7a3a',
+      preConfirm: function () {
+        const fileEl = document.getElementById('swal-refund-file');
+        const file = fileEl && fileEl.files && fileEl.files[0];
+        if (!file) { window.Swal.showValidationMessage('Please choose a JPG or PNG refund receipt image.'); return false; }
+        if (file.size > 5 * 1024 * 1024) { window.Swal.showValidationMessage('Image must be 5MB or smaller.'); return false; }
+        return file;
+      }
+    });
+    if (!res.isConfirmed || !res.value) return;
+    const fd = new FormData();
+    fd.append('refundReceipt', res.value);
+    try {
+      const r = await fetch(apiBase() + '/bookings/' + encodeURIComponent(dbId) + '/refund-receipt', {
+        method: 'POST',
+        body: fd
+      });
+      const out = await r.json().catch(function () { return {}; });
+      if (!r.ok) {
+        if (window.notify) window.notify(out.error || 'Could not upload refund receipt.', '❌');
+        return;
+      }
+      booking.refundReceipt = out.refund_receipt || '';
+      if (typeof window.saveData === 'function') window.saveData();
+      if (typeof window.renderBookings === 'function') window.renderBookings();
+      const modal = document.getElementById('confirm-modal');
+      if (modal && modal.classList.contains('open') && typeof window.showConfirmation === 'function') {
+        window.showConfirmation(booking);
+      }
+      if (window.notify) window.notify(out.message || 'Refund receipt uploaded!', '✅');
+    } catch (e) {
+      if (window.notify) window.notify('Could not reach the server.', '❌');
+    }
+  };
 
   window.loadApprovalsList = loadApprovalsList;
   window.openPendingApprovals = function () {

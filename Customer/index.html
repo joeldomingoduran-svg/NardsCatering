@@ -644,6 +644,8 @@ body.booking-first #inquiry .section-inner{padding-top:130px}
           </div>
         </div>
 
+        <div id="customer-menu-picker" class="menu-picker-box" style="display:none"></div>
+
         <div class="form-row">
           <div class="form-group">
             <label for="event-date">Event Date</label>
@@ -877,64 +879,96 @@ revealEls.forEach(el => revealObserver.observe(el));
 
 
 let customerPackages = [];
+let customerDishes = [];
+const EXTRA_MENU_RATE = 2000;
+
+function selectCustomerPackage(pkgName) {
+  const sel = document.getElementById('guest-count');
+  if (!sel) return;
+  sel.value = pkgName;
+  sel.dispatchEvent(new Event('change'));
+  document.getElementById('inquiry')?.scrollIntoView({ behavior: 'smooth' });
+}
 
 async function loadPackages() {
   try {
-    const res = await fetch('/packages');
-    if (!res.ok) throw new Error();
-    customerPackages = await res.json();
+    const [pkgRes, dishRes] = await Promise.all([fetch('/packages'), fetch('/dishes')]);
+    customerPackages = pkgRes.ok ? await pkgRes.json() : [];
+    const allDishes = dishRes.ok ? await dishRes.json() : [];
+    customerDishes = Array.isArray(allDishes) ? allDishes.filter(d => !Number(d.is_archived)) : [];
   } catch(e) {
     customerPackages = [];
+    customerDishes = [];
   }
 
   const grid = document.getElementById('packages-grid');
   if (!customerPackages.length) {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:rgba(201,150,58,0.6);padding:32px">No packages available yet.</div>';
   } else {
+    const dessertsList = customerDishes.filter(d => String(d.category || '').toLowerCase() === 'dessert');
+    const mainCategories = {};
+    customerDishes.filter(d => String(d.category || '').toLowerCase() !== 'dessert').forEach(d => {
+      if (!mainCategories[d.category]) mainCategories[d.category] = [];
+      mainCategories[d.category].push(d.name);
+    });
+
     grid.innerHTML = customerPackages.map((p, i) => {
       const featured = Number(p.is_popular) === 1 ? ' featured' : '';
+      const limit = Math.max(0, Number(p.main_course_limit) || 0);
 
       const assetStrip = (p.assets || []).length
         ? `<div class="pkg-assets-strip">
-            ${(p.assets||[]).map(a=>`<div class="pkg-asset-item"><span class="pkg-asset-qty">${a.qty_required}</span><span class="pkg-asset-name">&nbsp;${a.name}</span></div>`).join('')}
+            ${(p.assets||[]).map(a=>`<div class="pkg-asset-item"><span class="pkg-asset-qty">${a.qty_required}</span><span class="pkg-asset-name">&nbsp;${escHtml(a.name)}</span></div>`).join('')}
            </div>` : '';
 
       const freebieStrip = (p.freebies || []).length
         ? `<div class="pkg-freebies-strip">
-            ${(p.freebies||[]).map(f=>`<span class="pkg-freebie-tag">&#10003; ${f.name}</span>`).join('')}
+            ${(p.freebies||[]).map(f=>`<span class="pkg-freebie-tag">&#10003; ${escHtml(f.name)}</span>`).join('')}
            </div>` : '';
 
-      const dishMap = {};
-      (p.dishes || []).forEach(d => {
-        if (!dishMap[d.category]) dishMap[d.category] = [];
-        dishMap[d.category].push(d.name);
-      });
-      const dishHtml = Object.keys(dishMap).length
-        ? `<div class="pkg-section-label">&#127869; What's Included</div>
+      const dessertLine = dessertsList.length
+        ? `<div style="font-size:12.5px;color:#5a4300;background:#fff7e6;border:1px solid #e6cfa3;border-radius:8px;padding:7px 10px;margin-bottom:8px"><strong>All Desserts Included:</strong> ${dessertsList.map(d => escHtml(d.name)).join(', ')}</div>`
+        : '';
+
+      const summaryHtml = limit > 0
+        ? `<div class="pkg-section-label">&#127869; Choose Any ${limit} Main Courses <small style="font-weight:500">(+&#8369;2,000 per extra dish)</small></div>
+           ${dessertLine}
            <div class="pkg-dish-grid">
-             ${Object.entries(dishMap).map(([cat,names])=>
+             ${Object.entries(mainCategories).map(([cat, names]) =>
                `<div class="pkg-dish-group">
-                  <div class="pkg-dish-cat">${cat}</div>
-                  ${names.map(n=>`<div class="pkg-dish-item">&bull; ${n}</div>`).join('')}
+                  <div class="pkg-dish-cat">${escHtml(cat)} (${names.length} options)</div>
+                  <div class="pkg-dish-item">${names.map(escHtml).join(', ')}</div>
                 </div>`).join('')}
            </div>`
-        : '<div class="pkg-dish-empty">&#127869; Menu details coming soon</div>';
+        : `<div class="pkg-section-label">&#127869; All Main Courses &amp; Desserts Included</div>
+           ${dessertLine}
+           <div class="pkg-dish-grid">
+             ${Object.entries(mainCategories).map(([cat, names]) =>
+               `<div class="pkg-dish-group">
+                  <div class="pkg-dish-cat">${escHtml(cat)}</div>
+                  ${names.map(n => `<div class="pkg-dish-item">&bull; ${escHtml(n)}</div>`).join('')}
+                </div>`).join('')}
+           </div>`;
 
       const paxCount = Number(p.max_guests) || Number(p.min_guests) || 0;
       const isAvail = p.is_available !== false;
       const unavailTag = !isAvail
         ? `<span style="display:inline-block;margin-left:8px;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#9b1c1c;font-size:11px;font-weight:700;vertical-align:middle">Not Available</span>`
         : '';
-      return `<div class="promo-package${featured}">
+      const pickBtn = isAvail
+        ? `<button type="button" class="cust-pkg-pick-btn" onclick="selectCustomerPackage('${escHtml(p.name).replace(/'/g, "\\'")}')">Select ${escHtml(p.name)} &rarr;</button>`
+        : `<span style="display:inline-block;margin-top:10px;font-size:12px;color:#9b1c1c;font-weight:600">Temporarily unavailable due to low inventory</span>`;
+      return `<div class="promo-package${featured}" data-selectable="${isAvail ? '1' : '0'}">
         <div class="promo-header">
-          <span class="pax">${p.name}${unavailTag}</span>
+          <span class="pax">${escHtml(p.name)}${unavailTag}</span>
           <span class="price">&#8369;${Number(p.price).toLocaleString('en-PH')}</span>
         </div>
-        ${paxCount ? `<div class="pkg-min-guests">${paxCount} pax</div>` : ''}
+        ${paxCount ? `<div class="pkg-min-guests">${paxCount} pax &middot; ${limit > 0 ? `${limit} Main Courses` : 'All Main Courses Included'}</div>` : `<div class="pkg-min-guests">${limit > 0 ? `${limit} Main Courses` : 'All Main Courses Included'}</div>`}
         ${assetStrip}
         ${freebieStrip}
         <div class="pkg-divider"></div>
-        <div class="pkg-dishes-section">${dishHtml}</div>
+        <div class="pkg-dishes-section">${summaryHtml}</div>
+        ${pickBtn}
       </div>`;
     }).join('');
   }
@@ -944,11 +978,109 @@ async function loadPackages() {
   sel.innerHTML = '<option value="">Select a package...</option>' +
     customerPackages.map(p => {
       const paxCount = Number(p.max_guests) || Number(p.min_guests) || 0;
+      const limit = Math.max(0, Number(p.main_course_limit) || 0);
       const isAvail = p.is_available !== false;
       const unavailJson = escHtml(JSON.stringify(p.unavailable_items || []));
-      return `<option value="${escHtml(p.name)}" data-price="${p.price}" data-max="${paxCount}" data-available="${isAvail ? '1' : '0'}" data-unavailable="${unavailJson}">${escHtml(p.name)}${paxCount ? ` — ${paxCount} pax` : ''} (&#8369;${Number(p.price).toLocaleString('en-PH')})${isAvail ? '' : ' — Not Available'}</option>`;
+      const courseTag = limit > 0 ? `${limit} Main Courses` : 'All Included';
+      return `<option value="${escHtml(p.name)}" data-price="${p.price}" data-max="${paxCount}" data-limit="${limit}" data-available="${isAvail ? '1' : '0'}" data-unavailable="${unavailJson}">${escHtml(p.name)} (${courseTag}${paxCount ? ` · ${paxCount} pax` : ''}) — &#8369;${Number(p.price).toLocaleString('en-PH')}${isAvail ? '' : ' — Not Available'}</option>`;
     }).join('');
   updatePackageAvailabilityNotice();
+  renderCustomerMenuPicker();
+}
+
+function getSelectedMainDishes() {
+  return Array.from(document.querySelectorAll('#customer-menu-picker input[type="checkbox"]:checked'))
+    .map(cb => cb.value);
+}
+
+function renderCustomerMenuPicker() {
+  const box = document.getElementById('customer-menu-picker');
+  if (!box) return;
+  const opt = packageSelect.options[packageSelect.selectedIndex];
+  if (!opt || !opt.value) {
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  const limit = Math.max(0, parseInt(opt.dataset.limit || '0', 10) || 0);
+  const desserts = customerDishes.filter(d => String(d.category || '').toLowerCase() === 'dessert');
+  const mainDishes = customerDishes.filter(d => String(d.category || '').toLowerCase() !== 'dessert');
+  const groups = {};
+  mainDishes.forEach(d => {
+    if (!groups[d.category]) groups[d.category] = [];
+    groups[d.category].push(d);
+  });
+
+  if (!mainDishes.length && !desserts.length) {
+    box.style.display = 'none';
+    return;
+  }
+
+  const dessertHtml = desserts.length
+    ? `<div class="menu-picker-desserts">&#127856; <strong>Included Desserts (All Included Automatically):</strong> ${desserts.map(d => escHtml(d.name)).join(', ')}</div>`
+    : '';
+
+  if (limit === 0) {
+    box.style.display = 'block';
+    box.innerHTML = `
+      <div class="menu-picker-head">
+        <strong>${escHtml(opt.value)} — All Main Courses &amp; Desserts Included</strong>
+        <span style="font-size:12px;font-weight:700;color:#1e6b34;background:#e6f4ea;padding:3px 10px;border-radius:999px">All ${mainDishes.length} Main Courses Included</span>
+      </div>
+      ${dessertHtml}
+      <div style="font-size:12.5px;color:#5a4a33">${Object.entries(groups).map(([c, list]) => `<strong>${escHtml(c)}:</strong> ${list.map(x => escHtml(x.name)).join(', ')}`).join('<br>')}</div>`;
+    updateCustomerPricing();
+    return;
+  }
+
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div class="menu-picker-head">
+      <div>
+        <strong>Select Your Preferred Main Courses (${limit} included in ${escHtml(opt.value)})</strong><br>
+        <small style="color:#65523b">Choose at least ${limit} main courses. Additional dishes beyond ${limit} add <strong>+&#8369;2,000</strong> per dish.</small>
+      </div>
+      <span id="menu-picker-counter" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:#f4e6cc;color:#76501c">0 / ${limit} selected</span>
+    </div>
+    ${dessertHtml}
+    <div class="menu-picker-groups">
+      ${Object.entries(groups).map(([cat, list]) => `
+        <div class="menu-picker-cat">
+          <h5>${escHtml(cat)}</h5>
+          ${list.map(d => `<label class="menu-picker-item"><input type="checkbox" value="${escHtml(d.name)}"><span>${escHtml(d.name)}</span></label>`).join('')}
+        </div>`).join('')}
+    </div>`;
+
+  box.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      updateMenuPickerCounter();
+      updateCustomerPricing();
+    });
+  });
+  updateMenuPickerCounter();
+  updateCustomerPricing();
+}
+
+function updateMenuPickerCounter() {
+  const counterEl = document.getElementById('menu-picker-counter');
+  if (!counterEl) return;
+  const opt = packageSelect.options[packageSelect.selectedIndex];
+  const limit = Math.max(0, parseInt(opt?.dataset?.limit || '0', 10) || 0);
+  const chosen = getSelectedMainDishes().length;
+  const extra = limit > 0 ? Math.max(0, chosen - limit) : 0;
+  if (extra > 0) {
+    counterEl.style.background = '#fff3dc';
+    counterEl.style.color = '#92400e';
+    counterEl.textContent = `${chosen} / ${limit} (+${extra} extra × ₱2,000 = +₱${(extra * EXTRA_MENU_RATE).toLocaleString('en-PH')})`;
+  } else if (chosen >= limit) {
+    counterEl.style.background = '#e6f4ea';
+    counterEl.style.color = '#1e6b34';
+    counterEl.textContent = `${chosen} / ${limit} selected`;
+  } else {
+    counterEl.style.background = '#f4e6cc';
+    counterEl.style.color = '#76501c';
+    counterEl.textContent = `${chosen} / ${limit} selected (need ${limit - chosen} more)`;
+  }
 }
 
 function updatePackageAvailabilityNotice() {
@@ -997,9 +1129,13 @@ function getSelectedPackageDetails() {
   const opt = packageSelect.options[packageSelect.selectedIndex];
   const basePrice = parseFloat(opt?.dataset?.price || 0);
   const basePax = parseInt(opt?.dataset?.max || 0, 10) || 0;
+  const menuLimit = Math.max(0, parseInt(opt?.dataset?.limit || '0', 10) || 0);
   const addGuests = Math.max(0, parseInt(document.getElementById('additional-guests')?.value || '0', 10) || 0);
-  const adjustedPrice = basePrice ? basePrice + (addGuests * ADDITIONAL_GUEST_RATE) : 0;
-  return { name: opt?.value || '', basePrice, basePax, addGuests, adjustedPrice };
+  const chosenMainDishes = getSelectedMainDishes();
+  const extraMenus = menuLimit > 0 ? Math.max(0, chosenMainDishes.length - menuLimit) : 0;
+  const extraMenuCost = extraMenus * EXTRA_MENU_RATE;
+  const adjustedPrice = basePrice ? basePrice + (addGuests * ADDITIONAL_GUEST_RATE) + extraMenuCost : 0;
+  return { name: opt?.value || '', basePrice, basePax, menuLimit, addGuests, chosenMainDishes, extraMenus, extraMenuCost, adjustedPrice };
 }
 function checkGuests() {
   const input = document.getElementById('additional-guests');
@@ -1069,9 +1205,10 @@ function updateCustomerPricing() {
     return;
   }
   payInfoBox.style.display = 'flex';
-  const extraLabel = info.addGuests > 0
-    ? ` (Base \u20b1${info.basePrice.toLocaleString('en-PH')} + ${info.addGuests} extra \u00d7 \u20b1350)`
-    : '';
+  const notes = [];
+  if (info.addGuests > 0) notes.push(`${info.addGuests} extra guests × ₱350`);
+  if (info.extraMenus > 0) notes.push(`${info.extraMenus} extra menu(s) × ₱2,000`);
+  const extraLabel = notes.length ? ` (Base ₱${info.basePrice.toLocaleString('en-PH')} + ${notes.join(' + ')})` : '';
   totalPriceEl.textContent = 'Total Price: \u20b1' + info.adjustedPrice.toLocaleString('en-PH') + extraLabel;
   downPayEl.textContent    = 'Down Payment (20%): \u20b1' + Math.round(info.adjustedPrice * 0.2).toLocaleString('en-PH');
 }
@@ -1084,6 +1221,7 @@ document.getElementById('event-date').addEventListener('change', checkEventDate)
 
 packageSelect.addEventListener('change', function() {
   updatePackageAvailabilityNotice();
+  renderCustomerMenuPicker();
   updateCustomerPricing();
 });
 
@@ -1214,16 +1352,65 @@ function requestSectionHtml(booking) {
   return html;
 }
 
+function openCustReceiptModal(url, title) {
+  if (!url) return;
+  if (window.Swal) {
+    Swal.fire({
+      title: title || 'Receipt Preview',
+      imageUrl: url,
+      imageAlt: title || 'Receipt',
+      confirmButtonText: 'Close',
+      confirmButtonColor: '#3A2D1A',
+      footer: `<a href="${escHtml(url)}" target="_blank" rel="noopener" style="color:#76501c;font-weight:600">Open Full Image in New Tab</a>`
+    });
+  } else {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+function formatCustSelectedMenus(raw) {
+  if (!raw) return '';
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (parsed && (Array.isArray(parsed.main) || Array.isArray(parsed.desserts))) {
+      const parts = [];
+      if (Array.isArray(parsed.main) && parsed.main.length) parts.push('<strong>Main Courses:</strong> ' + parsed.main.map(escHtml).join(', '));
+      if (Array.isArray(parsed.desserts) && parsed.desserts.length) parts.push('<strong>Desserts:</strong> ' + parsed.desserts.map(escHtml).join(', '));
+      return parts.join('<br>');
+    }
+  } catch (e) {}
+  return escHtml(String(raw));
+}
+
 function paymentSectionHtml(booking) {
   const status = (booking.status || 'pending').toLowerCase();
   const amount = booking.amountDue != null ? '\u20b1' + Number(booking.amountDue).toLocaleString('en-PH') : '';
-  if (status === 'cancelled' && !booking.paymentProof) {
-    return '<div class="customer-booking-pay" style="margin-top:10px;color:#c0392b"><strong>Payment not received within 24 hours. This booking was cancelled.</strong></div>';
+  const payReceiptBtn = booking.paymentProof
+    ? ` <button type="button" class="cust-receipt-btn" style="background:#f4efe3;color:#5a4300;border-color:#c9a24a" onclick="openCustReceiptModal('${escHtml(booking.paymentProof).replace(/'/g, "\\'")}', 'Payment Receipt')">View Payment Receipt</button>`
+    : '';
+  if (status === 'cancelled') {
+    if (booking.refund_receipt) {
+      return `<div class="customer-booking-pay" style="margin-top:10px;padding:12px;border:1px solid #bce0c7;border-radius:8px;background:#edf7f0;color:#155e34">
+        <span class="pay-badge paid">REFUND RECEIPT UPLOADED</span> <strong>Your cancellation refund receipt is ready.</strong><br>
+        <button type="button" class="cust-receipt-btn" onclick="openCustReceiptModal('${escHtml(booking.refund_receipt).replace(/'/g, "\\'")}', 'Cancellation Refund Receipt')">View Refund Receipt</button>${payReceiptBtn}
+      </div>`;
+    }
+    if (String(booking.requestDecision || '').toLowerCase() === 'approved' && (isBookingPaid(booking) || booking.paymentOption === 'full')) {
+      return `<div class="customer-booking-pay" style="margin-top:10px;padding:10px 12px;border:1px solid #d9c39a;border-radius:8px;background:#fffaf0;color:#5a4300">
+        <strong>Cancellation approved.</strong> Our Manager will upload your refund receipt here once processed.${payReceiptBtn}
+      </div>`;
+    }
+    if (!booking.paymentProof) {
+      return '<div class="customer-booking-pay" style="margin-top:10px;color:#c0392b"><strong>Payment not received within 24 hours. This booking was cancelled.</strong></div>';
+    }
+    return `<div class="customer-booking-pay" style="margin-top:10px">${payReceiptBtn}</div>`;
   }
-  if (status !== 'pending') return '';
+  if (status !== 'pending') {
+    return booking.paymentProof ? `<div class="customer-booking-pay" style="margin-top:10px"><span class="pay-badge paid">PAID</span>${payReceiptBtn}</div>` : '';
+  }
   if (booking.paymentProof || isBookingPaid(booking)) {
     const refText = booking.gcashRef ? ` &middot; Ref: <strong>${escHtml(booking.gcashRef)}</strong>` : '';
-    return `<div class="customer-booking-pay" style="margin-top:10px"><span class="pay-badge paid">RECEIPT SUBMITTED</span> <strong>Receipt received for review.${refText}</strong> Our staff will verify your payment and confirm your booking shortly.</div>`;
+    return `<div class="customer-booking-pay" style="margin-top:10px"><span class="pay-badge paid">RECEIPT SUBMITTED</span> <strong>Receipt received for review.${refText}</strong> Our staff will verify your payment and confirm your booking shortly.${payReceiptBtn}</div>`;
   }
   const dueLine = amount ? `<strong>Payment needed: ${amount}</strong>` : '<strong>Payment not sent yet</strong>';
   const timerLine = Number(booking.paymentSecondsLeft) > 0 ? ` &mdash; time left: <strong>${formatTimeLeft(Number(booking.paymentSecondsLeft))}</strong>` : '';
@@ -1596,10 +1783,11 @@ async function renderCustomerBookings() {
             <span class="customer-booking-status">${(booking.status || 'pending').toUpperCase()}</span>
           </div>
           <div class="customer-booking-meta">
-            <div><strong>Date:</strong> ${date}</div>
+            <div><strong>Date:</strong> ${date}${booking.eventTime ? ' at ' + escHtml(String(booking.eventTime).slice(0, 5)) : ''}</div>
             <div><strong>Guests:</strong> ${booking.guests || 0}</div>
             <div><strong>Phone:</strong> ${booking.phone || 'N/A'}</div>
             <div><strong>Address:</strong> ${escHtml(booking.address || 'N/A')}</div>
+            ${booking.selected_menus ? `<div style="grid-column:1/-1;margin-top:4px">${formatCustSelectedMenus(booking.selected_menus)}</div>` : ''}
           </div>
           ${paymentSectionHtml(booking)}
           ${requestSectionHtml(booking)}
@@ -1908,6 +2096,10 @@ document.getElementById('customerProfileModal').addEventListener('click', (event
 });
 document.getElementById('customerProfileForm').addEventListener('submit', async (event) => {
   event.preventDefault();
+  const name = document.getElementById('profileName').value;
+  const contact = document.getElementById('profileContact').value.trim();
+  if (!window.isRealName(name)) return showPopup('error', 'Invalid name', 'Please enter your real full name (first and last name).');
+  if (!/^09\d{9}$/.test(contact) || /^09(\d)\1{8}$/.test(contact)) return showPopup('error', 'Invalid contact number', 'Enter a valid 11-digit mobile number starting with 09.');
   const confirmed = await confirmPopup('Save profile changes?', 'Your customer details will be updated.');
   if (!confirmed) return;
   try {
@@ -2156,8 +2348,14 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
     resetBtn();
     return;
   }
-  if (!/^\d{11}$/.test(data.phone)) {
-    await showPopup('error', 'Invalid phone number', 'Phone number must be exactly 11 digits.');
+  if (!/^09\d{9}$/.test(String(data.phone).trim()) || /^09(\d)\1{8}$/.test(String(data.phone).trim()) || /^09(012345678|987654321)$/.test(String(data.phone).trim())) {
+    await showPopup('error', 'Invalid phone number', 'Enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).');
+    resetBtn();
+    return;
+  }
+  if (pkgInfo.menuLimit > 0 && pkgInfo.chosenMainDishes.length < pkgInfo.menuLimit) {
+    await showPopup('warning', 'Menu selection incomplete', `Please select at least ${pkgInfo.menuLimit} preferred main courses for ${data.package}. Additional dishes beyond ${pkgInfo.menuLimit} add ₱2,000 each.`);
+    document.getElementById('customer-menu-picker')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     resetBtn();
     return;
   }
@@ -2175,12 +2373,16 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
 
   const pkgPrice = pkgInfo.adjustedPrice;
   const amountToPay = paymentOption === 'down' ? Math.round(pkgPrice * 0.2) : pkgPrice;
+  const menuSummaryLine = pkgInfo.menuLimit === 0
+    ? 'All Main Courses & All Desserts Included'
+    : `${pkgInfo.chosenMainDishes.join(', ')} + All Desserts${pkgInfo.extraMenus > 0 ? ` (+${pkgInfo.extraMenus} extra × ₱2,000)` : ''}`;
   const confirmation = await Swal.fire({
     title: 'Confirm your booking',
     html: `<div style="text-align:left;line-height:1.9">
       <div><strong>Name:</strong> ${escHtml(data.clientName)}</div>
       <div><strong>Event:</strong> ${escHtml(data.eventType)}</div>
       <div><strong>Package:</strong> ${escHtml(data.package)}${pkgInfo.addGuests > 0 ? ` (+${pkgInfo.addGuests} additional guests)` : ''}</div>
+      <div><strong>Selected Menu:</strong> ${escHtml(menuSummaryLine)}</div>
       <div><strong>Total Package Price:</strong> \u20b1${pkgPrice.toLocaleString('en-PH')}</div>
       <div><strong>Date:</strong> ${escHtml(data.eventDate)}${parsedTime ? ' at ' + escHtml(parsedTime.display) : ''}</div>
       <div><strong>Venue:</strong> ${escHtml(data.address)}</div>
@@ -2199,6 +2401,7 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
   }
   const formData = new FormData();
   Object.entries(data).forEach(([k, v]) => formData.append(k, v));
+  formData.append('selectedMenus', JSON.stringify(pkgInfo.chosenMainDishes));
   formData.append('paymentOption', paymentOption);
   formData.append('termsAccepted', document.getElementById('termsAccepted').checked ? 'true' : 'false');
   const receiptInput = document.getElementById('receipt-file');
@@ -2221,6 +2424,7 @@ document.getElementById('inquiryForm').addEventListener('submit', async (e) => {
         : '\u2713 Booking submitted successfully! Staff will verify your payment.';
       e.target.reset();
       clearReceiptPreview();
+      renderCustomerMenuPicker();
       updateAmountToPay();
       payInfoBox.style.display = 'none';
       btn.querySelector('.btn-text').textContent = '\u2713 Booking Sent!';

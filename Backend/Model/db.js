@@ -124,6 +124,13 @@ async function ensureExtraSchema() {
   if (!(await columnExists('Packages', 'max_guests'))) {
     await pool.query('ALTER TABLE Packages ADD COLUMN IF NOT EXISTS max_guests integer NOT NULL DEFAULT 0');
   }
+  if (!(await columnExists('Packages', 'main_course_limit'))) {
+    await pool.query('ALTER TABLE Packages ADD COLUMN IF NOT EXISTS main_course_limit integer NOT NULL DEFAULT 0');
+  }
+  if (!(await columnExists('Bookings', 'refund_receipt'))) {
+    await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS refund_receipt varchar(255)');
+    await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS selected_menus text');
+  }
   if (!(await columnExists('Bookings', 'additional_request'))) {
     await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS additional_request varchar(500)');
     await pool.query('ALTER TABLE Bookings ADD COLUMN IF NOT EXISTS additional_cost numeric(10, 2) NOT NULL DEFAULT 0');
@@ -230,6 +237,98 @@ async function ensureExtraSchema() {
     ON CONFLICT (role) DO NOTHING RETURNING role`);
   await require('./permissions').seedPermissions();
   await require('../Controller/dropdownsController').seedDropdowns();
+  await seedNardsMenuCatalog();
+}
+
+async function seedNardsMenuCatalog() {
+  if (typeof pool.connect !== 'function') return;
+  const SEED_KEY = 'nardsMenuCatalog_2026_11_v1';
+  const [done] = await pool.query('SELECT settingKey FROM Settings WHERE settingKey = ? LIMIT 1', [SEED_KEY]);
+  if (done.length) return;
+
+  const DISHES = [
+    ['Chicken', 'Cordon Blue'],
+    ['Chicken', 'Chicken Fillet'],
+    ['Chicken', 'Chicken Caldereta'],
+    ['Chicken', 'Chicken Teriyaki'],
+    ['Chicken', 'Chicken Pastel'],
+    ['Chicken', 'Chicken Buffalo'],
+    ['Chicken', 'Chicken Hamonado'],
+    ['Chicken', 'Chicken Pininyahan'],
+    ['Veggies', 'Chopsuey'],
+    ['Veggies', 'Mix Veg'],
+    ['Veggies', 'Lumpia Sariwa'],
+    ['Veggies', 'Lumpiang Hubad (Sariwa)'],
+    ['Veggies', 'Laing Special'],
+    ['Veggies', 'Mix Veg with Butter'],
+    ['Pork', 'Pork Menudo'],
+    ['Pork', 'Pork Caldereta'],
+    ['Pork', 'Pork Teriyaki'],
+    ['Pork', 'Pork Mechado'],
+    ['Pork', 'Pork w/ Mushroom'],
+    ['Pork', 'Pork w/ Broccoli'],
+    ['Pork', 'Pork Hamonado'],
+    ['Pork', 'Pork w/ Oyster Sauce w/ Pugo'],
+    ['Pork', 'Spare Ribs w/ BBQ Sauce'],
+    ['Pork', 'Pork BBQ'],
+    ['Seafoods', 'Fish Fillet w/ Sweet & Sour Sauce'],
+    ['Seafoods', 'Pinaputok na Tilapia'],
+    ['Seafoods', 'Fish Fillet'],
+    ['Seafoods', 'Mix Seafoods w/ Butter'],
+    ['Dessert', 'Buko Pandan'],
+    ['Dessert', 'Mango Tapioca'],
+    ['Dessert', 'Coffee Jelly']
+  ];
+
+  const PACKAGES = [
+    { name: 'Package A', price: 25000, limit: 3, popular: 0, freebies: ['Nard\'s Design & Setup', '3 Main Courses + All Desserts Included', 'Extra Dish Option (+₱2,000/dish)'] },
+    { name: 'Package B', price: 35000, limit: 5, popular: 0, freebies: ['Nard\'s Design & Setup', '5 Main Courses + All Desserts Included', 'Extra Dish Option (+₱2,000/dish)'] },
+    { name: 'Package C', price: 48000, limit: 8, popular: 1, freebies: ['Nard\'s Design & Setup', '8 Main Courses + All Desserts Included', 'Extra Dish Option (+₱2,000/dish)'] },
+    { name: 'Package D', price: 75000, limit: 0, popular: 0, freebies: ['Nard\'s Complete Full Design & Setup', 'All 28 Main Courses Included', 'All 3 Desserts Included'] }
+  ];
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('DELETE FROM PackageDishes');
+    await conn.query('DELETE FROM PackageAssets');
+    await conn.query('DELETE FROM PackageFreebies');
+    await conn.query('DELETE FROM Packages');
+    await conn.query('DELETE FROM Dishes');
+
+    const insertedDishes = [];
+    for (const [category, name] of DISHES) {
+      const [res] = await conn.query(
+        'INSERT INTO Dishes (name, category, is_archived) VALUES (?, ?, 0)',
+        [name, category]
+      );
+      insertedDishes.push({ id: res.insertId, category, name });
+    }
+    const dessertDishes = insertedDishes.filter((d) => d.category === 'Dessert');
+
+    for (const pkg of PACKAGES) {
+      const [pRes] = await conn.query(
+        'INSERT INTO Packages (name, price, min_guests, max_guests, main_course_limit, is_archived, is_popular) VALUES (?, ?, 0, 100, ?, 0, ?)',
+        [pkg.name, pkg.price, pkg.limit, pkg.popular]
+      );
+      const pkgId = pRes.insertId;
+      for (const f of pkg.freebies) {
+        await conn.query('INSERT INTO PackageFreebies (package_id, name) VALUES (?, ?)', [pkgId, f]);
+      }
+      // Every package includes all desserts; Package D includes all main courses too.
+      const dishesToLink = pkg.limit === 0 ? insertedDishes : dessertDishes;
+      for (const d of dishesToLink) {
+        await conn.query('INSERT INTO PackageDishes (package_id, dish_id) VALUES (?, ?)', [pkgId, d.id]);
+      }
+    }
+    await conn.query("INSERT INTO Settings (settingKey, settingValue) VALUES (?, 'done')", [SEED_KEY]);
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    console.error('seedNardsMenuCatalog error:', err.message);
+  } finally {
+    conn.release();
+  }
 }
 async function ensureAdminAccount() {
   await verifyConnection();

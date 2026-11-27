@@ -588,8 +588,9 @@
     <div class="form-grid">
       <div class="form-group full"><label>Package Name *</label><input id="mn-name" type="text" placeholder="e.g. Gold Package"></div>
       <div class="form-group"><label>Price for Package (₱) *</label><input id="mn-price" type="number" min="0" placeholder="25000"></div>
-      <div class="form-group"><label>Min. Guests</label><input id="mn-min" type="number" min="0" placeholder="50"></div>
-      <div class="form-group"><label>Max. Guests (0 for no limit)</label><input id="mn-max" type="number" min="0" placeholder="0"></div>
+      <div class="form-group"><label>Min. Guests</label><input id="mn-min" type="number" min="0" placeholder="0"></div>
+      <div class="form-group"><label>Max. Guests (0 for no limit)</label><input id="mn-max" type="number" min="0" placeholder="100"></div>
+      <div class="form-group"><label>Main Courses Included (0 = All)</label><input id="mn-limit" type="number" min="0" placeholder="e.g. 3, 5, 8"></div>
     </div>
 
     
@@ -1197,6 +1198,8 @@ function paymentFieldsFromRow(row) {
     amountDue: row.amountDue != null ? Number(row.amountDue) : null,
     gcashRef: row.gcashRef || '',
     paymentProof: row.paymentProof || '',
+    refundReceipt: row.refund_receipt || '',
+    selectedMenus: row.selected_menus || '',
     addReq: row.additional_request || '',
     addCost: Number(row.additional_cost) || 0,
     addGuests: Number(row.additional_guests) || 0,
@@ -1418,6 +1421,8 @@ async function openMenuModal(packageId) {
   document.getElementById('mn-price').value = '';
   document.getElementById('mn-min').value   = '';
   document.getElementById('mn-max').value   = '';
+  const limitEl = document.getElementById('mn-limit');
+  if (limitEl) limitEl.value = '';
   document.getElementById('mn-assets-container').innerHTML = '';
   document.getElementById('mn-dishes-container').innerHTML = '';
   document.getElementById('mn-freebies-container').innerHTML = '';
@@ -1434,6 +1439,7 @@ async function openMenuModal(packageId) {
       document.getElementById('mn-price').value = pkg.price;
       document.getElementById('mn-min').value   = pkg.min_guests;
       document.getElementById('mn-max').value   = pkg.max_guests || 0;
+      if (limitEl) limitEl.value = pkg.main_course_limit || 0;
       (pkg.assets   || []).forEach(a => addAssetRow(a.asset_id, a.qty_required));
       (pkg.dishes   || []).forEach(d => addDishRow(d.dish_id));
       (pkg.freebies || []).forEach(f => addFreebieRow(f.name));
@@ -1561,6 +1567,7 @@ async function saveIngredient() {
   const stock = document.getElementById('ing-stock').value;
   const min   = document.getElementById('ing-min').value;
   if (!name || stock === '' || min === '') { notify('Please fill required fields', '⚠️'); return; }
+  if (typeof window.isValidHumanText === 'function' && !window.isValidHumanText(name, 2)) { notify('Enter a valid ingredient name (letters required).', '⚠️'); return; }
 
   if (editIdx.ingredient < 0) await syncInventoryFromAPI();
   const duplicate = data.inventory.find((item, index) =>
@@ -1692,7 +1699,8 @@ async function saveMenu() {
     const name = row.querySelector('.freebie-row-input').value.trim();
     if (name) freebies.push({ name });
   }
-  const body = { name, price: parseFloat(price), min_guests: parseInt(minGuests) || 0, max_guests: parseInt(maxGuests) || 0, assets, dishes, freebies };
+  const mainCourseLimit = Math.max(0, parseInt(document.getElementById('mn-limit')?.value, 10) || 0);
+  const body = { name, price: parseFloat(price), min_guests: parseInt(minGuests) || 0, max_guests: parseInt(maxGuests) || 0, main_course_limit: mainCourseLimit, assets, dishes, freebies };
   try {
     const url    = editPackageId ? `${API}/packages/${editPackageId}` : `${API}/packages`;
     const method = editPackageId ? 'PUT' : 'POST';
@@ -1715,10 +1723,14 @@ async function saveMenu() {
 function saveClient() {
   const name  = document.getElementById('cl-name').value.trim();
   const phone = document.getElementById('cl-phone').value.trim();
+  const email = document.getElementById('cl-email').value.trim();
+  const addr  = document.getElementById('cl-addr').value.trim();
   if (!name || !phone) { notify('Fill required fields', '⚠️'); return; }
   if (!window.isRealName(name)) { notify('Enter the client\'s real full name.', '⚠️'); return; }
-  if (!/^\d{11}$/.test(phone)) { notify('Contact number must be exactly 11 digits.', '⚠️'); return; }
-  data.clients.push({ id: uid('CL'), name, phone, email: document.getElementById('cl-email').value.trim(), address: document.getElementById('cl-addr').value.trim() });
+  if (typeof window.isValidPhone === 'function' ? !window.isValidPhone(phone) : !/^09\d{9}$/.test(phone)) { notify('Contact number must start with 09 and be a valid 11-digit mobile number.', '⚠️'); return; }
+  if (email && typeof window.isValidEmail === 'function' && !window.isValidEmail(email)) { notify('Enter a valid email address.', '⚠️'); return; }
+  if (addr && typeof window.isValidHumanText === 'function' && !window.isValidHumanText(addr, 5)) { notify('Enter a valid address.', '⚠️'); return; }
+  data.clients.push({ id: uid('CL'), name, phone, email, address: addr });
   saveData();
   closeModal('client-modal');
   renderClients();
@@ -1901,6 +1913,15 @@ async function resolveRequest(id, decision) {
       await fetchAssets();
     }
     saveData(); renderBookings(); showConfirmation(b);
+    if (decision === 'approved' && b.requestType === 'cancel' && (b.paid || b.paymentProof || b.paymentOption) && window.openRefundReceiptModal) {
+      const goUpload = await confirmAction('Cancellation Approved — Upload Refund Receipt?', {
+        icon: 'info',
+        text: 'Would you like to upload the refund receipt now so the client can view it on their dashboard?',
+        confirmButtonText: 'Upload Refund Receipt',
+        confirmButtonColor: '#2d7a3a'
+      });
+      if (goUpload) await window.openRefundReceiptModal(b.id);
+    }
   } catch (e) {
     notify('Could not reach the server.', '❌');
   }
@@ -2924,6 +2945,8 @@ async function saveAsset() {
   const quantity = document.getElementById('ast-qty').value;
   const unit     = document.getElementById('ast-unit').value;
   if (!name || quantity === '') { notify('Fill required fields', '⚠️'); return; }
+  if (typeof window.isValidHumanText === 'function' && !window.isValidHumanText(name, 2)) { notify('Enter a valid asset name (letters required).', '⚠️'); return; }
+  if (!Number.isInteger(Number(quantity)) || Number(quantity) < 0) { notify('Asset quantity must be a whole number (0 or greater).', '⚠️'); return; }
   const duplicate = assetsList.find(asset => asset.id !== editAssetId
     && String(asset.name || '').trim().toLowerCase() === name.toLowerCase());
   if (duplicate) {
@@ -3110,6 +3133,7 @@ async function saveDish() {
   const name     = document.getElementById('dsh-name').value.trim();
   const category = document.getElementById('dsh-cat').value;
   if (!name) { notify('Dish name is required', '⚠️'); return; }
+  if (typeof window.isValidHumanText === 'function' && !window.isValidHumanText(name, 2)) { notify('Enter a valid dish name (letters required).', '⚠️'); return; }
   const duplicate = dishesList.find(dish => dish.id !== editDishId
     && String(dish.name || '').trim().toLowerCase() === name.toLowerCase());
   if (duplicate) {

@@ -2,6 +2,7 @@
 const LETTERS = 'A-Za-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u00FF';
 const NAME_PATTERN = new RegExp(`^[${LETTERS}][${LETTERS}.'\\- ]*$`);
 const KEYBOARD_RUNS = ['qwert', 'werty', 'asdf', 'sdfg', 'dfgh', 'fghj', 'ghjk', 'hjkl', 'zxcv', 'xcvb', 'cvbn', 'vbnm', 'abcd', 'bcde', 'cdef', 'defg', 'efgh', 'fghi', 'ghij', 'hijk', 'ijkl', 'jklm', 'klmn', 'lmno', 'mnop', 'nopq', 'opqr', 'pqrs', 'qrst', 'rstu', 'stuv', 'tuvw', 'uvwx', 'vwxy', 'wxyz'];
+const FAKE_WORDS = new Set(['na', 'none', 'nil', 'null', 'anon', 'anonymous', 'unknown', 'sample', 'dummy', 'fake', 'asdf', 'qwer', 'zxcv', 'qwerty', 'admin', 'user']);
 
 function isRealName(value) {
   const name = String(value || '').trim().replace(/\s+/g, ' ');
@@ -12,6 +13,7 @@ function isRealName(value) {
   if (realWords.length < 2) return false;
 
   return realWords.every((w) =>
+    !FAKE_WORDS.has(w) &&
     /[aeiouyàáâãäåèéêëìíîïòóôõöùúûüñ]/.test(w) &&
     !/(.)\1\1/.test(w) &&
     !/[^aeiouyàáâãäåèéêëìíîïòóôõöùúûüñ]{5,}/.test(w) &&
@@ -19,9 +21,25 @@ function isRealName(value) {
   );
 }
 
-const isElevenDigitPhone = (value) => /^09\d{9}$/.test(String(value || '').trim());
+const isElevenDigitPhone = (value) => {
+  const s = String(value || '').trim();
+  if (!/^09\d{9}$/.test(s)) return false;
+  if (/^09(\d)\1{8}$/.test(s)) return false;
+  if (/^09(012345678|987654321)$/.test(s)) return false;
+  return true;
+};
 
 const isValidEmail = (value) => /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(String(value || '').trim());
+
+const isValidHumanText = (value, minLen = 2) => {
+  const s = String(value || '').trim();
+  if (s.length < minLen) return false;
+  if (!/[A-Za-z\u00C0-\u00FF]/.test(s)) return false;
+  if (/(.)\1{4,}/.test(s)) return false;
+  const lowered = s.toLowerCase();
+  if (['na', 'n/a', 'none', 'asdf', 'qwerty', 'zxcv', 'xxxx', 'test'].includes(lowered)) return false;
+  return true;
+};
 
 // Events may start from opening time until closing time (8:00 AM - 6:00 PM).
 const OPENING_MINUTES = 8 * 60;
@@ -60,4 +78,4 @@ function isWithinBusinessHours(time) {
   return parseBusinessTime(time) !== null;
 }
 
-module.exports = { isRealName, isElevenDigitPhone, isValidEmail, isWithinBusinessHours, parseBusinessTime };
+module.exports = { isRealName, isElevenDigitPhone, isValidEmail, isValidHumanText, isWithinBusinessHours, parseBusinessTime };
